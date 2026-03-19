@@ -5,13 +5,14 @@ export class GameManager {
   private worldContainer: Container;
   private player!: Sprite;
   private monsters: Sprite[] = [];
-  private bullets: Sprite[] = [];
+  private bullets: { sprite: Sprite, vx: number, vy: number, isEnemy: boolean }[] = [];
   private keys: Record<string, boolean> = {};
   private spawnInterval: NodeJS.Timeout | null = null;
 
   // Animations
   private slimeTextures: Record<string, Texture[]> = {};
   private goblinTextures: Record<string, Texture[]> = {};
+  private goblinBlueTextures: Record<string, Texture[]> = {};
 
   // Player State
   private playerHP = 10;
@@ -104,12 +105,30 @@ export class GameManager {
       dead2: [await Assets.load('/assets/enemies/goblin_dead2.svg')],
       dead3: [await Assets.load('/assets/enemies/goblin_dead3.svg')],
     };
+    this.goblinBlueTextures = {
+      run: [
+        await Assets.load('/assets/enemies/goblin_blue_run1.svg'),
+        await Assets.load('/assets/enemies/goblin_blue_run2.svg'),
+        await Assets.load('/assets/enemies/goblin_blue_run3.svg'),
+        await Assets.load('/assets/enemies/goblin_blue_run4.svg')
+      ],
+      dead1: [await Assets.load('/assets/enemies/goblin_blue_dead1.svg')],
+      dead2: [await Assets.load('/assets/enemies/goblin_blue_dead2.svg')],
+      dead3: [await Assets.load('/assets/enemies/goblin_blue_dead3.svg')],
+    };
+    
+    this.weaponTextures.ebullet = await Assets.load('/assets/character/ebullet.svg');
+    this.weaponTextures.ebullet.source.scaleMode = 'nearest';
     
     this.goblinTextures.idle.forEach((t: any) => t.source.scaleMode = 'nearest');
     this.goblinTextures.run.forEach((t: any) => t.source.scaleMode = 'nearest');
+    this.goblinBlueTextures.run.forEach((t: any) => t.source.scaleMode = 'nearest');
     this.goblinTextures.dead1[0].source.scaleMode = 'nearest';
     this.goblinTextures.dead2[0].source.scaleMode = 'nearest';
     this.goblinTextures.dead3[0].source.scaleMode = 'nearest';
+    this.goblinBlueTextures.dead1[0].source.scaleMode = 'nearest';
+    this.goblinBlueTextures.dead2[0].source.scaleMode = 'nearest';
+    this.goblinBlueTextures.dead3[0].source.scaleMode = 'nearest';
   }
 
   private setupPlayer() {
@@ -150,12 +169,15 @@ export class GameManager {
     const x = this.player.x + Math.cos(angle) * distance;
     const y = this.player.y + Math.sin(angle) * distance;
 
-    const monster = new Sprite(this.goblinTextures.run[0]);
+    const isRanged = Math.random() > 0.5;
+    const monster = new Sprite(isRanged ? this.goblinBlueTextures.run[0] : this.goblinTextures.run[0]);
     monster.anchor.set(0.5, 1);
     monster.scale.set(4);
     monster.x = x;
     monster.y = y;
     
+    (monster as any).type = isRanged ? 'ranged' : 'melee';
+    (monster as any).attackTimer = Math.random() * 60 + 60; // 1-2 seconds initially
     (monster as any).jitterAngle = 0;
     (monster as any).jitterTimer = 0;
     (monster as any).hp = 50;
@@ -194,11 +216,11 @@ export class GameManager {
     const finalAngle = baseAngle + spread;
 
     bullet.rotation = finalAngle;
-    (bullet as any).vx = Math.cos(finalAngle) * 15; // Fast bullet
-    (bullet as any).vy = Math.sin(finalAngle) * 15;
+    const vx = Math.cos(finalAngle) * 15; // Fast bullet
+    const vy = Math.sin(finalAngle) * 15;
 
     this.worldContainer.addChild(bullet);
-    this.bullets.push(bullet);
+    this.bullets.push({ sprite: bullet, vx, vy, isEnemy: false });
   }
 
   private update(dt: number) {
@@ -235,9 +257,10 @@ export class GameManager {
       (c as any).life -= dt;
       const life = (c as any).life;
       
-      if (life > 170) c.texture = this.goblinTextures.dead1[0];
-      else if (life > 160) c.texture = this.goblinTextures.dead2[0];
-      else c.texture = this.goblinTextures.dead3[0];
+      const textures = (c as any).isRanged ? this.goblinBlueTextures : this.goblinTextures;
+      if (life > 170) c.texture = textures.dead1[0];
+      else if (life > 160) c.texture = textures.dead2[0];
+      else c.texture = textures.dead3[0];
 
       if (life < 60) c.alpha = (life / 60) * 0.8;
       if (life <= 0) {
@@ -331,70 +354,78 @@ export class GameManager {
     // Process Bullets
     for (let i = this.bullets.length - 1; i >= 0; i--) {
       const b = this.bullets[i];
-      b.zIndex = b.y;
+      b.sprite.zIndex = b.sprite.y;
 
-      b.x += (b as any).vx * dt;
-      b.y += (b as any).vy * dt;
+      b.sprite.x += b.vx * dt;
+      b.sprite.y += b.vy * dt;
 
-      // Check bullet collision with monsters
       let hit = false;
-      for (let j = this.monsters.length - 1; j >= 0; j--) {
-        const monster = this.monsters[j];
-        // Shift monster target Y up by 24 pixels to match center of mass instead of feet
-        if (Math.hypot(b.x - monster.x, b.y - (monster.y - 24)) < 40) {
+      
+      if (b.isEnemy) {
+        // Enemy bullet hitting player (center of mass radius 24)
+        if (Math.hypot(b.sprite.x - this.player.x, b.sprite.y - (this.player.y - 24)) < 24 && !this.isInvulnerable) {
           hit = true;
-          
-          // Apply 30 damage
-          (monster as any).hp -= 30;
+          this.playerHP -= 2;
+          this.isInvulnerable = true;
+          this.invulnerableTimer = 60;
+        }
+      } else {
+        // Player bullet hitting monsters
+        for (let j = this.monsters.length - 1; j >= 0; j--) {
+          const monster = this.monsters[j];
+          // Shift monster target Y up by 24 pixels to match center of mass instead of feet
+          if (Math.hypot(b.sprite.x - monster.x, b.sprite.y - (monster.y - 24)) < 40) {
+            hit = true;
+            (monster as any).hp -= 30;
 
-          // Damage Popup
-          const style = new TextStyle({
-            fontFamily: 'Arial',
-            fontSize: 24,
-            fill: '#ffaa00',
-            stroke: { color: '#550000', width: 4 },
-            fontWeight: 'bold',
-          });
-          const dmgText = new Text({ text: '30', style });
-          dmgText.anchor.set(0.5, 0.5);
-          dmgText.x = monster.x + (Math.random() * 20 - 10);
-          dmgText.y = monster.y - 40;
-          dmgText.zIndex = monster.y + 100;
-          this.worldContainer.addChild(dmgText);
-          this.damagePopups.push({ sprite: dmgText, life: 30 }); // 30 frames duration
+            const style = new TextStyle({
+              fontFamily: 'Arial',
+              fontSize: 24,
+              fill: '#ffaa00',
+              stroke: { color: '#550000', width: 4 },
+              fontWeight: 'bold',
+            });
+            const dmgText = new Text({ text: '30', style });
+            dmgText.anchor.set(0.5, 0.5);
+            dmgText.x = monster.x + (Math.random() * 20 - 10);
+            dmgText.y = monster.y - 40;
+            dmgText.zIndex = monster.y + 100;
+            this.worldContainer.addChild(dmgText);
+            this.damagePopups.push({ sprite: dmgText, life: 30 });
 
-          // Death check
-          if ((monster as any).hp <= 0) {
-            // Spawn Corpse
-            const corpse = new Sprite(this.goblinTextures.dead1[0]);
-            corpse.anchor.set(0.5, 1);
-            corpse.scale.set(4);
-            corpse.scale.x = monster.scale.x; // retain facing dir
-            corpse.x = monster.x;
-            corpse.y = monster.y;
-            corpse.zIndex = monster.y - 5; // Lay on the floor
-            corpse.alpha = 0.8;
-            (corpse as any).life = 180; // Fade out after 3 seconds
-            
-            this.worldContainer.removeChild((monster as any).shadow);
-            (monster as any).shadow.destroy();
+            if ((monster as any).hp <= 0) {
+              const isRanged = (monster as any).type === 'ranged';
+              const textures = isRanged ? this.goblinBlueTextures : this.goblinTextures;
+              const corpse = new Sprite(textures.dead1[0]);
+              corpse.anchor.set(0.5, 1);
+              corpse.scale.set(4);
+              corpse.scale.x = monster.scale.x; 
+              corpse.x = monster.x;
+              corpse.y = monster.y;
+              corpse.zIndex = monster.y - 5;
+              corpse.alpha = 0.8;
+              (corpse as any).life = 180;
+              (corpse as any).isRanged = isRanged;
+              
+              this.worldContainer.removeChild((monster as any).shadow);
+              (monster as any).shadow.destroy();
+              this.worldContainer.addChild(corpse);
+              this.corpses.push(corpse);
 
-            this.worldContainer.addChild(corpse);
-            this.corpses.push(corpse);
-
-            this.worldContainer.removeChild(monster);
-            monster.destroy();
-            this.monsters.splice(j, 1);
+              this.worldContainer.removeChild(monster);
+              monster.destroy();
+              this.monsters.splice(j, 1);
+            }
+            break;
           }
-          break; // Bullet consumed
         }
       }
 
       // Remove bullet if hit or too far away
-      const distFromPlayer = Math.hypot(this.player.x - b.x, this.player.y - b.y);
-      if (hit || distFromPlayer > 1000) {
-        this.worldContainer.removeChild(b);
-        b.destroy();
+      const distFromPlayer = Math.hypot(this.player.x - b.sprite.x, this.player.y - b.sprite.y);
+      if (hit || distFromPlayer > 1500) {
+        this.worldContainer.removeChild(b.sprite);
+        b.sprite.destroy();
         this.bullets.splice(i, 1);
       }
     }
@@ -411,11 +442,43 @@ export class GameManager {
       
       // Animation ticks
       (monster as any).animTimer += dt * 0.15;
-      const frames = this.goblinTextures.run;
+      const frames = (monster as any).type === 'ranged' ? this.goblinBlueTextures.run : this.goblinTextures.run;
       monster.texture = frames[Math.floor((monster as any).animTimer) % frames.length];
 
       const trueAngle = Math.atan2(this.player.y - monster.y, this.player.x - monster.x);
+      const dist = Math.hypot(this.player.x - monster.x, this.player.y - monster.y);
       
+      let finalSpeed = monsterSpeed;
+      let finalAngle = trueAngle;
+      
+      // Distance Kiting for Ranged
+      if ((monster as any).type === 'ranged') {
+        if (dist < 200) {
+          finalAngle += Math.PI; // Run away
+        } else if (dist < 300) {
+          finalSpeed = 0; // Hold ground and aim
+        }
+        
+        // Attack logic
+        (monster as any).attackTimer -= dt;
+        if ((monster as any).attackTimer <= 0 && dist < 450) {
+          (monster as any).attackTimer = 90 + Math.random() * 60; // shoot ~every 1.5 to 2.5s
+          
+          const ebullet = new Sprite(this.weaponTextures.ebullet);
+          ebullet.anchor.set(0.5, 0.5);
+          ebullet.scale.set(3);
+          ebullet.x = monster.x;
+          ebullet.y = monster.y - 24;
+          
+          const spread = (Math.random() - 0.5) * 0.6; // Moderate spread
+          const angle = Math.atan2(this.player.y - 24 - ebullet.y, this.player.x - ebullet.x) + spread;
+          ebullet.rotation = angle;
+          
+          this.worldContainer.addChild(ebullet);
+          this.bullets.push({ sprite: ebullet, vx: Math.cos(angle) * 8, vy: Math.sin(angle) * 8, isEnemy: true });
+        }
+      }
+
       // Jitter logic for erratic movement
       (monster as any).jitterTimer -= dt;
       if ((monster as any).jitterTimer <= 0) {
@@ -423,18 +486,19 @@ export class GameManager {
         (monster as any).jitterTimer = 10 + Math.random() * 20; // Re-evaluate extremely quickly
       }
       
-      const finalAngle = trueAngle + (monster as any).jitterAngle;
-
-      monster.x += Math.cos(finalAngle) * monsterSpeed;
-      monster.y += Math.sin(finalAngle) * monsterSpeed * 0.75;
+      if (finalSpeed > 0) {
+        finalAngle += (monster as any).jitterAngle;
+        monster.x += Math.cos(finalAngle) * finalSpeed;
+        monster.y += Math.sin(finalAngle) * finalSpeed * 0.75;
+      }
 
       // Flip monster sprite based on true angle
       if (Math.cos(trueAngle) < 0) monster.scale.x = -4;
       else monster.scale.x = 4;
 
       // Collision detection with player
-      const dist = Math.hypot(this.player.x - monster.x, this.player.y - monster.y);
-      if (dist < 45 && !this.isInvulnerable) { 
+      // Tighten player hitbox to 24 pixels from center of body collision instead of feet
+      if (Math.hypot(this.player.x - monster.x, (this.player.y - 24) - (monster.y - 24)) < 24 && !this.isInvulnerable) { 
         this.playerHP -= 2;
         this.isInvulnerable = true;
         this.invulnerableTimer = 60; // Represents roughly 1 second at 60 FPS
@@ -460,7 +524,7 @@ export class GameManager {
       monster.zIndex = monster.y;
     }
     // Also rank bullets
-    for (const b of this.bullets) b.zIndex = b.y + 10;
+    for (const b of this.bullets) b.sprite.zIndex = b.sprite.y + 10;
 
     // Camera Tracking
     const screenCenter = { x: this.app.screen.width / 2, y: this.app.screen.height / 2 };

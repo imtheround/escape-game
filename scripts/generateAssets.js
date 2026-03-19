@@ -25,6 +25,8 @@ const colorMap = {
   'd': '#228B22', // Dark Goblin Green
   'o': '#8B0000', // Dark Goblin Red
   'c': '#00FFFF', // Cyan Plasma Trims
+  'u': '#0000CD', // Medium Blue Goblin Skin
+  'a': '#FF4500', // OrangeRed Enemy Tracer
 };
 
 function createSVG(grid) {
@@ -225,6 +227,35 @@ const gd3 = [
   "................"
 ];
 
+const bBlue = bBase.map(r => r.replace(/d/g, 'u').replace(/o/g, 'y'));
+const grB1 = bBlue;
+const grB2 = [ bBlue[0], ...bBlue.slice(0, 15) ]; 
+const grB3 = bBlue;
+const grB4 = [ ...bBlue.slice(1, 16), bBlue[0] ]; 
+
+const gdB1 = bBlue.map(r => r.replace(/u/g, 'r').replace(/w/g, 'r'));
+const gdB2 = gd2.map(r => r.replace(/d/g, 'u').replace(/o/g, 'y'));
+const gdB3 = gd3.map(r => r.replace(/d/g, 'u').replace(/o/g, 'y'));
+
+const ebulletFrame = [
+  "................",
+  "................",
+  "................",
+  "................",
+  "................",
+  "................",
+  ".......aa.......",
+  "......aaaa......",
+  "......aaaa......",
+  ".......aa.......",
+  "................",
+  "................",
+  "................",
+  "................",
+  "................",
+  "................"
+];
+
 const gun1 = [
   "................",
   "................",
@@ -281,7 +312,16 @@ fs.writeFileSync(path.join(enemiesDir, 'goblin_dead1.svg'), createSVG(gd1));
 fs.writeFileSync(path.join(enemiesDir, 'goblin_dead2.svg'), createSVG(gd2));
 fs.writeFileSync(path.join(enemiesDir, 'goblin_dead3.svg'), createSVG(gd3));
 
+fs.writeFileSync(path.join(enemiesDir, 'goblin_blue_run1.svg'), createSVG(grB1));
+fs.writeFileSync(path.join(enemiesDir, 'goblin_blue_run2.svg'), createSVG(grB2));
+fs.writeFileSync(path.join(enemiesDir, 'goblin_blue_run3.svg'), createSVG(grB3));
+fs.writeFileSync(path.join(enemiesDir, 'goblin_blue_run4.svg'), createSVG(grB4));
+fs.writeFileSync(path.join(enemiesDir, 'goblin_blue_dead1.svg'), createSVG(gdB1));
+fs.writeFileSync(path.join(enemiesDir, 'goblin_blue_dead2.svg'), createSVG(gdB2));
+fs.writeFileSync(path.join(enemiesDir, 'goblin_blue_dead3.svg'), createSVG(gdB3));
+
 fs.writeFileSync(path.join(characterDir, 'gun1.svg'), createSVG(gun1));
 fs.writeFileSync(path.join(characterDir, 'bullet.svg'), createSVG(bulletFrame));
+fs.writeFileSync(path.join(characterDir, 'ebullet.svg'), createSVG(ebulletFrame));
 
-console.log("All scaled SVGs generated specifically.");
+console.log("All styled SVGs, including 4-frame runs and blue variants, generated successfully in public/assets.");
