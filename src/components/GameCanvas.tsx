@@ -14,15 +14,24 @@ export default function GameCanvas({ mode }: GameCanvasProps) {
   useEffect(() => {
     if (!containerRef.current) return;
 
+    let isCancelled = false;
+    let manager: GameManager | null = null;
+
     const initPixi = async () => {
-      const manager = new GameManager(mode);
+      manager = new GameManager(mode);
       await manager.init(containerRef.current!);
-      gameManagerRef.current = manager;
+      if (isCancelled) {
+        manager.destroy();
+      } else {
+        gameManagerRef.current = manager;
+      }
     };
 
     initPixi();
 
     return () => {
+      isCancelled = true;
+      if (manager) manager.destroy();
       if (gameManagerRef.current) {
         gameManagerRef.current.destroy();
         gameManagerRef.current = null;

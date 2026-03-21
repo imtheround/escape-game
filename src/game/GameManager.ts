@@ -18,7 +18,7 @@ export interface WeaponStats {
 
 export const WeaponRegistry: Record<string, WeaponStats> = {
   gun: { id: 'gun', type: 'ranged', damage: 30, fireRate: 250, spread: 0.05, projectilesPerShot: 1, movementPenalty: 1.0, firingMovementPenalty: 0.9, spriteName: 'gun', projectileSpriteName: 'bullet', sfx: 'shoot', maxAmmo: 12, reloadTime: 1200 },
-  sword: { id: 'sword', type: 'melee', damage: 45, fireRate: 400, spread: 0, projectilesPerShot: 1, movementPenalty: 1.1, firingMovementPenalty: 1.0, spriteName: 'sword', projectileSpriteName: 'sword', sfx: 'sword_swing' },
+  sword: { id: 'sword', type: 'melee', damage: 45, fireRate: 700, spread: 0, projectilesPerShot: 1, movementPenalty: 1.1, firingMovementPenalty: 1.0, spriteName: 'sword', projectileSpriteName: 'sword', sfx: 'sword_swing' },
   machine_gun: { id: 'machine_gun', type: 'ranged', damage: 35, fireRate: 100, spread: 0.3, projectilesPerShot: 1, movementPenalty: 0.85, firingMovementPenalty: 0.4, spriteName: 'machine_gun', projectileSpriteName: 'mg_bullet', sfx: 'mg_shoot', maxAmmo: 50, reloadTime: 2500 },
   shotgun: { id: 'shotgun', type: 'ranged', damage: 15, fireRate: 800, spread: 0.8, projectilesPerShot: 5, movementPenalty: 0.95, firingMovementPenalty: 0.6, spriteName: 'shotgun', projectileSpriteName: 'shotgun_pellet', sfx: 'shotgun_blast', maxAmmo: 9, reloadTime: 600 }
 };
@@ -32,6 +32,7 @@ export class GameManager {
   private monsters: Sprite[] = [];
   private bullets: { sprite: Sprite, vx: number, vy: number, isEnemy: boolean, life?: number }[] = [];
   private keys: Record<string, boolean> = {};
+  private isMouseDown: boolean = false;
   private spawnInterval: NodeJS.Timeout | null = null;
 
   // New Mechanics State
@@ -47,7 +48,7 @@ export class GameManager {
   public isSettingsOpen: boolean = false;
 
   private masterVolume: number = 1.0;
-  private bgmVolume: number = 0.85;
+  private bgmVolume: number = 0.1;
   private sfxVolume: number = 0.85;
 
   private bgmAudio: HTMLAudioElement | null = null;
@@ -84,6 +85,17 @@ export class GameManager {
   private gunRecoil = 0;
   private handPotionSprite!: Sprite;
 
+  // Stamina System
+  public maxStamina = 400;
+  public stamina = 400;
+  public isSprinting = false;
+  public isRolling = false;
+  private rollDirection = { x: 0, y: 0 };
+  private rollTimer = 0;
+  private rollCooldownTimer = 0;
+  private staminaGroup!: Container;
+  private staminaBarFill!: Graphics;
+
   // Wave System
   public gameState: 'playing' | 'merchant' = 'playing';
   public wave: number = 1;
@@ -101,6 +113,7 @@ export class GameManager {
   public playerMaxHP: number = 10;
 
   private merchantSprite: Sprite | null = null;
+  private portalSprite: Sprite | null = null;
   private coinDrops: { sprite: Sprite, life: number }[] = [];
 
   private coinTexture!: Texture;
@@ -108,6 +121,7 @@ export class GameManager {
 
   private corpses: Sprite[] = [];
   private damagePopups: { sprite: Text, life: number }[] = [];
+  private lastHover: string | null = null;
 
   // Dungeon Grid
   private floorCells = new Set<string>();
@@ -116,8 +130,15 @@ export class GameManager {
     cleared: boolean; active: boolean; entered: boolean;
     doors: { x: number, y: number, sprite: Sprite, open: boolean }[];
     monstersToSpawn: number;
+    isFinal?: boolean;
+    isStart?: boolean;
+    totalWaves?: number;
+    currentWave?: number;
+    monstersPerWave?: number;
+    waveTimer?: number;
   }[] = [];
-  private currentDungeonStage = 1;
+  public currentDungeonWorld = 1;
+  public currentDungeonStage = 1;
 
   private playerShadow!: Graphics;
   private particles: { sprite: Sprite, vx: number, vy: number, life: number, maxLife: number }[] = [];
@@ -137,7 +158,7 @@ export class GameManager {
   private audioPool: Record<string, HTMLAudioElement[]> = {};
 
   private preloadAudio() {
-    const files = ['shoot', 'hit', 'pickup', 'drink', 'death', 'kill', 'spawn', 'open_inventory', 'close_inventory', 'reload', 'level_up', 'knife_swing', 'sword_swing', 'mg_shoot', 'shotgun_blast'];
+    const files = ['shoot', 'hit', 'pickup', 'drink', 'death', 'kill', 'spawn', 'open_inventory', 'close_inventory', 'reload', 'level_up', 'knife_swing', 'sword_swing', 'mg_shoot', 'shotgun_blast', 'empty_click', 'room_clear'];
     files.forEach(f => {
       this.audioPool[f] = Array(5).fill(null).map(() => {
         const a = new Audio(`/assets/audio/${f}.wav`);
@@ -180,7 +201,7 @@ export class GameManager {
       detail: { ammo: activeInv.ammo || 0, maxAmmo: stats?.maxAmmo || 0, isReloading: this.isReloading }
     }));
     window.dispatchEvent(new CustomEvent('wave-change', {
-      detail: { wave: this.wave, gameState: this.gameState, enemiesAlive: this.enemiesAlive, enemiesToSpawn: this.enemiesToSpawn, merchantTimer: this.merchantTimer }
+      detail: { wave: this.wave, gameState: this.gameState, enemiesAlive: this.enemiesAlive, enemiesToSpawn: this.enemiesToSpawn, merchantTimer: this.merchantTimer, world: this.currentDungeonWorld, stage: this.currentDungeonStage }
     }));
     window.dispatchEvent(new CustomEvent('exp-change', {
       detail: { exp: this.playerExp, maxExp: this.playerMaxExp, level: this.playerLevel, maxHP: this.playerMaxHP }
@@ -301,20 +322,28 @@ export class GameManager {
     const tWalk4 = await Assets.load('/assets/character/slime_walk4.svg');
     const tHit = await Assets.load('/assets/character/slime_hit.svg');
     const tAttack = await Assets.load('/assets/character/slime_attack.svg');
+    const tRoll1 = await Assets.load('/assets/character/slime_roll1.svg');
+    const tRoll2 = await Assets.load('/assets/character/slime_roll2.svg');
+    const tRoll3 = await Assets.load('/assets/character/slime_roll3.svg');
+    const tRoll4 = await Assets.load('/assets/character/slime_roll4.svg');
+    const tRoll5 = await Assets.load('/assets/character/slime_roll5.svg');
+    const tRoll6 = await Assets.load('/assets/character/slime_roll6.svg');
+    const tRoll7 = await Assets.load('/assets/character/slime_roll7.svg');
 
-    [tIdle1, tIdle2, tWalk1, tWalk2, tWalk3, tWalk4, tHit, tAttack].forEach(t => t.source.scaleMode = 'nearest');
+    [tIdle1, tIdle2, tWalk1, tWalk2, tWalk3, tWalk4, tHit, tAttack, tRoll1, tRoll2, tRoll3, tRoll4, tRoll5, tRoll6, tRoll7].forEach(t => t.source.scaleMode = 'nearest');
 
     this.slimeTextures = {
       idle: [tIdle1, tIdle2],
       walk: [tWalk1, tWalk2, tWalk3, tWalk4],
       hit: [tHit],
       attack: [tAttack],
+      roll: [tRoll1, tRoll3, tRoll4, tRoll5, tRoll7], // Reduced to 5 frames for punchier animation
     };
 
     // Load weapons and items
     this.weaponTextures = {
       gun: await Assets.load('/assets/character/gun1.svg'),
-      long_knife: await Assets.load('/assets/character/long_knife.svg'),
+      sword: await Assets.load('/assets/character/sword.svg'),
       machine_gun: await Assets.load('/assets/character/machine_gun.svg'),
       shotgun: await Assets.load('/assets/character/shotgun.svg'),
       bullet: await Assets.load('/assets/character/bullet.svg'),
@@ -331,11 +360,12 @@ export class GameManager {
       wall_h: await Assets.load('/assets/map/wall_h.svg'),
       wall_v: await Assets.load('/assets/map/wall_v.svg'),
       rock: await Assets.load('/assets/map/rock.svg'),
-      fence: await Assets.load('/assets/map/fence.svg')
+      fence: await Assets.load('/assets/map/fence.svg'),
+      portal: await Assets.load('/assets/map/portal.svg')
     };
 
     Object.values(this.weaponTextures).forEach((t: any) => t.source.scaleMode = 'nearest');
-    [this.potionTexture, this.coinTexture, this.merchantTexture, this.mapTextures.floor, this.mapTextures.wall_h, this.mapTextures.wall_v, this.mapTextures.rock, this.mapTextures.fence].forEach(t => t.source.scaleMode = 'nearest');
+    [this.potionTexture, this.coinTexture, this.merchantTexture, this.mapTextures.floor, this.mapTextures.wall_h, this.mapTextures.wall_v, this.mapTextures.rock, this.mapTextures.fence, this.mapTextures.portal].forEach(t => t.source.scaleMode = 'nearest');
 
     const gIdle = await Assets.load('/assets/enemies/goblin_idle.svg');
 
@@ -396,6 +426,18 @@ export class GameManager {
     this.worldContainer.addChild(this.playerShadow);
 
     this.worldContainer.addChild(this.player);
+
+    this.staminaGroup = new Container();
+    this.staminaGroup.zIndex = 999999;
+    // Floating Circle Arc Stamina Bar
+    const sBg = new Graphics().circle(0, 0, 10).stroke({ width: 8, color: 0x333333 });
+    this.staminaBarFill = new Graphics();
+    this.staminaGroup.addChild(sBg);
+    this.staminaGroup.addChild(this.staminaBarFill);
+    this.worldContainer.addChild(this.staminaGroup);
+    
+    this.staminaGroup.x = this.player.x;
+    this.staminaGroup.y = this.player.y - 70;
 
     // Setup Gun
     this.gunSprite = new Sprite(this.weaponTextures[WeaponRegistry[this.inventory[this.activeSlot].id]?.spriteName || 'gun']);
@@ -460,10 +502,13 @@ export class GameManager {
         }
       }
 
+      const isFinal = (i === roomCount - 1);
+      const isStart = (i === 0);
       const room = {
         x: curX, y: curY, w: rw, h: rh,
         cleared: false, active: false, entered: false,
-        doors: [], monstersToSpawn: 4 + this.currentDungeonStage * 3
+        doors: [], monstersToSpawn: (isFinal || isStart) ? 0 : 8 + this.currentDungeonStage * 6,
+        isFinal, isStart
       };
       this.dungeonRooms.push(room);
 
@@ -669,6 +714,9 @@ export class GameManager {
     this.dispatchState();
   };
 
+  private handleMouseDown = (e: MouseEvent) => { if (e.button === 0) this.isMouseDown = true; };
+  private handleMouseUp = (e: MouseEvent) => { if (e.button === 0) this.isMouseDown = false; };
+
   private handleSlotChange = (e: any) => {
     if (e.detail >= 0 && e.detail <= 2) {
       this.activeSlot = e.detail;
@@ -725,7 +773,7 @@ export class GameManager {
     }
 
     if (leveledUp) {
-      const style = new TextStyle({ fontFamily: 'Arial', fontSize: 32, fill: '#FFD700', stroke: { color: '#000000', width: 4 }, fontWeight: 'bold' });
+      const style = new TextStyle({ fontFamily: "'CustomFont', Arial", fontSize: 32, fill: '#FFD700', stroke: { color: '#000000', width: 4 }, fontWeight: 'bold' });
       const lvlText = new Text({ text: 'LEVEL UP!', style });
       lvlText.anchor.set(0.5, 0.5);
       lvlText.x = this.player.x;
@@ -742,6 +790,8 @@ export class GameManager {
   private setupInput() {
     window.addEventListener('keydown', this.handleKeyDown);
     window.addEventListener('keyup', this.handleKeyUp);
+    window.addEventListener('mousedown', this.handleMouseDown);
+    window.addEventListener('mouseup', this.handleMouseUp);
     window.addEventListener('inventory-swap', this.handleSwap);
     window.addEventListener('inventory-close', this.handleClose);
     window.addEventListener('slot-change', this.handleSlotChange);
@@ -750,15 +800,26 @@ export class GameManager {
     window.addEventListener('settings-toggle', this.handleSettingsToggle);
   }
 
-  private spawnMonsterInRoom(room: any) {
-    let sx = (room.x + 1 + Math.random() * (room.w - 2)) * 64;
-    let sy = (room.y - 1 - Math.random() * (room.h - 2)) * 64;
+  private spawnMonsterInRoom(room: any, immediate = false) {
+    let sx = (room.x + 2 + Math.random() * (room.w - 4)) * 64;
+    let sy = (room.y - 2 - Math.random() * (room.h - 4)) * 64;
 
     const isRanged = Math.random() > 0.6;
     const monster = new Sprite(isRanged ? this.goblinBlueTextures.run[0] : this.goblinTextures.run[0]);
-    monster.anchor.set(0.5, 1); monster.scale.set(0); monster.alpha = 0;
+    monster.anchor.set(0.5, 1); 
+    
+    if (immediate) {
+      monster.scale.set(4);
+      monster.alpha = 1;
+      (monster as any).isSpawning = false;
+    } else {
+      monster.scale.set(0); 
+      monster.alpha = 0;
+      (monster as any).isSpawning = true; 
+      (monster as any).spawnTimer = 30; // 0.5 sec spawn
+    }
+
     monster.x = sx; monster.y = sy;
-    (monster as any).isSpawning = true; (monster as any).spawnTimer = 30; // 0.5 sec spawn
     (monster as any).type = isRanged ? 'ranged' : 'melee';
     (monster as any).attackTimer = Math.random() * 60 + 60;
     (monster as any).hp = 20 + this.currentDungeonStage * 15;
@@ -769,7 +830,9 @@ export class GameManager {
     const hpBar = new Graphics(); hpBar.zIndex = 999999; this.worldContainer.addChild(hpBar);
     (monster as any).hpBar = hpBar;
     const shadow = new Graphics().ellipse(0, 0, 4, 1.5).fill({ color: 0x000000, alpha: 0.5 });
-    shadow.zIndex = -99998; this.worldContainer.addChild(shadow);
+    shadow.zIndex = -99998; 
+    shadow.scale.set(immediate ? 1 : 0);
+    this.worldContainer.addChild(shadow);
     (monster as any).shadow = shadow;
     (monster as any).animTimer = Math.random() * 4;
 
@@ -855,7 +918,6 @@ export class GameManager {
     const stats = WeaponRegistry[weaponId];
     if (!stats) return;
 
-    this.gunRecoil = 1.0;
     let baseAngle = 0;
 
     if (target) {
@@ -867,18 +929,20 @@ export class GameManager {
     }
 
     if (stats.type === 'melee') {
+      this.gunRecoil = 1.0;
       // Melee uses physical sword rotation with wide arc
       const swing = new Sprite(this.weaponTextures.sword || this.weaponTextures.gun);
       swing.anchor.set(0.5, 0.95);
       swing.scale.set(6);
       swing.x = this.player.x;
       swing.y = this.player.y - 12;
+      swing.visible = false; // We just mathematically track the swing
 
       this.worldContainer.addChild(swing);
 
       const meleeBullet = {
         sprite: swing, vx: 0, vy: 0, isEnemy: false,
-        life: 20, maxLife: 20,
+        life: 30, maxLife: 30,
         baseAngle: baseAngle,
         hitSet: new Set()
       };
@@ -892,15 +956,16 @@ export class GameManager {
              this.isReloading = false; // Shotgun interrupt
              this.dispatchState();
           } else {
+             this.playSound('empty_click');
              return; // Block firing if reloading other guns
           }
       }
       if (activeInv.ammo !== undefined) {
           if (activeInv.ammo <= 0) {
+              this.playSound('empty_click');
               if (!this.isReloading) {
                  this.isReloading = true;
                  this.reloadTimer = (stats.reloadTime! / 1000) * 60;
-                 this.playSound('reload');
                  this.dispatchState();
               }
               return;
@@ -909,6 +974,7 @@ export class GameManager {
           this.dispatchState();
       }
 
+      this.gunRecoil = 1.0; // Apply strictly upon successful round utilization
       this.spawnParticles(this.gunSprite.x + Math.cos(baseAngle) * 24, this.gunSprite.y + Math.sin(baseAngle) * 24, 0xffaa00, 3);
       for (let i = 0; i < stats.projectilesPerShot; i++) {
         const bullet = new Sprite(this.weaponTextures[stats.projectileSpriteName]);
@@ -985,18 +1051,82 @@ export class GameManager {
         activeRoom.doors.forEach(d => { d.open = false; });
         this.playSound('fence_slam');
 
-        for (let i = 0; i < activeRoom.monstersToSpawn; i++) {
-          this.spawnMonsterInRoom(activeRoom);
+        // Initialize wave logic
+        const hasMonsters = activeRoom.monstersToSpawn > 0;
+        activeRoom.totalWaves = hasMonsters ? 1 + Math.floor(Math.random() * 3) : 0; // 1 to 3 waves
+        activeRoom.currentWave = hasMonsters ? 1 : 0;
+        // At least 1 per wave
+        activeRoom.monstersPerWave = hasMonsters ? Math.max(1, Math.ceil(activeRoom.monstersToSpawn / activeRoom.totalWaves)) : 0;
+        activeRoom.waveTimer = 0;
+
+        // Spawn first sequence immediately without animation
+        for (let i = 0; i < activeRoom.monstersPerWave; i++) {
+          this.spawnMonsterInRoom(activeRoom, true);
         }
       }
 
       if (activeRoom && activeRoom.active) {
         let alive = this.monsters.filter(m => (m as any).dungeonRoom === activeRoom).length;
-        if (alive <= 0 && this.monsters.length === 0) {
+        
+        // Process progressive wave drops
+        if (activeRoom.currentWave! < activeRoom.totalWaves!) {
+           // We ONLY advance once the CURRENT wave is totally wiped out
+           if (alive <= 0) {
+              activeRoom.currentWave!++;
+              
+              // Spawning remaining entities
+              const remaining = activeRoom.monstersToSpawn - (activeRoom.currentWave! - 1) * activeRoom.monstersPerWave!;
+              const toSpawn = Math.max(0, Math.min(activeRoom.monstersPerWave!, remaining));
+              
+              for (let i = 0; i < toSpawn; i++) {
+                 this.spawnMonsterInRoom(activeRoom, false);
+              }
+              // recheck alive pool
+              alive = this.monsters.filter(m => (m as any).dungeonRoom === activeRoom).length;
+           }
+        }
+
+        if (alive <= 0 && activeRoom.currentWave! >= activeRoom.totalWaves!) {
           activeRoom.active = false;
           activeRoom.cleared = true;
           activeRoom.doors.forEach(d => { d.open = true; });
           this.playSound('door_creak');
+          
+          if (!activeRoom.isStart && !activeRoom.isFinal) {
+             this.playSound('room_clear');
+             const style = new TextStyle({ fontFamily: "'CustomFont', Arial", fontSize: 36, fill: '#00ff00', stroke: { color: '#000000', width: 5 }, fontWeight: 'bold' });
+             const clearText = new Text({ text: 'ROOM CLEARED!', style });
+             clearText.anchor.set(0.5, 0.5);
+             clearText.x = activeRoom.x * 64 + (activeRoom.w / 2) * 64;
+             clearText.y = activeRoom.y * 64 - (activeRoom.h / 2) * 64 - 32;
+             clearText.zIndex = clearText.y + 100;
+             this.worldContainer.addChild(clearText);
+             this.damagePopups.push({ sprite: clearText, life: 120 });
+          }
+
+          if (activeRoom.isFinal) {
+             if (!this.merchantSprite) {
+                this.merchantSprite = new Sprite(this.merchantTexture);
+                this.merchantSprite.anchor.set(0.5, 0.5);
+                this.merchantSprite.scale.set(4);
+                this.merchantSprite.x = (activeRoom.x + activeRoom.w / 2) * 64 - 100;
+                this.merchantSprite.y = (activeRoom.y - activeRoom.h / 2) * 64;
+                this.worldContainer.addChild(this.merchantSprite);
+             }
+
+             if (!this.portalSprite) {
+                this.portalSprite = new Sprite(this.mapTextures.portal);
+                this.portalSprite.anchor.set(0.5, 0.5);
+                this.portalSprite.scale.set(4);
+                this.portalSprite.x = (activeRoom.x + activeRoom.w / 2) * 64 + 100;
+                this.portalSprite.y = (activeRoom.y - activeRoom.h / 2) * 64;
+                this.portalSprite.alpha = 0.8;
+                this.worldContainer.addChild(this.portalSprite);
+
+                const pGlow = new Graphics().circle(0, 0, 32).fill({ color: 0x00ffff, alpha: 0.2 });
+                this.portalSprite.addChild(pGlow);
+             }
+          }
         }
       }
 
@@ -1009,6 +1139,74 @@ export class GameManager {
           d.sprite.alpha = Math.max(0, Math.min(1, d.sprite.alpha + (isClosed ? 0.1 : -0.1)));
         }
       }
+    }
+
+    // Dungeon interaction zones
+    let isNearMerchant = false;
+    let isNearPortal = false;
+
+    if (this.gameMode === 'dungeon' && this.merchantSprite) {
+       const dist = Math.hypot(this.player.x - this.merchantSprite.x, this.player.y - this.merchantSprite.y);
+       if (dist < 100) {
+          isNearMerchant = true;
+          if (this.keys['KeyF']) {
+             window.dispatchEvent(new CustomEvent('shop-open'));
+             this.keys['KeyF'] = false; // consume
+          }
+       }
+    }
+
+    if (this.gameMode === 'dungeon' && this.portalSprite && this.portalSprite.parent) {
+       const pDist = Math.hypot(this.player.x - this.portalSprite.x, this.player.y - this.portalSprite.y);
+       if (pDist < 80) {
+          isNearPortal = true;
+          if (this.keys['Space']) {
+             this.keys['Space'] = false;
+             this.playSound('level_up');
+             this.currentDungeonStage++;
+             if (this.currentDungeonStage > 3) {
+                this.currentDungeonStage = 1;
+                this.currentDungeonWorld++;
+             }
+             this.portalSprite.destroy({ children: true });
+             this.portalSprite = null;
+             if (this.merchantSprite) {
+                this.merchantSprite.destroy();
+                this.merchantSprite = null;
+             }
+
+             this.worldContainer.removeChildren();
+             this.dungeonRooms = [];
+             this.floorCells.clear();
+             this.bullets = [];
+             this.particles = [];
+             this.coinDrops = [];
+             this.droppedItems = [];
+             this.monsters = [];
+             this.corpses = [];
+             this.damagePopups = [];
+
+             this.generateDungeonMap();
+
+             const startRoom = this.dungeonRooms[0];
+             this.player.x = (startRoom.x + startRoom.w / 2) * 64;
+             this.player.y = (startRoom.y - startRoom.h / 2) * 64;
+
+             this.worldContainer.addChild(this.playerShadow);
+             this.worldContainer.addChild(this.player);
+             this.worldContainer.addChild(this.gunSprite);
+             if (this.handPotionSprite) this.worldContainer.addChild(this.handPotionSprite);
+             this.worldContainer.addChild(this.staminaGroup);
+             
+             this.dispatchState();
+          }
+       }
+    }
+
+    const currentHover = isNearMerchant ? 'merchant' : isNearPortal ? 'portal' : null;
+    if (this.lastHover !== currentHover) {
+       window.dispatchEvent(new CustomEvent('interact-hover', { detail: currentHover }));
+       this.lastHover = currentHover;
     }
 
     // Handle Reloading
@@ -1055,6 +1253,69 @@ export class GameManager {
       dx /= length;
       dy /= length;
     }
+
+    // Stamina & Movement Logic
+    if (this.rollCooldownTimer > 0) this.rollCooldownTimer -= dt;
+
+    if (this.isRolling) {
+      this.rollTimer -= dt;
+      if (this.rollTimer <= 0) {
+        this.isRolling = false;
+        this.isInvulnerable = false;
+        this.player.anchor.y = 1; // reset jump offset
+      } else {
+        // Wacky smooth math: Quadratic ease-out speed + Sine wave jumping
+        const p = 1 - (this.rollTimer / 24); // 0.0 to 1.0 progress
+        speed = 40 * Math.pow(1 - p, 2) * dt; 
+        
+        // Z-axis jump offset for extreme smoothness
+        this.player.anchor.y = 1 + Math.sin(p * Math.PI) * 0.35;
+        
+        dx = this.rollDirection.x;
+        dy = this.rollDirection.y;
+      }
+    } else {
+      if ((this.keys['KeyQ'] || this.keys['KeyC']) && this.stamina >= 150 && this.rollCooldownTimer <= 0 && (dx !== 0 || dy !== 0)) {
+        this.isRolling = true;
+        this.stamina -= 150;
+        this.rollTimer = 24; // slightly longer duration to let frames breathe
+        this.rollCooldownTimer = 48; // 0.8s cooldown
+        this.rollDirection = { x: dx, y: dy };
+        this.isInvulnerable = true;
+        speed = 36 * dt; // Initial burst speed
+        this.keys['KeyQ'] = false;
+        this.keys['KeyC'] = false; 
+      } else {
+        if (this.keys['ShiftLeft'] || this.keys['ShiftRight']) {
+          if (this.stamina > 0 && (dx !== 0 || dy !== 0)) {
+            this.isSprinting = true;
+            speed *= 1.6;
+            this.stamina = Math.max(0, this.stamina - dt * 1.5);
+          } else {
+            this.isSprinting = false;
+          }
+        } else {
+          this.isSprinting = false;
+          this.stamina = Math.min(this.maxStamina, this.stamina + dt * 1.5);
+        }
+      }
+    }
+
+    // Update stamina bar graphics smoothly (float + sine bob)
+    this.staminaGroup.x += (this.player.x - this.staminaGroup.x) * Math.min(1, 0.15 * dt);
+    const targetY = (this.player.y - 70) + Math.sin(performance.now() / 200) * 4;
+    this.staminaGroup.y += (targetY - this.staminaGroup.y) * Math.min(1, 0.15 * dt);
+    
+    // Floating Circle Arc logic
+    this.staminaBarFill.clear();
+    const progress = Math.max(0, this.stamina / this.maxStamina);
+    if (progress > 0) {
+      this.staminaBarFill.arc(0, 0, 10, -Math.PI / 2, -Math.PI / 2 + (Math.PI * 2 * progress));
+      const barColor = (this.stamina < 50 || this.rollCooldownTimer > 0) ? 0xFFA500 : 0x00FF00;
+      this.staminaBarFill.stroke({ width: 8, color: barColor, cap: 'round' });
+    }
+    // Fixed bug where bar disappeared instantly
+    this.staminaGroup.visible = true;
 
     // Dynamic Weapon Movement Penalties
     const activeStats = WeaponRegistry[this.inventory[this.activeSlot].id];
@@ -1170,8 +1431,9 @@ export class GameManager {
     const slotId = this.inventory[slotIdx].id;
 
     // Show gun/potion if equipped
-    const isSwinging = this.bullets.some(b => (b as any).isMelee);
-    this.gunSprite.visible = !!WeaponRegistry[slotId] && !isSwinging;
+    const meleeBullet = this.bullets.find(b => (b as any).isMelee);
+    const isSwinging = !!meleeBullet;
+    this.gunSprite.visible = !!WeaponRegistry[slotId];
     if (this.gunSprite.visible) {
       this.gunSprite.texture = this.weaponTextures[WeaponRegistry[slotId].spriteName];
     }
@@ -1184,14 +1446,14 @@ export class GameManager {
     }
 
     const fireRateMs = activeStats ? activeStats.fireRate : 250;
-    if (this.keys['Space'] && now - this.lastShootTime > fireRateMs) {
+    if (!this.isRolling && (this.keys['Space'] || this.isMouseDown) && now - this.lastShootTime > fireRateMs) {
       this.lastShootTime = now;
       if (WeaponRegistry[slotId]) {
          this.useWeapon(nearestMonster, dx, dy);
       }
     }
 
-    let isNearMerchant = false;
+    isNearMerchant = false;
     if (this.gameState === 'merchant' && this.merchantSprite) {
       if (Math.hypot(this.player.x - this.merchantSprite.x, this.player.y - this.merchantSprite.y) < 100) {
         isNearMerchant = true;
@@ -1253,7 +1515,7 @@ export class GameManager {
             this.dispatchState();
 
             // Show +4 HP popup
-            const style = new TextStyle({ fontFamily: 'Arial', fontSize: 24, fill: '#00ff00', stroke: { color: '#005500', width: 4 }, fontWeight: 'bold' });
+            const style = new TextStyle({ fontFamily: "'CustomFont', Arial", fontSize: 24, fill: '#00ff00', stroke: { color: '#005500', width: 4 }, fontWeight: 'bold' });
             const healText = new Text({ text: '+4 HP', style });
             healText.anchor.set(0.5, 0.5);
             healText.x = this.player.x;
@@ -1274,7 +1536,8 @@ export class GameManager {
 
     // Animation state logic
     let newAnim = dx !== 0 || dy !== 0 ? 'walk' : 'idle';
-    if (this.isInvulnerable) newAnim = 'hit';
+    if (this.isInvulnerable && !this.isRolling) newAnim = 'hit';
+    if (this.isRolling) newAnim = 'roll';
 
     if (newAnim !== this.currentAnim) {
       this.currentAnim = newAnim;
@@ -1282,7 +1545,7 @@ export class GameManager {
     }
 
     // Process sprite animation
-    const animSpeed = this.currentAnim === 'walk' ? 0.15 : 0.05;
+    const animSpeed = this.currentAnim === 'roll' ? 0.20 : (this.currentAnim === 'walk' ? 0.15 : 0.05);
     this.animTimer += dt * animSpeed;
     const frames = this.slimeTextures[this.currentAnim];
     if (frames && frames.length > 0) {
@@ -1295,25 +1558,35 @@ export class GameManager {
       targetAngle = Math.atan2(nearestMonster.y - this.gunSprite.y, nearestMonster.x - this.gunSprite.x);
     }
 
-    // Prevent the gun from rendering upside down when pointing left
-    if (Math.abs(targetAngle) > Math.PI / 2) {
-      this.gunSprite.scale.y = -3;
+    const isMeleeEquipped = WeaponRegistry[slotId] && WeaponRegistry[slotId].type === 'melee';
+    const defaultScale = isMeleeEquipped ? 6 : 3;
+
+    if (isSwinging && isMeleeEquipped && meleeBullet) {
+       this.gunSprite.scale.set(defaultScale);
+       this.gunSprite.rotation = meleeBullet.sprite.rotation;
+       this.gunSprite.x = meleeBullet.sprite.x;
+       this.gunSprite.y = meleeBullet.sprite.y;
     } else {
-      this.gunSprite.scale.y = 3;
+       if (isMeleeEquipped) {
+         this.gunSprite.scale.y = defaultScale; // Sword is symmetric
+         this.gunSprite.rotation = targetAngle + Math.PI / 2;
+       } else {
+         if (Math.abs(targetAngle) > Math.PI / 2) this.gunSprite.scale.y = -defaultScale;
+         else this.gunSprite.scale.y = defaultScale;
+         
+         if (this.gunRecoil > 0) {
+           this.gunRecoil -= dt * 0.15;
+           if (this.gunRecoil < 0) this.gunRecoil = 0;
+         }
+         const kickAngle = this.gunRecoil * 0.2 * (this.gunSprite.scale.y < 0 ? -1 : 1);
+         this.gunSprite.rotation = targetAngle + kickAngle;
+       }
+       this.gunSprite.scale.x = defaultScale;
+       
+       const recoilDist = isMeleeEquipped ? 0 : this.gunRecoil * 12;
+       this.gunSprite.x = this.player.x - Math.cos(targetAngle) * recoilDist;
+       this.gunSprite.y = this.player.y - 12 - Math.sin(targetAngle) * recoilDist;
     }
-
-    // Apply smooth programmatic recoil backwards and slight upward kick
-    if (this.gunRecoil > 0) {
-      this.gunRecoil -= dt * 0.15; // smooth decay
-      if (this.gunRecoil < 0) this.gunRecoil = 0;
-    }
-
-    const recoilDist = this.gunRecoil * 12; // kick backwards up to 12 pixels visually
-    const kickAngle = this.gunRecoil * 0.2 * (this.gunSprite.scale.y < 0 ? -1 : 1);
-
-    this.gunSprite.rotation = targetAngle + kickAngle;
-    this.gunSprite.x = this.player.x - Math.cos(targetAngle) * recoilDist;
-    this.gunSprite.y = this.player.y - 12 - Math.sin(targetAngle) * recoilDist;
 
     // Sprite flipping logic (Prioritize facing tracking angle)
     if (Math.abs(targetAngle) > Math.PI / 2) this.player.scale.x = -4;
@@ -1420,20 +1693,27 @@ export class GameManager {
       if ((b as any).isMelee) {
         const melee = b as any;
         const t = 1 - (b.life! / melee.maxLife);
-        // Tighter swing angle: 90 degrees (Math.PI / 2)
-        const arc = Math.PI / 2;
+        // Wider swing angle: 180 degrees
+        const arc = Math.PI;
         // Ease out cubic
         const progress = 1 - Math.pow(1 - t, 3);
 
-        b.sprite.rotation = melee.baseAngle - arc / 2 + progress * arc;
+        // Add Math.PI / 2 because the SVG natively points UP instead of RIGHT
+        b.sprite.rotation = melee.baseAngle + Math.PI / 2 - arc / 2 + progress * arc;
 
-        // Reach much further out
-        const reach = 64;
-        b.sprite.x = this.player.x + Math.cos(b.sprite.rotation) * reach;
-        b.sprite.y = this.player.y - 12 + Math.sin(b.sprite.rotation) * reach;
+        // The render origin stays glued to the player's hand
+        b.sprite.x = this.player.x;
+        b.sprite.y = this.player.y - 12;
 
-        b.vx = Math.cos(b.sprite.rotation) * 16;
-        b.vy = Math.sin(b.sprite.rotation) * 16;
+        b.vx = Math.cos(melee.baseAngle - arc / 2 + progress * arc) * 16;
+        b.vy = Math.sin(melee.baseAngle - arc / 2 + progress * arc) * 16;
+
+        // Particle trail from the tip (extended outwards by scale)
+        if (Math.random() > 0.3) {
+           const tipX = b.sprite.x + Math.cos(b.sprite.rotation - Math.PI/2) * 95;
+           const tipY = b.sprite.y + Math.sin(b.sprite.rotation - Math.PI/2) * 95;
+           this.spawnParticles(tipX, tipY, 0xcccccc, 1);
+        }
       } else {
         b.sprite.x += b.vx * dt;
         b.sprite.y += b.vy * dt;
@@ -1473,10 +1753,24 @@ export class GameManager {
         // Player bullet hitting monsters
         for (let j = this.monsters.length - 1; j >= 0; j--) {
           const monster = this.monsters[j];
-          // Shift monster target Y up by 24 pixels to match center of mass instead of feet
-          const hitRadius = (b as any).isMelee ? 60 : 40;
-          if (Math.hypot(b.sprite.x - monster.x, b.sprite.y - (monster.y - 24)) < hitRadius) {
-            
+          
+          let hitMelee = false;
+          let hitRanged = false;
+
+          if ((b as any).isMelee) {
+             const mDist = Math.hypot(this.player.x - monster.x, (this.player.y - 12) - (monster.y - 24));
+             if (mDist < 160) {
+                 const mAngle = Math.atan2((monster.y - 24) - (this.player.y - 12), monster.x - this.player.x);
+                 const bladeAngle = (b as any).sprite.rotation - Math.PI / 2;
+                 let diff = Math.abs(mAngle - bladeAngle);
+                 if (diff > Math.PI) diff = Math.PI * 2 - diff; // Normalize
+                 if (diff <= 0.35) hitMelee = true; // Tight 40 degree sweeping wedge centered precisely on the moving blade
+             }
+          } else {
+             if (Math.hypot(b.sprite.x - monster.x, b.sprite.y - (monster.y - 24)) < 40) hitRanged = true;
+          }
+
+          if (hitMelee || hitRanged) {
             // Melee checks to not damage same entity repeatedly
             if ((b as any).isMelee) {
                if ((b as any).hitSet && (b as any).hitSet.has(monster)) continue;
@@ -1492,13 +1786,13 @@ export class GameManager {
             this.spawnParticles(b.sprite.x, b.sprite.y, 0xff0000, 5);
 
             const style = new TextStyle({
-              fontFamily: 'Arial',
+              fontFamily: "'CustomFont', Arial",
               fontSize: 24,
               fill: '#ffaa00',
               stroke: { color: '#550000', width: 4 },
               fontWeight: 'bold',
             });
-            const dmgText = new Text({ text: Math.floor(this.playerDmg).toString(), style });
+            const dmgText = new Text({ text: Math.floor(finalDamage).toString(), style });
             dmgText.anchor.set(0.5, 0.5);
             dmgText.x = monster.x + (Math.random() * 20 - 10);
             dmgText.y = monster.y - 40;
@@ -1656,9 +1950,10 @@ export class GameManager {
       for (const other of this.monsters) {
         if (other === monster) continue;
         const d = Math.hypot(other.x - monster.x, other.y - monster.y);
-        if (d < 40 && d > 0) {
-          sepX += (monster.x - other.x) / d;
-          sepY += (monster.y - other.y) / d;
+        if (d < 64 && d > 0) {
+          const force = (64 - d) / 32; // Inversely proportional to distance
+          sepX += ((monster.x - other.x) / d) * force;
+          sepY += ((monster.y - other.y) / d) * force;
         }
       }
 
@@ -1667,8 +1962,8 @@ export class GameManager {
       const mag = Math.hypot(moveDirX, moveDirY);
       if (mag > 0.001) { moveDirX /= mag; moveDirY /= mag; }
 
-      moveDirX += sepX * 1.5;
-      moveDirY += sepY * 1.5;
+      moveDirX += sepX * 2.5;
+      moveDirY += sepY * 2.5;
 
       const finalMag = Math.hypot(moveDirX, moveDirY);
       if (finalMag > 0.001) { moveDirX /= finalMag; moveDirY /= finalMag; }

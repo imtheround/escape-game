@@ -418,9 +418,126 @@ fs.writeFileSync(path.join(characterDir, 'slime_idle2.svg'), createSVG(slimeIdle
 fs.writeFileSync(path.join(characterDir, 'slime_walk1.svg'), createSVG(f1));
 fs.writeFileSync(path.join(characterDir, 'slime_walk2.svg'), createSVG(f2));
 fs.writeFileSync(path.join(characterDir, 'slime_walk3.svg'), createSVG(f3));
+const roll_f1 = [
+  "................",
+  "................",
+  "................",
+  "....bbbbbbbb....",
+  "..bbLLLLLLLLbb..",
+  ".bLLLLLLLLLLLLb.",
+  ".bLLLLbbLLbbLLb.",
+  "bLMMMMbbMMbbMMLb",
+  "bMMMMMbeMMbeMMMb",
+  "bMMppMMMMMMppMMb",
+  "bMDDDDDDDDDDDDMb",
+  "bDDDDDDDDDDDDDDb",
+  ".bbDDDDDDDDDDbb.",
+  "...bbbbbbbbbb...",
+  "................",
+  "................"
+];
+const roll_f2 = [
+  "......bbbb......",
+  "....bbLLLLbb....",
+  "...bLLLLLLLLb...",
+  "..bLLLLLLLLLLb..",
+  "..bLLMMMMMMMMLb.",
+  ".bLMMbbLLbbMMLb.",
+  ".bMMMbbMMbbMMMb.",
+  ".bMMMbeMMbeMMMb.",
+  ".bMDDMMMMMMDDMb.",
+  ".bDDppDDDDppDDb.",
+  "..bDDDDDDDDDDb..",
+  "...bbDDDDDDbb...",
+  "....bbbbbbbb....",
+  "................",
+  "................",
+  "................"
+];
+const roll_f3 = [
+  "................",
+  "....bbbbbbbb....",
+  "..bbLLLLLLLLbb..",
+  ".bLLLLLLLLLLLLb.",
+  ".bLMMMMMMMMMMLb.",
+  "bMMMMMMMMMMMMMMb",
+  "bMMMMMMMMMMMMMMb",
+  "bMDDDDDDDDDDDDMb",
+  "bMDDbbDDDDbbDDMb",
+  "bDDDbeDDDDbeDDDb",
+  ".bDDppDDDDppDDb.",
+  "..bbDDDDDDDDbb..",
+  "....bbbbbbbb....",
+  "................",
+  "................",
+  "................"
+];
+const roll_f4 = [
+  "................",
+  "....bbbbbbbb....",
+  "..bbLLLLLLLLbb..",
+  ".bLLLLLLLLLLLLb.",
+  ".bLMMMMMMMMMMLb.",
+  "bLMMMMMMMMMMMMLb",
+  "bMMMMMMMMMMMMMMb",
+  "bMMMMMMMMMMMMMMb",
+  "bMDDDDDDDDDDDDMb",
+  "bDDDDDDDDDDDDDDb",
+  ".bDDDDDDDDDDDDb.",
+  "..bbDDDDDDDDbb..",
+  "....bbbbbbbb....",
+  "................",
+  "................",
+  "................"
+];
+const roll_f5 = [
+  "................",
+  "....bbbbbbbb....",
+  "..bbLLLLLLLLbb..",
+  ".bLLppLLLLppLLb.",
+  ".bLLebLLLLebLLb.",
+  "bLMMbbMMMMbbMMLb",
+  "bLMMMMMMMMMMMMLb",
+  "bMMMMMMMMMMMMMMb",
+  "bMMMMMMMMMMMMMMb",
+  "bMDDDDDDDDDDDDMb",
+  "bDDDDDDDDDDDDDDb",
+  ".bDDDDDDDDDDDDb.",
+  "..bbDDDDDDDDbb..",
+  "....bbbbbbbb....",
+  "................",
+  "................"
+];
+const roll_f6 = [
+  "......bbbb......",
+  "....bbLLLLbb....",
+  "...bLLLLLLLLb...",
+  "..bLLLLLLLLLLb..",
+  "..bLLLbbLLbbLLb.",
+  ".bLLMMbbMMbbMMLb",
+  ".bMMMMbeMMbeMMMb",
+  ".bMMppMMMMppMMMb",
+  ".bMDDDDDDDDDDMb.",
+  ".bDDDDDDDDDDDDb.",
+  "..bDDDDDDDDDDb..",
+  "...bbDDDDDDbb...",
+  "....bbbbbbbb....",
+  "................",
+  "................",
+  "................"
+];
+const roll_f7 = roll_f1;
+
 fs.writeFileSync(path.join(characterDir, 'slime_walk4.svg'), createSVG(f4));
 fs.writeFileSync(path.join(characterDir, 'slime_hit.svg'), createSVG(slimeHit));
 fs.writeFileSync(path.join(characterDir, 'slime_attack.svg'), createSVG(slimeAttack));
+fs.writeFileSync(path.join(characterDir, 'slime_roll1.svg'), createSVG(roll_f1));
+fs.writeFileSync(path.join(characterDir, 'slime_roll2.svg'), createSVG(roll_f2));
+fs.writeFileSync(path.join(characterDir, 'slime_roll3.svg'), createSVG(roll_f3));
+fs.writeFileSync(path.join(characterDir, 'slime_roll4.svg'), createSVG(roll_f4));
+fs.writeFileSync(path.join(characterDir, 'slime_roll5.svg'), createSVG(roll_f5));
+fs.writeFileSync(path.join(characterDir, 'slime_roll6.svg'), createSVG(roll_f6));
+fs.writeFileSync(path.join(characterDir, 'slime_roll7.svg'), createSVG(roll_f7));
 
 fs.writeFileSync(path.join(enemiesDir, 'goblin_idle.svg'), createSVG(goblinIdle));
 fs.writeFileSync(path.join(enemiesDir, 'goblin_run1.svg'), createSVG(gr1));
@@ -563,6 +680,20 @@ const merchantGrid = [
 ];
 fs.writeFileSync(path.join(characterDir, 'merchant.svg'), createSVG(merchantGrid));
 
+const portalGrid = [
+  "   cccccc   ",
+  "  cccccccc  ",
+  " cccuwwuccc ",
+  " ccuwwwwucc ",
+  " ccuwyywucc ",
+  " ccuwyywucc ",
+  " ccuwwwwucc ",
+  " cccuwwuccc ",
+  "  cccccccc  ",
+  "   cccccc   "
+];
+fs.writeFileSync(path.join(mapDir, 'portal.svg'), createSVG(portalGrid));
+
 console.log("All styled SVGs generated successfully.");
 
 // --- AUDIO GENERATION ---
@@ -627,6 +758,7 @@ function genSound(type) {
   if (type === 'shotgun_blast') duration = 0.3;
   if (type === 'fence_slam') duration = 0.4;
   if (type === 'door_creak') duration = 0.6;
+  if (type === 'room_clear') duration = 0.8;
 
   const samples = new Float32Array(Math.floor(rate * duration));
   let phase = 0;
@@ -723,6 +855,12 @@ function genSound(type) {
       const freq = 200 + Math.random() * 300;
       phase += 2 * Math.PI * freq / rate;
       sample = Math.sin(phase) * env * (Math.random() * 0.4 + 0.6) * 0.3;
+    } else if (type === 'room_clear') {
+      const step = Math.floor(t * 8);
+      const freqs = [440, 554, 659, 880]; // Triumphant arpeggio
+      const freq = freqs[Math.min(step, freqs.length - 1)] || 880;
+      phase += 2 * Math.PI * freq / rate;
+      sample = (Math.sin(phase) > 0 ? 1 : -1) * env * 0.15;
     }
 
     samples[i] = sample;
@@ -730,7 +868,7 @@ function genSound(type) {
   return samples;
 }
 
-['shoot', 'death', 'hit', 'kill', 'spawn', 'pickup', 'coin', 'drink', 'open_inventory', 'close_inventory', 'reload', 'level_up', 'knife_swing', 'sword_swing', 'mg_shoot', 'shotgun_blast', 'fence_slam', 'door_creak'].forEach(t => {
+['shoot', 'death', 'hit', 'kill', 'spawn', 'pickup', 'coin', 'open_inventory', 'close_inventory', 'reload', 'level_up', 'knife_swing', 'mg_shoot', 'shotgun_blast', 'fence_slam', 'door_creak', 'room_clear'].forEach(t => {
   writeWav(`${t}.wav`, genSound(t));
 });
 

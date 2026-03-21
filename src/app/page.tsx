@@ -57,10 +57,10 @@ export default function Home() {
   const [isReloading, setIsReloading] = useState(false);
   
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [volume, setVolume] = useState({ master: 1.0, bgm: 0.5, sfx: 0.5 });
+  const [volume, setVolume] = useState({ master: 1.0, bgm: 0.1, sfx: 0.5 });
   
   // Wave & Economy States
-  const [waveState, setWaveState] = useState({ wave: 1, gameState: 'playing', enemiesAlive: 0, enemiesToSpawn: 0, merchantTimer: 0 });
+  const [waveState, setWaveState] = useState({ wave: 1, gameState: 'playing', enemiesAlive: 0, enemiesToSpawn: 0, merchantTimer: 0, world: 1, stage: 1 });
   const [expState, setExpState] = useState({ exp: 0, maxExp: 10, level: 1, maxHP: 10 });
   const [coins, setCoins] = useState(0);
   const [showShop, setShowShop] = useState(false);
@@ -69,6 +69,7 @@ export default function Home() {
   // Instructions
   const [showItemInstruction, setShowItemInstruction] = useState(true);
   const [hasPickedUpPotion, setHasPickedUpPotion] = useState(false);
+  const [interactHover, setInteractHover] = useState<'merchant' | 'portal' | null>(null);
 
   useEffect(() => {
     const handleHpChange = (e: any) => {
@@ -108,6 +109,7 @@ export default function Home() {
     const handleCoinChange = (e: any) => setCoins(e.detail.coins);
     
     const handleShopOpen = () => setShowShop(true);
+    const handleHover = (e: any) => setInteractHover(e.detail);
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'Escape') setShowShop(false);
     };
@@ -120,6 +122,7 @@ export default function Home() {
     window.addEventListener("exp-change", handleExpChange);
     window.addEventListener("coin-change", handleCoinChange);
     window.addEventListener("shop-open", handleShopOpen);
+    window.addEventListener("interact-hover", handleHover);
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("settings-toggle", handleSettingsToggle);
 
@@ -131,6 +134,7 @@ export default function Home() {
       window.removeEventListener("exp-change", handleExpChange);
       window.removeEventListener("coin-change", handleCoinChange);
       window.removeEventListener("shop-open", handleShopOpen);
+      window.removeEventListener("interact-hover", handleHover);
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("settings-toggle", handleSettingsToggle);
     };
@@ -266,14 +270,20 @@ export default function Home() {
         <>
           {/* Top Center Analytics: Waves and EXP */}
           <div className="absolute top-4 left-1/2 -translate-x-1/2 flex flex-col items-center z-20 pointer-events-none">
-             {gameState !== 'playing_dungeon' && (
-               <div className="bg-black/90 border-4 border-[#444] px-6 py-2 shadow-lg mb-2 flex items-center gap-4">
-                  <span className="text-2xl font-mono text-white tracking-widest font-bold">WAVE {waveState.wave}</span>
-                  <span className="text-xl font-mono text-red-500 font-bold ml-4">
-                    {waveState.gameState === 'merchant' ? 'SHOP PHASE' : `${waveState.enemiesAlive + waveState.enemiesToSpawn} REMAINING`}
-                  </span>
-               </div>
-             )}
+             <div className="bg-black/90 border-4 border-[#444] px-6 py-2 shadow-lg mb-2 flex items-center gap-4">
+               {gameState === 'playing_dungeon' ? (
+                 <span className="text-2xl font-mono text-white tracking-widest font-bold drop-shadow-md">
+                   <span className="text-indigo-400">WORLD {waveState.world || 1}</span> <span className="text-gray-500 mx-2">-</span> <span className="text-red-400">STAGE {waveState.stage || 1}</span>
+                 </span>
+               ) : (
+                 <>
+                   <span className="text-2xl font-mono text-white tracking-widest font-bold">WAVE {waveState.wave}</span>
+                   <span className="text-xl font-mono text-red-500 font-bold ml-4">
+                     {waveState.gameState === 'merchant' ? 'SHOP PHASE' : `${waveState.enemiesAlive + waveState.enemiesToSpawn} REMAINING`}
+                   </span>
+                 </>
+               )}
+             </div>
              
              {/* EXP Bar */}
              <div className="w-96 bg-black/80 border-2 border-[#555] p-1 flex items-center relative h-6 shadow-[0_4px_8px_rgba(0,0,0,0.8)]">
@@ -414,7 +424,7 @@ export default function Home() {
           )}
           
           {/* Merchant Shop Modal */}
-          {showShop && waveState.gameState === 'merchant' && (
+          {showShop && (waveState.gameState === 'merchant' || gameState === 'playing_dungeon') && (
              <div className="absolute inset-0 bg-black/80 z-[100] flex items-center justify-center backdrop-blur-sm pointer-events-auto">
                 <div className="bg-[#111] border-8 border-indigo-600 p-8 min-w-[600px] flex flex-col shadow-2xl">
                    <div className="flex justify-between items-center mb-8 border-b-4 border-indigo-900 pb-4">
@@ -438,10 +448,31 @@ export default function Home() {
              </div>
           )}
 
+          {/* Interaction Prompts */}
+          {interactHover === 'merchant' && !showShop && (
+             <div className="absolute bottom-32 left-1/2 -translate-x-1/2 bg-black/80 px-6 py-2 border-4 border-indigo-600 z-50 pointer-events-none">
+                <span className="text-2xl font-mono font-bold text-white tracking-widest drop-shadow-[2px_2px_0_rgba(0,0,0,1)]">PRESS [F] TO OPEN SHOP</span>
+             </div>
+          )}
+          {interactHover === 'portal' && (
+             <div className="absolute bottom-32 left-1/2 -translate-x-1/2 bg-black/80 px-6 py-2 border-4 border-cyan-400 z-50 pointer-events-none transition-opacity duration-300">
+                <span className="text-2xl font-mono font-bold text-cyan-400 tracking-widest drop-shadow-[2px_2px_0_rgba(0,0,0,1)] animate-pulse">PRESS [SPACE] TO ENTER PORTAL</span>
+             </div>
+          )}
+
           {/* Quickbar 3-Slot Overlay */}
           {!isInventoryOpen && (
-            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-end gap-2 pointer-events-none z-30">
-              <div className="flex bg-black/80 border-4 border-[#333] p-1 gap-1 shadow-[0_8px_16px_rgba(0,0,0,0.8)] pointer-events-auto">
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-none z-30">
+              
+              {/* Centered Reloading Text above everything */}
+              {isReloading && (
+                  <div className="text-red-500 font-bold animate-pulse text-2xl tracking-widest drop-shadow-[0_2px_2px_rgba(0,0,0,1)] whitespace-nowrap mb-4">
+                    RELOADING...
+                  </div>
+              )}
+
+              <div className="flex items-end gap-2 pointer-events-none">
+                <div className="flex bg-black/80 border-4 border-[#333] p-1 gap-1 shadow-[0_8px_16px_rgba(0,0,0,0.8)] pointer-events-auto">
                 {inventory.slice(0, 3).map((slot, i) => (
                   <div 
                     key={i} 
@@ -477,11 +508,6 @@ export default function Home() {
               {/* Ammo Display */}
               {['gun', 'machine_gun', 'shotgun'].includes(inventory[activeSlot]?.id) && (
                 <div className="relative flex flex-col items-center justify-center h-14 px-4 bg-black/80 border-4 border-[#333] shadow-[0_8px_16px_rgba(0,0,0,0.8)] font-bold font-mono min-w-[120px]">
-                  {isReloading && (
-                     <div className="absolute -top-8 left-1/2 -translate-x-1/2 text-red-500 font-bold animate-pulse text-lg tracking-widest drop-shadow-[0_2px_2px_rgba(0,0,0,1)] whitespace-nowrap">
-                       RELOADING...
-                     </div>
-                  )}
                   <span className="text-2xl text-yellow-500 drop-shadow-[2px_2px_0_rgba(0,0,0,1)]">
                     {ammo} <span className="text-gray-500 text-xl">/ {maxAmmo || '∞'}</span>
                   </span>
@@ -495,6 +521,7 @@ export default function Home() {
                   </span>
                 </div>
               )}
+              </div>
             </div>
           )}
         </>
