@@ -56,6 +56,9 @@ export default function Home() {
   const [maxAmmo, setMaxAmmo] = useState(30);
   const [isReloading, setIsReloading] = useState(false);
   
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [volume, setVolume] = useState({ master: 1.0, bgm: 0.5, sfx: 0.5 });
+  
   // Wave & Economy States
   const [waveState, setWaveState] = useState({ wave: 1, gameState: 'playing', enemiesAlive: 0, enemiesToSpawn: 0, merchantTimer: 0 });
   const [expState, setExpState] = useState({ exp: 0, maxExp: 10, level: 1, maxHP: 10 });
@@ -108,6 +111,7 @@ export default function Home() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'Escape') setShowShop(false);
     };
+    const handleSettingsToggle = () => setIsSettingsOpen(prev => !prev);
 
     window.addEventListener("hp-change", handleHpChange);
     window.addEventListener("inventory-change", handleInventoryChange);
@@ -117,6 +121,7 @@ export default function Home() {
     window.addEventListener("coin-change", handleCoinChange);
     window.addEventListener("shop-open", handleShopOpen);
     window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("settings-toggle", handleSettingsToggle);
 
     return () => {
       window.removeEventListener("hp-change", handleHpChange);
@@ -127,6 +132,7 @@ export default function Home() {
       window.removeEventListener("coin-change", handleCoinChange);
       window.removeEventListener("shop-open", handleShopOpen);
       window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("settings-toggle", handleSettingsToggle);
     };
   }, [hasPickedUpPotion]);
 
@@ -146,8 +152,82 @@ export default function Home() {
     else hearts.push("empty");
   }
 
+  const handleVolumeChange = (key: 'master' | 'bgm' | 'sfx', value: number) => {
+    setVolume(prev => {
+      const next = { ...prev, [key]: value };
+      window.dispatchEvent(new CustomEvent('volume-change', { detail: next }));
+      return next;
+    });
+  };
+
   return (
     <main className="relative w-screen h-screen bg-black overflow-hidden m-0 p-0 text-white font-sans select-none">
+      {/* Settings Modal */}
+      {isSettingsOpen && (
+        <div className="absolute inset-0 z-[60] bg-black/90 backdrop-blur-md flex items-center justify-center pointer-events-auto">
+          <div className="relative bg-[#1a1a1a] border-4 border-[#555] p-10 shadow-[0_16px_48px_rgba(0,0,0,1)] flex flex-col min-w-[500px]">
+            
+            {/* Close Button */}
+            <button 
+              onClick={() => window.dispatchEvent(new CustomEvent('settings-toggle'))}
+              className="absolute top-4 right-6 text-gray-400 hover:text-red-500 font-black text-4xl transition-colors"
+            >
+              &times;
+            </button>
+            
+            <h2 className="text-yellow-500 text-center font-black text-4xl mb-10 tracking-widest uppercase drop-shadow-[0_2px_2px_rgba(0,0,0,1)]">Settings</h2>
+            
+            <div className="flex flex-col gap-8 w-full px-8">
+              {/* Master Volume */}
+              <div className="flex flex-col gap-2">
+                <div className="flex justify-between items-end">
+                   <label className="text-white font-mono font-bold text-xl uppercase tracking-widest">Master Volume</label>
+                   <span className="text-gray-400 font-mono">{Math.round(volume.master * 100)}%</span>
+                </div>
+                <input 
+                  type="range" min="0" max="1" step="0.01" 
+                  value={volume.master} 
+                  onChange={(e) => handleVolumeChange('master', parseFloat(e.target.value))}
+                  className="w-full accent-yellow-500 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                />
+              </div>
+
+              {/* BGM Volume */}
+              <div className="flex flex-col gap-2">
+                <div className="flex justify-between items-end">
+                   <label className="text-indigo-400 font-mono font-bold text-xl uppercase tracking-widest">Music (BGM)</label>
+                   <span className="text-gray-400 font-mono">{Math.round(volume.bgm * 100)}%</span>
+                </div>
+                <input 
+                  type="range" min="0" max="1" step="0.01" 
+                  value={volume.bgm} 
+                  onChange={(e) => handleVolumeChange('bgm', parseFloat(e.target.value))}
+                  className="w-full accent-indigo-500 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                />
+              </div>
+
+              {/* SFX Volume */}
+              <div className="flex flex-col gap-2">
+                <div className="flex justify-between items-end">
+                   <label className="text-red-400 font-mono font-bold text-xl uppercase tracking-widest">Effects (SFX)</label>
+                   <span className="text-gray-400 font-mono">{Math.round(volume.sfx * 100)}%</span>
+                </div>
+                <input 
+                  type="range" min="0" max="1" step="0.01" 
+                  value={volume.sfx} 
+                  onChange={(e) => handleVolumeChange('sfx', parseFloat(e.target.value))}
+                  className="w-full accent-red-500 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                />
+              </div>
+            </div>
+            
+            <div className="mt-12 text-center text-gray-500 font-mono text-sm">
+               Drop audio files in public/assets/bgm/ to play them randomly!
+            </div>
+          </div>
+        </div>
+      )}
+
       {(gameState === 'playing_wave' || gameState === 'playing_dungeon' || gameState === 'gameover') && <GameCanvas mode={gameState === 'playing_dungeon' ? 'dungeon' : 'wave'} />}
       
       {gameState === 'start' && (

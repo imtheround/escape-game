@@ -17,10 +17,10 @@ export interface WeaponStats {
 }
 
 export const WeaponRegistry: Record<string, WeaponStats> = {
-  gun: { id: 'gun', type: 'ranged', damage: 30, fireRate: 250, spread: 0.1, projectilesPerShot: 1, movementPenalty: 1.0, firingMovementPenalty: 0.9, spriteName: 'gun', projectileSpriteName: 'bullet', sfx: 'shoot', maxAmmo: 12, reloadTime: 1200 },
-  sword: { id: 'sword', type: 'melee', damage: 45, fireRate: 400, spread: 0, projectilesPerShot: 1, movementPenalty: 1.0, firingMovementPenalty: 1.0, spriteName: 'sword', projectileSpriteName: 'sword', sfx: 'sword_swing' },
+  gun: { id: 'gun', type: 'ranged', damage: 30, fireRate: 250, spread: 0.05, projectilesPerShot: 1, movementPenalty: 1.0, firingMovementPenalty: 0.9, spriteName: 'gun', projectileSpriteName: 'bullet', sfx: 'shoot', maxAmmo: 12, reloadTime: 1200 },
+  sword: { id: 'sword', type: 'melee', damage: 45, fireRate: 400, spread: 0, projectilesPerShot: 1, movementPenalty: 1.1, firingMovementPenalty: 1.0, spriteName: 'sword', projectileSpriteName: 'sword', sfx: 'sword_swing' },
   machine_gun: { id: 'machine_gun', type: 'ranged', damage: 35, fireRate: 100, spread: 0.3, projectilesPerShot: 1, movementPenalty: 0.85, firingMovementPenalty: 0.4, spriteName: 'machine_gun', projectileSpriteName: 'mg_bullet', sfx: 'mg_shoot', maxAmmo: 50, reloadTime: 2500 },
-  shotgun: { id: 'shotgun', type: 'ranged', damage: 15, fireRate: 800, spread: 0.5, projectilesPerShot: 5, movementPenalty: 0.95, firingMovementPenalty: 0.6, spriteName: 'shotgun', projectileSpriteName: 'shotgun_pellet', sfx: 'shotgun_blast', maxAmmo: 9, reloadTime: 600 }
+  shotgun: { id: 'shotgun', type: 'ranged', damage: 15, fireRate: 800, spread: 0.8, projectilesPerShot: 5, movementPenalty: 0.95, firingMovementPenalty: 0.6, spriteName: 'shotgun', projectileSpriteName: 'shotgun_pellet', sfx: 'shotgun_blast', maxAmmo: 9, reloadTime: 600 }
 };
 
 export class GameManager {
@@ -44,6 +44,14 @@ export class GameManager {
   });
   public activeSlot: number = 0;
   public isInventoryOpen: boolean = false;
+  public isSettingsOpen: boolean = false;
+
+  private masterVolume: number = 1.0;
+  private bgmVolume: number = 0.85;
+  private sfxVolume: number = 0.85;
+
+  private bgmAudio: HTMLAudioElement | null = null;
+  private bgmList: string[] = [];
 
   public isReloading = false;
   private reloadTimer = 0;
@@ -133,7 +141,7 @@ export class GameManager {
     files.forEach(f => {
       this.audioPool[f] = Array(5).fill(null).map(() => {
         const a = new Audio(`/assets/audio/${f}.wav`);
-        a.volume = 0.5;
+        a.volume = this.masterVolume * this.sfxVolume;
         return a;
       });
     });
@@ -219,6 +227,7 @@ export class GameManager {
     this.app.stage.addChild(this.worldContainer);
     this.setupPlayer();
     this.setupInput();
+    this.fetchBGM();
 
     this.dispatchState(); // Initial state dispatch
     this.playSound('spawn');
@@ -227,6 +236,61 @@ export class GameManager {
       this.update(ticker.deltaTime);
     });
   }
+
+  private async fetchBGM() {
+    try {
+      const res = await fetch('/api/bgm');
+      const data = await res.json();
+      if (data.files && data.files.length > 0) {
+        this.bgmList = data.files;
+        this.playNextBGM();
+      }
+    } catch (e) { console.error("Failed to fetch BGM:", e); }
+  }
+
+  private playNextBGM() {
+    if (this.bgmList.length === 0) return;
+    const file = this.bgmList[Math.floor(Math.random() * this.bgmList.length)];
+    if (this.bgmAudio) {
+       this.bgmAudio.pause();
+       this.bgmAudio = null;
+    }
+    this.bgmAudio = new Audio(`/assets/bgm/${file}`);
+    this.bgmAudio.volume = this.bgmVolume * this.masterVolume;
+    this.bgmAudio.loop = false;
+    this.bgmAudio.addEventListener('ended', () => this.playNextBGM());
+    // Auto play might be blocked if user hasn't clicked yet, handle it via a user-gesture resolver later
+    this.bgmAudio.play().catch(e => console.log("BGM Autoplay prevented until interaction"));
+  }
+
+  private applyVolumes() {
+    const finalSfx = this.masterVolume * this.sfxVolume;
+    for (const key in this.audioPool) {
+      this.audioPool[key].forEach(a => a.volume = finalSfx);
+    }
+    if (this.bgmAudio) {
+      this.bgmAudio.volume = this.masterVolume * this.bgmVolume;
+    }
+  }
+
+  private handleVolumeChange = (e: any) => {
+    this.masterVolume = e.detail.master;
+    this.bgmVolume = e.detail.bgm;
+    this.sfxVolume = e.detail.sfx;
+    this.applyVolumes();
+    
+    // Auto-start BGM if it was blocked by browser and user interacts with volume
+    if (this.bgmAudio && this.bgmAudio.paused) {
+       this.bgmAudio.play().catch(()=>{});
+    }
+  };
+
+  private handleSettingsToggle = () => {
+    this.isSettingsOpen = !this.isSettingsOpen;
+    if (this.isSettingsOpen) this.playSound('open_inventory');
+    else this.playSound('close_inventory');
+    this.dispatchState();
+  };
 
   private async loadAssets() {
     const tIdle1 = await Assets.load('/assets/character/slime_idle1.svg');
@@ -556,11 +620,15 @@ export class GameManager {
       this.dispatchState();
     }
 
-    // Close Inventory on Escape
-    if (e.code === 'Escape' && !e.repeat && this.isInventoryOpen) {
-      this.isInventoryOpen = false;
-      this.playSound('close_inventory');
-      this.dispatchState();
+    // Close Inventory or Open Settings on Escape
+    if (e.code === 'Escape' && !e.repeat) {
+      if (this.isInventoryOpen) {
+        this.isInventoryOpen = false;
+        this.playSound('close_inventory');
+        this.dispatchState();
+      } else {
+        window.dispatchEvent(new CustomEvent('settings-toggle'));
+      }
     }
 
     // Reloading
@@ -678,6 +746,8 @@ export class GameManager {
     window.addEventListener('inventory-close', this.handleClose);
     window.addEventListener('slot-change', this.handleSlotChange);
     window.addEventListener('skip-wave', () => this.startNextWave());
+    window.addEventListener('volume-change', this.handleVolumeChange);
+    window.addEventListener('settings-toggle', this.handleSettingsToggle);
   }
 
   private spawnMonsterInRoom(room: any) {
@@ -873,7 +943,7 @@ export class GameManager {
     this.playerShadow.x = this.player.x;
     this.playerShadow.y = this.player.y;
 
-    if (this.playerHP <= 0 || this.isInventoryOpen) return; // Freeze simulation on death or inventory open
+    if (this.playerHP <= 0 || this.isInventoryOpen || this.isSettingsOpen) return; // Freeze simulation on death, inventory, or settings
 
     if (this.gameMode === 'wave') {
       if (this.gameState === 'playing') {
