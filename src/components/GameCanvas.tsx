@@ -3,7 +3,11 @@
 import { useEffect, useRef } from 'react';
 import { GameManager } from '../game/GameManager';
 
-export default function GameCanvas() {
+interface GameCanvasProps {
+  mode: 'wave' | 'dungeon';
+}
+
+export default function GameCanvas({ mode }: GameCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const gameManagerRef = useRef<GameManager | null>(null);
 
@@ -11,7 +15,7 @@ export default function GameCanvas() {
     if (!containerRef.current) return;
 
     const initPixi = async () => {
-      const manager = new GameManager();
+      const manager = new GameManager(mode);
       await manager.init(containerRef.current!);
       gameManagerRef.current = manager;
     };
@@ -24,7 +28,7 @@ export default function GameCanvas() {
         gameManagerRef.current = null;
       }
     };
-  }, []);
+  }, [mode]);
 
   return <div ref={containerRef} className="w-full h-full overflow-hidden bg-black absolute inset-0" />;
 }
