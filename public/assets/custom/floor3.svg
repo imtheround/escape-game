@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="256" height="256" style="image-rendering: pixelated; shape-rendering: crispEdges;">
+  <style>
+    /* Warm Sandstone Dungeon Palette */
+    .mortar { fill: #241c18; } /* Deepest shadow / dust grout */
+    .base   { fill: #544a3f; } /* Mid-tone warm stone */
+    .high   { fill: #736f59; } /* Top/Left dusty highlights */
+    .shad   { fill: #3b362a; } /* Bottom/Right heavy shadows */
+    .pit    { fill: #2c291e; } /* Pitting texture grime */
+  </style>
+
+  <rect width="32" height="32" class="mortar" />
+
+  <path class="base" d="M0 0h20v15H0z M21 0h10v15H21z M0 16h8v15H0z opacity 0.5 M9 16h22v15H9z"/>
+
+  <path class="high" d="
+    M0 0h19v1H0z M0 1h1v13H0z 
+    M21 0h9v1H21z M21 1h1v13H21z 
+    M0 16h7v1H0z M0 17h1v13H0z 
+    M9 16h21v1H9z M9 17h1v13H9z
+    M4 3h1v1H4z M11 5h1v1H11z M17 2h1v1H17z M23 6h1v1H23z 
+    M28 2h1v1H28z M25 10h2v1H25z M2 22h1v1H2z M12 20h2v1H12z M21 24h2v1H21z M26 19h1v1H26z M30 20h1v1H30z
+  "/>
+
+  <path class="shad" d="
+    M19 1h1v14H19z M1 14h18v1H1z 
+    M30 1h1v14H30z M22 14h8v1H22z 
+    M7 17h1v14H7z M1 30h6v1H1z 
+    M30 17h1v14H30z M10 30h20v1H10z
+    M3 6h2v1H3z M10 11h1v1H10z M16 4h1v1H16z M27 7h1v1H27z 
+    M22 12h1v1H22z M4 27h1v1H4z M15 28h1v1H15z M20 18h1v1H20z M28 26h1v1H28z
+  "/>
+
+  <path class="pit" d="
+    M4 10h1v1H4z M8 12h1v1H8z M16 6h1v1H16z 
+    M24 8h1v1H24z M28 10h1v1H28z 
+    M20 22h1v1H20z M24 26h1v1H24z
+  "/>
+</svg>

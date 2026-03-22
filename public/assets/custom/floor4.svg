@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="256" height="256" style="image-rendering: pixelated; shape-rendering: crispEdges;">
+  <style>
+    /* Aged Mossy Dungeon Palette */
+    .mortar { fill: #131d1d; } /* Deepest shadow / grime grout */
+    .base   { fill: #3a504a; } /* Mid-tone aged stone */
+    .high   { fill: #5c756f; } /* Top/Left aged highlights */
+    .shad   { fill: #2a3d38; } /* Bottom/Right organic shadows */
+    .moss   { fill: #1f302a; } /* Grime in cracks */
+  </style>
+
+  <rect width="32" height="32" class="mortar" />
+
+  <path class="base" d="M0 0h20v15H0z M21 0h10v15H21z M0 16h8v15H0z M9 16h22v15H9z"/>
+
+  <path class="high" d="
+    M0 0h19v1H0z M0 1h1v13H0z 
+    M21 0h9v1H21z M21 1h1v13H21z 
+    M0 16h7v1H0z M0 17h1v13H0z 
+    M9 16h21v1H9z M9 17h1v13H9z
+    M5 3h1v1H5z M12 6h2v1H12z M15 11h1v1H15z M25 7h1v1H25z 
+    M28 3h1v1H28z M23 12h1v2H23z M2 22h1v1H2z M15 20h2v1H15z M24 22h3v1H24z M17 26h1v1H17z
+  "/>
+
+  <path class="shad" d="
+    M19 1h1v14H19z M1 14h18v1H1z 
+    M30 1h1v14H30z M22 14h8v1H22z 
+    M7 17h1v14H7z M1 30h6v1H1z 
+    M30 17h1v14H30z M10 30h20v1H10z
+    M3 5h2v1H3z M10 9h1v1H10z M16 4h1v1H16z M27 9h1v1H27z 
+    M22 10h2v1H22z M4 28h1v1H4z M12 26h1v2H12z M19 18h1v1H19z M28 26h1v1H28z
+  "/>
+
+  <path class="moss" d="
+    M0 6h6v1H0z M6 7h2v1H6z M0 8h1v1H0z 
+    M28 20h1v4H28z M29 18h1v2H29z 
+    M9 28h1v2H9z M10 26h1v2H10z
+  "/>
+</svg>

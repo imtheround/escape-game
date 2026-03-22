@@ -1,0 +1,6 @@
+Im actually intrested into turning it into a bit of a 2.5d game, well to make certain decoration have a bit of a 3d effect
+2. add some cool particle effectes, more dynamic and fun
+3. Dynamic Lighting and Vignettes 
+4. the flooring is another resolution (i think its 256*256), but its not loading properly in the game, fix that
+5. the player can pass through the stone, fix that
+6. the stamina bar should be hidden if its full, it will re appear if the player uses stamina, or when its not full (regenerating)

@@ -81,7 +81,7 @@ export class GameManager {
 
   private gunSprite!: Sprite;
   private weaponTextures: Record<string, any> = {};
-  private mapTextures: Record<string, Texture> = {};
+  private mapTextures: Record<string, any> = {};
   private gunRecoil = 0;
   private handPotionSprite!: Sprite;
 
@@ -125,6 +125,9 @@ export class GameManager {
 
   // Dungeon Grid
   private floorCells = new Set<string>();
+  private obstacleCells = new Set<string>();
+  private exploredCells = new Set<string>();
+  private destructibles: { sprite: Sprite, x: number, y: number, hp: number }[] = [];
   private dungeonRooms: {
     x: number; y: number; w: number; h: number;
     cleared: boolean; active: boolean; entered: boolean;
@@ -138,9 +141,11 @@ export class GameManager {
     waveTimer?: number;
   }[] = [];
   public currentDungeonWorld = 1;
-  public currentDungeonStage = 1;
+  private currentDungeonStage = 1;
 
   private playerShadow!: Graphics;
+  private minimapGraphics!: Graphics;
+  private minimapContainer!: Container;
   private particles: { sprite: Sprite, vx: number, vy: number, life: number, maxLife: number }[] = [];
 
   private spawnParticles(x: number, y: number, color: number, count: number) {
@@ -252,6 +257,7 @@ export class GameManager {
 
     this.dispatchState(); // Initial state dispatch
     this.playSound('spawn');
+    window.dispatchEvent(new CustomEvent('assets-loaded'));
 
     this.app.ticker.add((ticker) => {
       this.update(ticker.deltaTime);
@@ -355,17 +361,26 @@ export class GameManager {
     this.coinTexture = await Assets.load('/assets/items/coin.svg');
     this.merchantTexture = await Assets.load('/assets/character/merchant.svg');
 
+    const loadTex = async (p: string) => await Assets.load(p);
+    
+    // Load biome-specific map textures
     this.mapTextures = {
-      floor: await Assets.load('/assets/map/floor.svg'),
-      wall_h: await Assets.load('/assets/map/wall_h.svg'),
-      wall_v: await Assets.load('/assets/map/wall_v.svg'),
-      rock: await Assets.load('/assets/map/rock.svg'),
-      fence: await Assets.load('/assets/map/fence.svg'),
-      portal: await Assets.load('/assets/map/portal.svg')
+      floor: [await loadTex('/assets/map/floor.svg'), await loadTex('/assets/map/floor_magma.svg'), await loadTex('/assets/map/floor_void.svg')],
+      customFloor: [await loadTex('/assets/custom/floor1.svg'), await loadTex('/assets/custom/floor2.svg'), await loadTex('/assets/custom/floor3.svg'), await loadTex('/assets/custom/floor4.svg')],
+      wall_h: [await loadTex('/assets/map/wall_h.svg'), await loadTex('/assets/map/wall_h_magma.svg'), await loadTex('/assets/map/wall_h_void.svg')],
+      wall_v: [await loadTex('/assets/map/wall_v.svg'), await loadTex('/assets/map/wall_v_magma.svg'), await loadTex('/assets/map/wall_v_void.svg')],
+      rock: [await loadTex('/assets/map/rock.svg'), await loadTex('/assets/map/rock_magma.svg'), await loadTex('/assets/map/rock_void.svg')],
+      fence: await loadTex('/assets/map/fence.svg'),
+      portal: await loadTex('/assets/map/portal.svg'),
+      crate: await loadTex('/assets/map/crate.svg'),
+      bones: await loadTex('/assets/map/bones.svg'),
+      web: await loadTex('/assets/map/web.svg')
     };
 
-    Object.values(this.weaponTextures).forEach((t: any) => t.source.scaleMode = 'nearest');
-    [this.potionTexture, this.coinTexture, this.merchantTexture, this.mapTextures.floor, this.mapTextures.wall_h, this.mapTextures.wall_v, this.mapTextures.rock, this.mapTextures.fence, this.mapTextures.portal].forEach(t => t.source.scaleMode = 'nearest');
+    [this.potionTexture, this.coinTexture, this.merchantTexture, 
+     ...this.mapTextures.floor, ...this.mapTextures.customFloor, ...this.mapTextures.wall_h, ...this.mapTextures.wall_v, ...this.mapTextures.rock, 
+     this.mapTextures.fence, this.mapTextures.portal, this.mapTextures.crate, this.mapTextures.bones, this.mapTextures.web
+    ].forEach(t => t.source.scaleMode = 'nearest');
 
     const gIdle = await Assets.load('/assets/enemies/goblin_idle.svg');
 
@@ -395,6 +410,7 @@ export class GameManager {
 
     this.weaponTextures.ebullet = await Assets.load('/assets/character/ebullet.svg');
     this.weaponTextures.ebullet.source.scaleMode = 'nearest';
+    Object.values(this.weaponTextures).forEach((t: any) => { if (t?.source) t.source.scaleMode = 'nearest'; });
 
     this.goblinTextures.idle.forEach((t: any) => t.source.scaleMode = 'nearest');
     this.goblinTextures.run.forEach((t: any) => t.source.scaleMode = 'nearest');
@@ -436,7 +452,7 @@ export class GameManager {
     this.staminaGroup.addChild(this.staminaBarFill);
     this.worldContainer.addChild(this.staminaGroup);
     
-    this.staminaGroup.x = this.player.x;
+    this.staminaGroup.x = this.player.x - 40;
     this.staminaGroup.y = this.player.y - 70;
 
     // Setup Gun
@@ -451,35 +467,64 @@ export class GameManager {
     this.handPotionSprite.scale.set(3);
     this.handPotionSprite.visible = false;
     this.worldContainer.addChild(this.handPotionSprite);
+
+    // Setup Minimap
+    this.minimapContainer = new Container();
+    this.minimapContainer.zIndex = 1000000;
+    this.minimapGraphics = new Graphics();
+    this.minimapContainer.addChild(this.minimapGraphics);
+    
+    // Position minimap in top right with padding
+    const padding = 20;
+    const minimapSize = 200;
+    this.minimapContainer.x = this.app.screen.width - minimapSize - padding;
+    this.minimapContainer.y = padding;
+    
+    // We don't add to worldContainer because we want it fixed to screen
+    // We'll add it to the stage or a UI container if available
+    this.app.stage.addChild(this.minimapContainer);
   }
 
   private generateWaveMap() {
     const radius = 1000;
 
-    const floor = new TilingSprite({
-      texture: this.mapTextures.floor,
-      width: radius * 2.5,
-      height: radius * 2.5
-    });
-    floor.anchor.set(0.5);
-    floor.tileScale.set(4);
-    floor.x = 0;
-    floor.y = 0;
-    floor.zIndex = -100000;
+    const bId = (this.currentDungeonWorld - 1) % 3;
+    const TILE_SIZE = 64;
+    const padding = Math.ceil((radius * 2.5 / 2) / TILE_SIZE);
+    
+    const floorContainer = new Container();
+    floorContainer.zIndex = -100000;
+    
+    for (let x = -padding; x <= padding; x++) {
+      for (let y = -padding; y <= padding; y++) {
+         const r = Math.random();
+         let tex;
+         if (r < 0.65) tex = this.mapTextures.customFloor[0];
+         else if (r < 0.85) tex = this.mapTextures.customFloor[1];
+         else if (r < 0.93) tex = this.mapTextures.customFloor[2];
+         else tex = this.mapTextures.customFloor[3];
+         const sprite = new Sprite(tex);
+         sprite.anchor.set(0.5);
+         sprite.scale.set(4);
+         sprite.x = x * TILE_SIZE;
+         sprite.y = y * TILE_SIZE;
+         floorContainer.addChild(sprite);
+      }
+    }
 
     // Circular Mask
     const mask = new Graphics().circle(0, 0, radius).fill(0xffffff);
     this.worldContainer.addChild(mask);
-    floor.mask = mask;
+    floorContainer.mask = mask;
 
-    this.worldContainer.addChild(floor);
+    this.worldContainer.addChild(floorContainer);
 
     // Perimeter walls radially
     const circumference = 2 * Math.PI * radius;
     const numWalls = Math.floor(circumference / 64);
     for (let i = 0; i < numWalls; i++) {
       const theta = (i / numWalls) * Math.PI * 2;
-      const w = new Sprite(this.mapTextures.wall);
+      const w = new Sprite(this.mapTextures.wall_h[bId]); // Changed to use biome-specific wall
       w.scale.set(4); w.anchor.set(0.5);
       w.position.set(Math.cos(theta) * radius, Math.sin(theta) * radius);
       this.worldContainer.addChild(w);
@@ -487,68 +532,163 @@ export class GameManager {
   }
 
   private generateDungeonMap() {
-    // Top left of origin is technically negative coordinates
-    // We start at 0,0 and go towards positive X, negative Y (top right visually).
-    let curX = -5; // Start coordinates (Bottom-Left conceptual starting area)
-    let curY = 5;
-    const roomCount = 3 + Math.floor(this.currentDungeonStage * 1.5); // 3 to ...
+    this.obstacleCells.clear();
+    this.exploredCells.clear();
+    this.destructibles = [];
+
+    // Let's place rooms such that we draw a corridor from the center of previous room to the center of next room.
+    let curX = 0;
+    let curY = 0;
+    const roomCount = 3 + Math.floor(this.currentDungeonStage * 1.5);
+    const rooms: { x: number, y: number, w: number, h: number }[] = [];
 
     for (let i = 0; i < roomCount; i++) {
-      const rw = 14 + Math.floor(Math.random() * 6);
-      const rh = 14 + Math.floor(Math.random() * 6);
-      for (let x = curX; x < curX + rw; x++) {
-        for (let y = curY; y > curY - rh; y--) {
-          this.floorCells.add(`${x},${y}`);
-        }
+      const rw = 16 + Math.floor(Math.random() * 8); // larger rooms
+      const rh = 16 + Math.floor(Math.random() * 8);
+      rooms.push({ x: curX, y: curY, w: rw, h: rh });
+
+      // Determine next room position. Move either purely horizontally or purely vertically to avoid diagonal issues, or both!
+      const dist = 30 + Math.floor(Math.random() * 20); // spread them out
+      if (Math.random() > 0.5) {
+         curX += dist;
+      } else {
+         curY -= dist; // Up
       }
-
-      const isFinal = (i === roomCount - 1);
-      const isStart = (i === 0);
-      const room = {
-        x: curX, y: curY, w: rw, h: rh,
-        cleared: false, active: false, entered: false,
-        doors: [], monstersToSpawn: (isFinal || isStart) ? 0 : 8 + this.currentDungeonStage * 6,
-        isFinal, isStart
-      };
-      this.dungeonRooms.push(room);
-
-      if (i < roomCount - 1) {
-        // Stair-step Corridor
-        const cRadius = 3; // width = 7
-        const horizDist = 8 + Math.floor(Math.random() * 8);
-        const vertDist = 8 + Math.floor(Math.random() * 8);
-
-        let cx = curX + rw - cRadius - 1;
-        let cy = curY - Math.floor(rh / 2);
-
-        // Move right
-        for (let step = 0; step < horizDist; step++) {
-          for (let w = -cRadius; w <= cRadius; w++) {
-            this.floorCells.add(`${cx},${cy + w}`);
-          }
-          cx++;
-        }
-        
-        // Move up
-        for (let step = 0; step < vertDist; step++) {
-          for (let w = -cRadius; w <= cRadius; w++) {
-            this.floorCells.add(`${cx + w},${cy}`);
-          }
-          cy--;
-        }
-
-        curX = cx;
-        curY = cy;
+      
+      // sometimes move both
+      if (Math.random() > 0.5) {
+         if (Math.random() > 0.5) curX += dist;
+         else curY -= dist;
       }
     }
 
-    // Build Sprites
-    const wallCells = new Set<string>();
+    // Now carve floor cells for each room
+    rooms.forEach((r, i) => {
+      const roomCells = new Set<string>();
+      for (let x = r.x; x < r.x + r.w; x++) {
+        for (let y = r.y; y > r.y - r.h; y--) {
+          roomCells.add(`${x},${y}`);
+        }
+      }
+
+      // Sculpt irregular architectural shapes
+      const carves = Math.floor(Math.random() * 4);
+      for (let c = 0; c < carves; c++) {
+        const cornerX = Math.random() > 0.5 ? r.x : r.x + r.w - 1;
+        const cornerY = Math.random() > 0.5 ? r.y : r.y - r.h + 1;
+        const carveW = 3 + Math.floor(Math.random() * 6);
+        const carveH = 3 + Math.floor(Math.random() * 6);
+        
+        const dirX = cornerX === r.x ? 1 : -1;
+        const dirY = cornerY === r.y ? -1 : 1; 
+
+        for (let w = 0; w < carveW; w++) {
+          for (let h = 0; h < carveH; h++) {
+            roomCells.delete(`${cornerX + w * dirX},${cornerY + h * dirY}`);
+          }
+        }
+      }
+
+      roomCells.forEach(cell => this.floorCells.add(cell));
+
+      const isFinal = (i === roomCount - 1);
+      const isStart = (i === 0);
+
+      this.dungeonRooms.push({
+        x: r.x, y: r.y, w: r.w, h: r.h,
+        cleared: false, active: false, entered: false,
+        doors: [], monstersToSpawn: (isFinal || isStart) ? 0 : 8 + this.currentDungeonStage * 6,
+        isFinal, isStart
+      });
+    });
+
+    // Now carve corridors connecting centers of rooms
+    for (let i = 0; i < roomCount - 1; i++) {
+        const r1 = rooms[i];
+        const r2 = rooms[i+1];
+
+        const cx1 = Math.floor(r1.x + r1.w / 2);
+        const cy1 = Math.floor(r1.y - r1.h / 2);
+        const cx2 = Math.floor(r2.x + r2.w / 2);
+        const cy2 = Math.floor(r2.y - r2.h / 2);
+
+        // draw L-shaped corridor
+        const cRadius = 6; // HUGE corridors (width = 13)
+
+        // Horizontal segment from cx1 to cx2 at cy1
+        const startX = Math.min(cx1, cx2);
+        const endX = Math.max(cx1, cx2);
+        for(let x = startX; x <= endX; x++) {
+            for(let w = -cRadius; w <= cRadius; w++) {
+                this.floorCells.add(`${x},${cy1 + w}`);
+            }
+        }
+
+        // Vertical segment from cy1 to cy2 at cx2
+        const startY = Math.min(cy1, cy2);
+        const endY = Math.max(cy1, cy2);
+        for(let y = startY; y <= endY; y++) {
+            for(let w = -cRadius; w <= cRadius; w++) {
+                this.floorCells.add(`${cx2 + w},${y}`);
+            }
+        }
+    }
+
+    // Spawn Props over the whole floorCells
+    const bId = (this.currentDungeonWorld - 1) % 3;
+
+    rooms.forEach((r, i) => {
+      // Spawn Hard Obstacles (Rocks)
+      if (i > 0) {
+        const numRocks = Math.floor(Math.random() * 6);
+        for (let k = 0; k < numRocks; k++) {
+           const rx = r.x + 3 + Math.floor(Math.random() * (r.w - 6));
+           const ry = r.y - 3 - Math.floor(Math.random() * (r.h - 6));
+           if (this.floorCells.has(`${rx},${ry}`)) {
+              this.obstacleCells.add(`${rx},${ry}`);
+              const rock = new Sprite(this.mapTextures.rock[bId]);
+              rock.anchor.set(0.5); rock.scale.set(4);
+              rock.x = rx * 64; rock.y = ry * 64; rock.zIndex = rock.y;
+              this.worldContainer.addChild(rock);
+           }
+        }
+
+        // Spawn Destructibles (Crates)
+        const numCrates = Math.floor(Math.random() * 6);
+        for (let c = 0; c < numCrates; c++) {
+           const cx = r.x + 2 + Math.floor(Math.random() * (r.w - 4));
+           const cy = r.y - 2 - Math.floor(Math.random() * (r.h - 4));
+           if (this.floorCells.has(`${cx},${cy}`) && !this.obstacleCells.has(`${cx},${cy}`)) {
+              this.obstacleCells.add(`${cx},${cy}`);
+              const crate = new Sprite(this.mapTextures.crate);
+              crate.anchor.set(0.5); crate.scale.set(4);
+              crate.x = cx * 64; crate.y = cy * 64; crate.zIndex = crate.y;
+              this.worldContainer.addChild(crate);
+              this.destructibles.push({ sprite: crate, x: cx, y: cy, hp: 50 });
+           }
+        }
+      }
+
+      // Visual Clutter
+      const numClutter = 5 + Math.floor(Math.random() * 10);
+      for (let c = 0; c < numClutter; c++) {
+         const cx = r.x + 2 + Math.floor(Math.random() * (r.w - 4));
+         const cy = r.y - 2 - Math.floor(Math.random() * (r.h - 4));
+         if (this.floorCells.has(`${cx},${cy}`) && !this.obstacleCells.has(`${cx},${cy}`)) {
+            const isBone = Math.random() > 0.6;
+            const clutter = new Sprite(isBone ? this.mapTextures.bones : this.mapTextures.web);
+            clutter.anchor.set(0.5); clutter.scale.set(4);
+            clutter.x = cx * 64; clutter.y = cy * 64;
+            clutter.zIndex = -50; 
+            clutter.alpha = 0.5 + Math.random() * 0.5;
+            this.worldContainer.addChild(clutter);
+         }
+      }
+    });
+
     const TILE_SIZE = 64;
 
-    // Draw Floor Background over bounding box manually using TilingSprite Mask for heavy performance gains
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-
     this.floorCells.forEach(key => {
       const [cx, cy] = key.split(',').map(Number);
       if (cx < minX) minX = cx;
@@ -557,58 +697,68 @@ export class GameManager {
       if (cy > maxY) maxY = cy;
     });
 
-    // Floor mask
-    const floorShape = new Graphics();
-    floorShape.fill(0xffffff);
-    this.floorCells.forEach(key => {
-      const [cx, cy] = key.split(',').map(Number);
-      floorShape.rect(cx * TILE_SIZE - TILE_SIZE / 2, cy * TILE_SIZE - TILE_SIZE / 2, TILE_SIZE, TILE_SIZE);
-    });
-    this.worldContainer.addChild(floorShape);
+    // Floor rendering: Massive grid of individual sprites (using custom floor tiles)
+    const PAD = 10; // 10 padding cells past walls for cool effect
+    minX -= PAD;
+    maxX += PAD;
+    minY -= PAD;
+    maxY += PAD;
 
-    const floorTiling = new TilingSprite({
-      texture: this.mapTextures.floor,
-      width: (maxX - minX + 1) * TILE_SIZE,
-      height: (maxY - minY + 1) * TILE_SIZE
-    });
-    floorTiling.tileScale.set(4);
-    floorTiling.x = minX * TILE_SIZE - TILE_SIZE / 2;
-    floorTiling.y = minY * TILE_SIZE - TILE_SIZE / 2;
-    floorTiling.zIndex = -100000;
-    floorTiling.mask = floorShape;
-    this.worldContainer.addChild(floorTiling);
+    const floorContainer = new Container();
+    floorContainer.zIndex = -100000;
+
+    for (let x = minX; x <= maxX; x++) {
+      for (let y = minY; y <= maxY; y++) {
+         const r = Math.random();
+         let tex;
+         if (r < 0.65) tex = this.mapTextures.customFloor[0];
+         else if (r < 0.85) tex = this.mapTextures.customFloor[1];
+         else if (r < 0.93) tex = this.mapTextures.customFloor[2];
+         else tex = this.mapTextures.customFloor[3];
+         const sprite = new Sprite(tex);
+         sprite.anchor.set(0.5);
+         sprite.scale.set(4);
+         sprite.x = x * TILE_SIZE;
+         sprite.y = y * TILE_SIZE;
+         floorContainer.addChild(sprite);
+      }
+    }
+    
+    this.worldContainer.addChild(floorContainer);
+
+    const wallCells = new Set<string>();
 
     // Render thin walls precisely on the boundaries where the floor ends
     this.floorCells.forEach(key => {
       const [cx, cy] = key.split(',').map(Number);
-        if (!this.floorCells.has(`${cx},${cy-1}`)) {
-            const w = new Sprite(this.mapTextures.wall_h);
-            w.anchor.set(0.5, 0.5); w.scale.set(4);
-            w.x = cx * TILE_SIZE; w.y = cy * TILE_SIZE - TILE_SIZE/2;
-            w.zIndex = w.y + 10;
-            this.worldContainer.addChild(w);
-        }
-        if (!this.floorCells.has(`${cx},${cy+1}`)) {
-            const w = new Sprite(this.mapTextures.wall_h);
-            w.anchor.set(0.5, 0.5); w.scale.set(4);
-            w.x = cx * TILE_SIZE; w.y = cy * TILE_SIZE + TILE_SIZE/2;
-            w.zIndex = w.y + 10;
-            this.worldContainer.addChild(w);
-        }
-        if (!this.floorCells.has(`${cx-1},${cy}`)) {
-            const w = new Sprite(this.mapTextures.wall_v);
-            w.anchor.set(0.5, 0.5); w.scale.set(4);
-            w.x = cx * TILE_SIZE - TILE_SIZE/2; w.y = cy * TILE_SIZE;
-            w.zIndex = w.y + 10;
-            this.worldContainer.addChild(w);
-        }
-        if (!this.floorCells.has(`${cx+1},${cy}`)) {
-            const w = new Sprite(this.mapTextures.wall_v);
-            w.anchor.set(0.5, 0.5); w.scale.set(4);
-            w.x = cx * TILE_SIZE + TILE_SIZE/2; w.y = cy * TILE_SIZE;
-            w.zIndex = w.y + 10;
-            this.worldContainer.addChild(w);
-        }
+      if (!this.floorCells.has(`${cx},${cy-1}`)) {
+          const w = new Sprite(this.mapTextures.wall_h[bId]);
+          w.anchor.set(0.5, 0.5); w.scale.set(4);
+          w.x = cx * TILE_SIZE; w.y = cy * TILE_SIZE - TILE_SIZE/2;
+          w.zIndex = w.y + 10;
+          this.worldContainer.addChild(w);
+      }
+      if (!this.floorCells.has(`${cx},${cy+1}`)) {
+          const w = new Sprite(this.mapTextures.wall_h[bId]);
+          w.anchor.set(0.5, 0.5); w.scale.set(4);
+          w.x = cx * TILE_SIZE; w.y = cy * TILE_SIZE + TILE_SIZE/2;
+          w.zIndex = w.y + 10;
+          this.worldContainer.addChild(w);
+      }
+      if (!this.floorCells.has(`${cx-1},${cy}`)) {
+          const w = new Sprite(this.mapTextures.wall_v[bId]);
+          w.anchor.set(0.5, 0.5); w.scale.set(4);
+          w.x = cx * TILE_SIZE - TILE_SIZE/2; w.y = cy * TILE_SIZE;
+          w.zIndex = w.y + 10;
+          this.worldContainer.addChild(w);
+      }
+      if (!this.floorCells.has(`${cx+1},${cy}`)) {
+          const w = new Sprite(this.mapTextures.wall_v[bId]);
+          w.anchor.set(0.5, 0.5); w.scale.set(4);
+          w.x = cx * TILE_SIZE + TILE_SIZE/2; w.y = cy * TILE_SIZE;
+          w.zIndex = w.y + 10;
+          this.worldContainer.addChild(w);
+      }
     });
 
     // Populate Fences at Room Boundaries
@@ -801,8 +951,16 @@ export class GameManager {
   }
 
   private spawnMonsterInRoom(room: any, immediate = false) {
-    let sx = (room.x + 2 + Math.random() * (room.w - 4)) * 64;
-    let sy = (room.y - 2 - Math.random() * (room.h - 4)) * 64;
+    let tx, ty;
+    let attempts = 0;
+    do {
+      tx = room.x + 2 + Math.floor(Math.random() * (room.w - 4));
+      ty = room.y - 2 - Math.floor(Math.random() * (room.h - 4));
+      attempts++;
+    } while (this.obstacleCells.has(`${tx},${ty}`) && attempts < 20);
+
+    let sx = tx * 64;
+    let sy = ty * 64;
 
     const isRanged = Math.random() > 0.6;
     const monster = new Sprite(isRanged ? this.goblinBlueTextures.run[0] : this.goblinTextures.run[0]);
@@ -1302,7 +1460,8 @@ export class GameManager {
     }
 
     // Update stamina bar graphics smoothly (float + sine bob)
-    this.staminaGroup.x += (this.player.x - this.staminaGroup.x) * Math.min(1, 0.15 * dt);
+    const targetX = this.player.x - 40;
+    this.staminaGroup.x += (targetX - this.staminaGroup.x) * Math.min(1, 0.15 * dt);
     const targetY = (this.player.y - 70) + Math.sin(performance.now() / 200) * 4;
     this.staminaGroup.y += (targetY - this.staminaGroup.y) * Math.min(1, 0.15 * dt);
     
@@ -1722,8 +1881,37 @@ export class GameManager {
         if (this.gameMode === 'dungeon') {
           const bx = Math.round(b.sprite.x / 64);
           const by = Math.round(b.sprite.y / 64);
-          if (!this.floorCells.has(`${bx},${by}`)) {
+          if (!this.floorCells.has(`${bx},${by}`) || this.obstacleCells.has(`${bx},${by}`)) {
             b.life = 0; // smash into standard wall
+            
+             if (this.obstacleCells.has(`${bx},${by}`)) {
+               for (let d = this.destructibles.length - 1; d >= 0; d--) {
+                 const crate = this.destructibles[d];
+                 if (crate.x === bx && crate.y === by) {
+                   crate.hp -= this.playerDmg;
+                   this.playSound('hit');
+                   this.spawnParticles(crate.sprite.x, crate.sprite.y, 0xddaa55, 5); // Wood splinters
+
+                   if (crate.hp <= 0) {
+                     this.obstacleCells.delete(`${bx},${by}`);
+                     this.worldContainer.removeChild(crate.sprite);
+                     crate.sprite.destroy();
+                     this.destructibles.splice(d, 1);
+                     this.playSound('kill');
+
+                     // 25% chance to drop coin
+                     if (Math.random() < 0.25) {
+                        const coinSprite = new Sprite(this.coinTexture);
+                        coinSprite.anchor.set(0.5, 0.5); coinSprite.scale.set(0.15);
+                        coinSprite.x = bx * 64; coinSprite.y = by * 64; coinSprite.zIndex = by * 64;
+                        this.worldContainer.addChild(coinSprite);
+                        this.coinDrops.push({ sprite: coinSprite, life: 600 });
+                     }
+                   }
+                   break;
+                 }
+               }
+             }
           } else {
             let closedDoorHit = false;
             for (const r of this.dungeonRooms) {
@@ -1978,12 +2166,12 @@ export class GameManager {
           const minCX = Math.round((px - mRadius) / 64);
           const maxCX = Math.round((px + mRadius) / 64);
           const minCY = Math.round((py - mRadius) / 64);
-          const maxCY = Math.round((py + mRadius) / 64);
-
-          for (let x = minCX; x <= maxCX; x++) {
+          const maxCY = Math.round((py + mRadius) / 64);          for (let x = minCX; x <= maxCX; x++) {
             for (let y = minCY; y <= maxCY; y++) {
               if (!this.floorCells.has(`${x},${y}`)) return true; // Hitting solid wall boundary
+              if (this.obstacleCells.has(`${x},${y}`)) return true; // Hard obstacle/crate collision
               
+              // Checking Door Status dynamically
               let hitDoor = false;
               for (const r of this.dungeonRooms) {
                 if (r.active && r.doors.find(d => d.x === x && d.y === y && !d.open)) {
@@ -2056,16 +2244,65 @@ export class GameManager {
     this.player.zIndex = this.player.y;
     this.gunSprite.zIndex = this.player.y + 1; // Locked strictly unconditionally above player
 
+    // Update Explored Footprint (3x3 grid around player)
+    if (this.gameMode === 'dungeon') {
+      const px = Math.round(this.player.x / 64);
+      const py = Math.round(this.player.y / 64);
+      for (let ox = -2; ox <= 2; ox++) {
+        for (let oy = -2; oy <= 2; oy++) {
+          const key = `${px + ox},${py + oy}`;
+          if (this.floorCells.has(key)) {
+            this.exploredCells.add(key);
+          }
+        }
+      }
+      this.updateMinimap();
+    }
+
     for (const monster of this.monsters) {
       monster.zIndex = monster.y;
     }
     // Also rank bullets
-    for (const b of this.bullets) b.sprite.zIndex = b.sprite.y + 10;
-
-    // Camera Tracking
+    for (const b of this.bullets) b.sprite.zIndex = b.sprite.y + 10;    // Camera Tracking
     const screenCenter = { x: this.app.screen.width / 2, y: this.app.screen.height / 2 };
     this.worldContainer.x = screenCenter.x - this.player.x;
-    this.worldContainer.y = screenCenter.y - this.player.y;
+    this.worldContainer.y = screenCenter.y - (this.player.y - 24);
+
+    // Update Minimap UI Position in case screen resized
+    if (this.minimapContainer) {
+      this.minimapContainer.x = this.app.screen.width - 220;
+      this.minimapContainer.y = 20;
+    }
+  }
+
+  private updateMinimap() {
+    if (!this.minimapGraphics) return;
+
+    this.minimapGraphics.clear();
+    
+    const size = 200;
+    const halfSize = size / 2;
+    const scale = 4; // pixels per tile
+
+    // Background
+    this.minimapGraphics.rect(0, 0, size, size).fill({ color: 0x000000, alpha: 0.6 }).stroke({ width: 2, color: 0x444444 });
+
+    // Draw explored cells
+    const px = Math.round(this.player.x / 64);
+    const py = Math.round(this.player.y / 64);
+
+    this.exploredCells.forEach(key => {
+      const [tx, ty] = key.split(',').map(Number);
+      const dx = (tx - px) * scale + halfSize;
+      const dy = (ty - py) * scale + halfSize;
+
+      if (dx >= 0 && dx < size && dy >= 0 && dy < size) {
+        this.minimapGraphics.rect(dx, dy, scale, scale).fill(0x888888);
+      }
+    });
+
+    // Draw Player dot
+    this.minimapGraphics.rect(halfSize - scale/2, halfSize - scale/2, scale, scale).fill(0xffffff);
   }
 
   public getPlayerHP() {

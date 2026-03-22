@@ -65,6 +65,7 @@ export default function Home() {
   const [coins, setCoins] = useState(0);
   const [showShop, setShowShop] = useState(false);
   const [drinkingProgress, setDrinkingProgress] = useState<number | null>(null);
+  const [isLoadingAssets, setIsLoadingAssets] = useState(false);
   
   // Instructions
   const [showItemInstruction, setShowItemInstruction] = useState(true);
@@ -114,8 +115,10 @@ export default function Home() {
       if (e.code === 'Escape') setShowShop(false);
     };
     const handleSettingsToggle = () => setIsSettingsOpen(prev => !prev);
+    const handleAssetsLoaded = () => setIsLoadingAssets(false);
 
     window.addEventListener("hp-change", handleHpChange);
+    window.addEventListener("assets-loaded", handleAssetsLoaded);
     window.addEventListener("inventory-change", handleInventoryChange);
     window.addEventListener("ammo-change", handleAmmoChange);
     window.addEventListener("wave-change", handleWaveChange);
@@ -137,6 +140,7 @@ export default function Home() {
       window.removeEventListener("interact-hover", handleHover);
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("settings-toggle", handleSettingsToggle);
+      window.removeEventListener("assets-loaded", handleAssetsLoaded);
     };
   }, [hasPickedUpPotion]);
 
@@ -232,6 +236,12 @@ export default function Home() {
         </div>
       )}
 
+      {isLoadingAssets && (
+        <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black">
+          <h1 className="text-4xl text-white font-mono animate-pulse tracking-widest drop-shadow-[0_2px_2px_rgba(255,255,255,0.5)]">LOADING ASSETS...</h1>
+        </div>
+      )}
+
       {(gameState === 'playing_wave' || gameState === 'playing_dungeon' || gameState === 'gameover') && <GameCanvas mode={gameState === 'playing_dungeon' ? 'dungeon' : 'wave'} />}
       
       {gameState === 'start' && (
@@ -239,13 +249,13 @@ export default function Home() {
           <h1 className="text-6xl font-black text-red-600 mb-8 tracking-widest drop-shadow-[0_4px_4px_rgba(255,0,0,0.5)]">ESCAPE</h1>
           <div className="flex gap-8">
             <button 
-              onClick={() => setGameState('playing_wave')}
+              onClick={() => { setGameState('playing_wave'); setIsLoadingAssets(true); }}
               className="px-8 py-4 bg-[#333] border-4 border-white text-2xl font-bold hover:bg-white hover:text-black transition-colors"
             >
               WAVE MODE
             </button>
             <button 
-              onClick={() => setGameState('playing_dungeon')}
+              onClick={() => { setGameState('playing_dungeon'); setIsLoadingAssets(true); }}
               className="px-8 py-4 bg-indigo-900 border-4 border-indigo-400 text-2xl font-bold hover:bg-indigo-400 hover:text-black transition-colors"
             >
               DUNGEON MODE

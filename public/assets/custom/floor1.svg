@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="256" height="256" style="image-rendering: pixelated; shape-rendering: crispEdges;">
+  <style>
+    /* Dungeon Stone Color Palette */
+    .mortar { fill: #181824; } /* Deepest shadow / grout */
+    .base   { fill: #3f3f54; } /* Mid-tone stone */
+    .high   { fill: #595973; } /* Top/Left highlights */
+    .shad   { fill: #2a2a3b; } /* Bottom/Right shadows */
+  </style>
+
+  <rect width="32" height="32" class="mortar" />
+
+  <path class="base" d="
+    M0 0h20v15H0z 
+    M21 0h10v15H21z 
+    M0 16h8v15H0z 
+    M9 16h22v15H9z
+  "/>
+
+  <path class="high" d="
+    M0 0h19v1H0z M0 1h1v13H0z 
+    M21 0h9v1H21z M21 1h1v13H21z 
+    M0 16h7v1H0z M0 17h1v13H0z 
+    M9 16h21v1H9z M9 17h1v13H9z
+    M4 3h2v1H4z M12 4h1v1H12z M6 9h3v1H6z M16 11h1v1H16z 
+    M9 1h1v2H9z M10 3h1v2H10z M9 5h1v1H9z M24 6h1v1H24z 
+    M28 3h1v1H28z M25 12h1v2H25z M26 10h1v2H26z M3 20h2v1H3z 
+    M12 19h2v1H12z M18 24h1v1H18z M26 21h3v1H26z M19 17h1v1H19z 
+    M18 18h1v3H18z M19 21h1v2H19z
+  "/>
+
+  <path class="shad" d="
+    M19 1h1v14H19z M1 14h18v1H1z 
+    M30 1h1v14H30z M22 14h8v1H22z 
+    M7 17h1v14H7z M1 30h6v1H1z 
+    M30 17h1v14H30z M10 30h20v1H10z
+    M3 4h1v1H3z M11 5h2v1H11z M7 10h1v1H7z M17 12h1v1H17z 
+    M25 7h2v1H25z M27 4h1v1H27z M4 21h1v1H4z M2 26h1v1H2z 
+    M14 20h1v2H14z M17 25h2v1H17z M25 22h1v1H25z M28 22h1v1H28z
+  "/>
+
+  <path class="mortar" d="
+    M10 0h1v3H10z M11 3h1v2H11z M10 5h1v1H10z 
+    M26 12h1v2H26z M27 10h1v2H27z 
+    M20 16h1v2H20z M19 18h1v3H19z M20 21h1v2H20z
+  "/>
+</svg>

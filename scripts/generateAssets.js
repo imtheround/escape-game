@@ -32,6 +32,18 @@ const colorMap = {
   '3': '#333333', // Wall stone
   '4': '#444444', // Wall highlight
   '5': '#111111', // Wall shadow
+  // Magma
+  '6': '#2a0a04', // Magma Floor dark
+  '7': '#3f1207', // Magma Floor light
+  '8': '#28110b', // Magma Wall stone
+  '9': '#ff4400', // Magma Wall highlight glow
+  '0': '#150603', // Magma Wall shadow
+  // Void
+  'Q': '#0b0818', // Void Floor dark
+  'W': '#131024', // Void Floor light
+  'E': '#0f0a20', // Void Wall stone
+  'R': '#9d00ff', // Void Wall highlight glow
+  'T': '#04020a', // Void Wall shadow
 };
 
 function createSVG(grid) {
@@ -665,6 +677,69 @@ const rockGrid = [
   "  444444  "
 ];
 fs.writeFileSync(path.join(mapDir, 'rock.svg'), createSVG(rockGrid));
+
+// Biome Tiling Generators
+const floorGrid_magma = floorGrid.map(r => r.replace(/1/g, '6').replace(/2/g, '7'));
+const wall_h_magma = wall_h.map(r => r.replace(/3/g, '8').replace(/4/g, '9').replace(/5/g, '0'));
+const wall_v_magma = wall_v.map(r => r.replace(/3/g, '8').replace(/4/g, '9').replace(/5/g, '0'));
+const rockGrid_magma = rockGrid.map(r => r.replace(/4/g, '9').replace(/3/g, '8').replace(/2/g, '7').replace(/1/g, '6'));
+
+const floorGrid_void = floorGrid.map(r => r.replace(/1/g, 'Q').replace(/2/g, 'W'));
+const wall_h_void = wall_h.map(r => r.replace(/3/g, 'E').replace(/4/g, 'R').replace(/5/g, 'T'));
+const wall_v_void = wall_v.map(r => r.replace(/3/g, 'E').replace(/4/g, 'R').replace(/5/g, 'T'));
+const rockGrid_void = rockGrid.map(r => r.replace(/4/g, 'R').replace(/3/g, 'E').replace(/2/g, 'W').replace(/1/g, 'Q'));
+
+fs.writeFileSync(path.join(mapDir, 'floor_magma.svg'), createSVG(floorGrid_magma));
+fs.writeFileSync(path.join(mapDir, 'wall_h_magma.svg'), createSVG(wall_h_magma));
+fs.writeFileSync(path.join(mapDir, 'wall_v_magma.svg'), createSVG(wall_v_magma));
+fs.writeFileSync(path.join(mapDir, 'rock_magma.svg'), createSVG(rockGrid_magma));
+
+fs.writeFileSync(path.join(mapDir, 'floor_void.svg'), createSVG(floorGrid_void));
+fs.writeFileSync(path.join(mapDir, 'wall_h_void.svg'), createSVG(wall_h_void));
+fs.writeFileSync(path.join(mapDir, 'wall_v_void.svg'), createSVG(wall_v_void));
+fs.writeFileSync(path.join(mapDir, 'rock_void.svg'), createSVG(rockGrid_void));
+
+// Dungeon Decor & Props
+const crateGrid = [
+  "   hhhhhh   ",
+  "  h      h  ",
+  " hy      yh ",
+  " h y    y h ",
+  " h  y  y  h ",
+  " h   yy   h ",
+  " h  y  y  h ",
+  " h y    y h ",
+  " hy      yh ",
+  "  h      h  ",
+  "   hhhhhh   "
+];
+fs.writeFileSync(path.join(mapDir, 'crate.svg'), createSVG(crateGrid));
+
+const bonesGrid = [
+  "   s    s   ",
+  "   ssssss   ",
+  "   s    s   ",
+  "    s  s    ",
+  "     ss     ",
+  "    s  s    ",
+  "   s    s   ",
+  "   ssssss   ",
+  "   s    s   "
+];
+fs.writeFileSync(path.join(mapDir, 'bones.svg'), createSVG(bonesGrid));
+
+const webGrid = [
+  "ww        ww",
+  " wwww  wwww ",
+  "  w ww w w  ",
+  "   w w w    ",
+  "   w.ww.w   ",
+  "   ww..ww   ",
+  "  w .... w  ",
+  " w  ....  w ",
+  "w          w"
+];
+fs.writeFileSync(path.join(mapDir, 'web.svg'), createSVG(webGrid));
 
 const merchantGrid = [
   "   3333   ",
