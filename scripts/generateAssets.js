@@ -606,14 +606,14 @@ const wall_h = [
   "................",
   "................",
   "................",
-  "................",
-  "................",
-  "................",
   "3333333333333333",
+  "4444444444444444",
   "4444444444444444",
   "3333333333333333",
   "5555555555555555",
-  "................",
+  "5555555555555555",
+  "5555555555555555",
+  "1111111111111111",
   "................",
   "................",
   "................",
@@ -622,40 +622,40 @@ const wall_h = [
 ];
 
 const wall_v = [
-  "......3435......",
-  "......3435......",
-  "......3435......",
-  "......3435......",
-  "......3435......",
-  "......3435......",
-  "......3435......",
-  "......3435......",
-  "......3435......",
-  "......3435......",
-  "......3435......",
-  "......3435......",
-  "......3435......",
-  "......3435......",
-  "......3435......",
-  "......3435......"
+  "...34435551.....",
+  "...34435551.....",
+  "...34435551.....",
+  "...34435551.....",
+  "...34435551.....",
+  "...34435551.....",
+  "...34435551.....",
+  "...34435551.....",
+  "...34435551.....",
+  "...34435551.....",
+  "...34435551.....",
+  "...34435551.....",
+  "...34435551.....",
+  "...34435551.....",
+  "...34435551.....",
+  "...34435551....."
 ];
 
 const fenceGrid = [
   "................",
-  ".hh.hh.hh.hh.hh.",
-  ".hh.hh.hh.hh.hh.",
-  ".hh.hh.hh.hh.hh.",
+  "................",
+  "..hh.hh..hh.hh..",
+  "..hh.hh..hh.hh..",
   "hhhhhhhhhhhhhhhh",
-  ".hh.hh.hh.hh.hh.",
-  ".hh.hh.hh.hh.hh.",
-  ".hh.hh.hh.hh.hh.",
   "hhhhhhhhhhhhhhhh",
-  ".hh.hh.hh.hh.hh.",
-  ".hh.hh.hh.hh.hh.",
-  ".hh.hh.hh.hh.hh.",
+  "..ss.ss..ss.ss..",
+  "..hh.hh..hh.hh..",
+  "..hh.hh..hh.hh..",
   "hhhhhhhhhhhhhhhh",
-  ".hh.hh.hh.hh.hh.",
-  ".hh.hh.hh.hh.hh.",
+  "hhhhhhhhhhhhhhhh",
+  "..ss.ss..ss.ss..",
+  "..hh.hh..hh.hh..",
+  "..hh.hh..hh.hh..",
+  "................",
   "................"
 ];
 
@@ -665,16 +665,22 @@ fs.writeFileSync(path.join(mapDir, 'wall_v.svg'), createSVG(wall_v));
 fs.writeFileSync(path.join(mapDir, 'fence.svg'), createSVG(fenceGrid));
 
 const rockGrid = [
-  "   4444   ",
-  "  443344  ",
-  " 44322344 ",
-  " 43322334 ",
-  " 43222244 ",
-  "4332213344",
-  "4322111334",
-  "4321111134",
-  " 43311134 ",
-  "  444444  "
+  "   444444   ",
+  "  44333344  ",
+  " 4432222344 ",
+  " 4322222234 ",
+  " 3333333333 ",
+  "311111111113",
+  "311111111113",
+  "355511115553",
+  " 3355555533 ",
+  "  33333333  ",
+  "            ",
+  "            ",
+  "            ",
+  "            ",
+  "            ",
+  "            "
 ];
 fs.writeFileSync(path.join(mapDir, 'rock.svg'), createSVG(rockGrid));
 
@@ -701,17 +707,22 @@ fs.writeFileSync(path.join(mapDir, 'rock_void.svg'), createSVG(rockGrid_void));
 
 // Dungeon Decor & Props
 const crateGrid = [
-  "   hhhhhh   ",
-  "  h      h  ",
-  " hy      yh ",
-  " h y    y h ",
-  " h  y  y  h ",
-  " h   yy   h ",
-  " h  y  y  h ",
-  " h y    y h ",
-  " hy      yh ",
-  "  h      h  ",
-  "   hhhhhh   "
+  "   hhhhhhhh   ",
+  "  hyyyyyyyyh  ",
+  "  hyyyyyyyyh  ",
+  "  hhhhhhhhhh  ",
+  "  hs      sh  ",
+  "  h s    s h  ",
+  "  h  ssss  h  ",
+  "  h  ssss  h  ",
+  "  h s    s h  ",
+  "  hs      sh  ",
+  "  hhhhhhhhhh  ",
+  "              ",
+  "              ",
+  "              ",
+  "              ",
+  "              "
 ];
 fs.writeFileSync(path.join(mapDir, 'crate.svg'), createSVG(crateGrid));
 
@@ -768,6 +779,469 @@ const portalGrid = [
   "   cccccc   "
 ];
 fs.writeFileSync(path.join(mapDir, 'portal.svg'), createSVG(portalGrid));
+
+// =============================================
+// OPEN-WORLD ENEMY SPRITES
+// =============================================
+
+// --- GOBLIN BRUTE (Big, bulky, darker red-brown) ---
+const bruteColorMap = { 'B': '#8B0000', 'R': '#A52A2A', 'H': '#5C3317', 'F': '#CD853F' };
+Object.assign(colorMap, { 'B': '#8B0000', 'R': '#A52A2A', 'H': '#5C3317', 'F': '#CD853F', 'G': '#556B2F', 'P': '#9932CC', 'V': '#4B0082', 'N': '#2F0047', 'I': '#FF6600', 'J': '#FF9900', 'K': '#CC3300', 'X': '#555555', 'Z': '#777777', 'A': '#999999' });
+
+const bruteIdle = [
+  "................",
+  "................",
+  "................",
+  ".....HHHH.......",
+  "....HHHHHH......",
+  "...HHRRHHRH.....",
+  "...HRwbRwbH.....",
+  "..HRRRRRRRH.....",
+  "..HHBBBBHH......",
+  "..HRRRRRRH......",
+  "..HRRRRRRH......",
+  "...HRRRRH.......",
+  "...HRRRRH.......",
+  "....HHHH........",
+  "................",
+  "................"
+];
+const bruteRun1 = bruteIdle;
+const bruteRun2 = [bruteIdle[0], ...bruteIdle.slice(0, 15)];
+const bruteRun3 = bruteIdle;
+const bruteRun4 = [...bruteIdle.slice(1, 16), bruteIdle[0]];
+const bruteDead1 = bruteIdle.map(r => r.replace(/H/g, 'r').replace(/R/g, 'r'));
+const bruteDead2 = [
+  "................", "................", "................", "................",
+  "................", "................", "................", "......HH........",
+  ".....HHHH.......", "....RRRRRR......", "...RRRRRRRR.....", "..RRRRRRRRRR....",
+  "...HHHHHHHH.....", "................", "................", "................"
+];
+const bruteDead3 = [
+  "................", "................", "................", "................",
+  "................", "................", "................", "................",
+  "................", "................", "................", ".....H.HH.......",
+  "....HHRHHH......", "...RRRRRRRR.....", "..RHHHBBHHHH....", "................"
+];
+const bruteSlamFrame = [
+  "................", "................", "................", ".....HHHH.......",
+  "....HHHHHH......", "...HHRRHHRH.....", "...HRwbRwbH.....", "..HRRRRRRRH.....",
+  "..HHBBBBHH......", "..HRRRRRRH......", "..HRRRRRRH......", "..HRRRRRRH......",
+  "..HRRRRRRH......", "..HHHHHHHH......", "....HHHH........", "................"
+];
+
+fs.writeFileSync(path.join(enemiesDir, 'brute_idle.svg'), createSVG(bruteIdle));
+fs.writeFileSync(path.join(enemiesDir, 'brute_run1.svg'), createSVG(bruteRun1));
+fs.writeFileSync(path.join(enemiesDir, 'brute_run2.svg'), createSVG(bruteRun2));
+fs.writeFileSync(path.join(enemiesDir, 'brute_run3.svg'), createSVG(bruteRun3));
+fs.writeFileSync(path.join(enemiesDir, 'brute_run4.svg'), createSVG(bruteRun4));
+fs.writeFileSync(path.join(enemiesDir, 'brute_dead1.svg'), createSVG(bruteDead1));
+fs.writeFileSync(path.join(enemiesDir, 'brute_dead2.svg'), createSVG(bruteDead2));
+fs.writeFileSync(path.join(enemiesDir, 'brute_dead3.svg'), createSVG(bruteDead3));
+fs.writeFileSync(path.join(enemiesDir, 'brute_slam.svg'), createSVG(bruteSlamFrame));
+
+// --- GOBLIN SHAMAN (Purple robes, staff) ---
+const shamanIdle = [
+  "................",
+  ".......yy.......",
+  "......yyyy......",
+  ".....PPPPPP.....",
+  "....PPPPPPPP....",
+  "...PPwbPPwbPP...",
+  "...PPPPPPPPPP...",
+  "...PPVVVVVVPP...",
+  "....PPPPPPPP....",
+  "....PPPPPPPP....",
+  "...PPPPPPPPPP...",
+  "...PPPPPPPPPP...",
+  "....PP....PP....",
+  "....PP....PP....",
+  "................",
+  "................"
+];
+const shamanRun1 = shamanIdle;
+const shamanRun2 = [shamanIdle[0], ...shamanIdle.slice(0, 15)];
+const shamanRun3 = shamanIdle;
+const shamanRun4 = [...shamanIdle.slice(1, 16), shamanIdle[0]];
+const shamanDead1 = shamanIdle.map(r => r.replace(/P/g, 'r').replace(/V/g, 'r'));
+const shamanDead2 = [
+  "................", "................", "................", "................",
+  "................", "................", "................", ".......PP.......",
+  "......PPPP......", "....PPPPPPPP....", "...PPPPPPPPPP...", "..PPPPPPPPPPPP..",
+  "...VVVVVVVVVV...", "................", "................", "................"
+];
+const shamanDead3 = [
+  "................", "................", "................", "................",
+  "................", "................", "................", "................",
+  "................", "................", "................", ".....P.PP.......",
+  "....PPVPPP......", "...PPPPPPPP.....", "..PVVVBBVVVP....", "................"
+];
+const shamanCastFrame = [
+  "................", "..yyyy..........", "..yyyy..........", ".....PPPPPP.....",
+  "....PPPPPPPP....", "...PPwbPPwbPP...", "...PPPPPPPPPP...", "...PPVVVVVVPP...",
+  "yyy.PPPPPPPP....", "yyyy.PPPPPPP....", "...PPPPPPPPPP...", "...PPPPPPPPPP...",
+  "....PP....PP....", "....PP....PP....", "................", "................"
+];
+
+fs.writeFileSync(path.join(enemiesDir, 'shaman_idle.svg'), createSVG(shamanIdle));
+fs.writeFileSync(path.join(enemiesDir, 'shaman_run1.svg'), createSVG(shamanRun1));
+fs.writeFileSync(path.join(enemiesDir, 'shaman_run2.svg'), createSVG(shamanRun2));
+fs.writeFileSync(path.join(enemiesDir, 'shaman_run3.svg'), createSVG(shamanRun3));
+fs.writeFileSync(path.join(enemiesDir, 'shaman_run4.svg'), createSVG(shamanRun4));
+fs.writeFileSync(path.join(enemiesDir, 'shaman_dead1.svg'), createSVG(shamanDead1));
+fs.writeFileSync(path.join(enemiesDir, 'shaman_dead2.svg'), createSVG(shamanDead2));
+fs.writeFileSync(path.join(enemiesDir, 'shaman_dead3.svg'), createSVG(shamanDead3));
+fs.writeFileSync(path.join(enemiesDir, 'shaman_cast.svg'), createSVG(shamanCastFrame));
+
+// --- MAGMA ELEMENTAL (Orange/Red/Yellow fiery creature) ---
+const magmaRun1 = [
+  "................", "................", "................", ".....IIII.......",
+  "....IIJJJI......", "...IIJJJJJI.....", "...IJJKKJJI.....", "..IJJKKKJJI.....",
+  "..IJJJJJJJI.....", "..IKKIIIIKKI....", "...IIJJJJII.....", "....IIJJII......",
+  ".....IIII.......", "................", "................", "................"
+];
+const magmaRun2 = [magmaRun1[0], ...magmaRun1.slice(0, 15)];
+const magmaRun3 = magmaRun1;
+const magmaRun4 = [...magmaRun1.slice(1, 16), magmaRun1[0]];
+const magmaDead1 = magmaRun1.map(r => r.replace(/J/g, 's').replace(/I/g, 's').replace(/K/g, 'r'));
+const magmaDead2 = [
+  "................", "................", "................", "................",
+  "................", "................", "................", ".....III........",
+  "....IIJJI.......", "...IJJJJJI......", "..IJJJJJJJI.....", "..IKKKKKKKI.....",
+  "...IIIIIII......", "................", "................", "................"
+];
+const magmaDead3 = [
+  "................", "................", "................", "................",
+  "................", "................", "................", "................",
+  "................", "................", ".....I.II.......", "....IIKII.......",
+  "...IJJJJJI......", "..IKKKKKKKI.....", "................", "................"
+];
+
+fs.writeFileSync(path.join(enemiesDir, 'magma_run1.svg'), createSVG(magmaRun1));
+fs.writeFileSync(path.join(enemiesDir, 'magma_run2.svg'), createSVG(magmaRun2));
+fs.writeFileSync(path.join(enemiesDir, 'magma_run3.svg'), createSVG(magmaRun3));
+fs.writeFileSync(path.join(enemiesDir, 'magma_run4.svg'), createSVG(magmaRun4));
+fs.writeFileSync(path.join(enemiesDir, 'magma_dead1.svg'), createSVG(magmaDead1));
+fs.writeFileSync(path.join(enemiesDir, 'magma_dead2.svg'), createSVG(magmaDead2));
+fs.writeFileSync(path.join(enemiesDir, 'magma_dead3.svg'), createSVG(magmaDead3));
+
+// --- VOID WRAITH (Dark purple/indigo ghostly) ---
+const wraithRun1 = [
+  "................", "................", "................", "......NNNN......",
+  ".....NNVVNN.....", "....NVVVVVVN....", "....NVwVVwVN....", "....NVVVVVVN....",
+  ".....NNNNNN.....", "....NVVVVVVN....", "...NVVVVVVVVN...", "..NV..VVVV..VN..",
+  "..N....VV....N..", "........VV......", ".........VV.....", "................"
+];
+const wraithRun2 = [
+  "................", "................", "......NNNN......", ".....NNVVNN.....",
+  "....NVVVVVVN....", "....NVwVVwVN....", "....NVVVVVVN....", ".....NNNNNN.....",
+  "....NVVVVVVN....", "...NVVVVVVVVN...", "..NV..VVVV..VN..", "..N....VV....N..",
+  "........VV......", ".........V......", "................", "................"
+];
+const wraithRun3 = wraithRun1;
+const wraithRun4 = [
+  "................", "................", "................", "......NNNN......",
+  ".....NNVVNN.....", "....NVVVVVVN....", "....NVwVVwVN....", "....NVVVVVVN....",
+  ".....NNNNNN.....", "....NVVVVVVN....", "...NVVVVVVVVN...", "...NV.VVVV.VN...",
+  "....N..VV..N....", ".......VV.......", "......VV........", "................"
+];
+const wraithDead1 = wraithRun1.map(r => r.replace(/V/g, 's').replace(/N/g, '5'));
+const wraithDead2 = [
+  "................", "................", "................", "................",
+  "................", "................", "................", "......NN........",
+  ".....NNVN.......", "....NVVVVN......", "...NVVVVVVN.....", "..NVVVVVVVVN....",
+  "...NNNNNNNN.....", "................", "................", "................"
+];
+const wraithDead3 = [
+  "................", "................", "................", "................",
+  "................", "................", "................", "................",
+  "................", "................", "................", ".....N.NN.......",
+  "....NNVNN.......", "...NVVVVVN......", "..NNNNNNNNN.....", "................"
+];
+
+fs.writeFileSync(path.join(enemiesDir, 'wraith_run1.svg'), createSVG(wraithRun1));
+fs.writeFileSync(path.join(enemiesDir, 'wraith_run2.svg'), createSVG(wraithRun2));
+fs.writeFileSync(path.join(enemiesDir, 'wraith_run3.svg'), createSVG(wraithRun3));
+fs.writeFileSync(path.join(enemiesDir, 'wraith_run4.svg'), createSVG(wraithRun4));
+fs.writeFileSync(path.join(enemiesDir, 'wraith_dead1.svg'), createSVG(wraithDead1));
+fs.writeFileSync(path.join(enemiesDir, 'wraith_dead2.svg'), createSVG(wraithDead2));
+fs.writeFileSync(path.join(enemiesDir, 'wraith_dead3.svg'), createSVG(wraithDead3));
+
+// --- GOLEM (Large, rocky, grey/brown) ---
+const golemIdle = [
+  "................",
+  "....XXXXXX......",
+  "...XZZZZZZX.....",
+  "..XZZAZZAZX.....",
+  "..XZZwZZwZZX....",
+  "..XZZZZZZZX.....",
+  "..XXAAAAAXXX....",
+  ".XZZZZZZZZZZX...",
+  ".XZZZZZZZZZZX...",
+  "XZZZZZZZZZZZX...",
+  "XZZZXZZZZXZZX...",
+  ".XZZXZZZZXZX....",
+  ".XZZXXXXXXZX....",
+  "..XX......XX....",
+  "..XX......XX....",
+  "................"
+];
+const golemRun1 = golemIdle;
+const golemRun2 = [golemIdle[0], ...golemIdle.slice(0, 15)];
+const golemRun3 = golemIdle;
+const golemRun4 = [...golemIdle.slice(1, 16), golemIdle[0]];
+const golemDead1 = golemIdle.map(r => r.replace(/Z/g, 's').replace(/A/g, 's'));
+const golemDead2 = [
+  "................", "................", "................", "................",
+  "................", "................", "......XX........", ".....XZZX.......",
+  "....XZZZZX......", "...XZZZZZZX.....", "..XZZZZZZZZX....", "..XAAAAAAAAX....",
+  "..XXXXXXXXXX....", "................", "................", "................"
+];
+const golemDead3 = [
+  "................", "................", "................", "................",
+  "................", "................", "................", "................",
+  "................", "................", ".....X.XX.......", "....XXZXX.......",
+  "...XZZZZZZX.....", "..XAAAAAAAAX....", "..XXXXXXXXXX....", "................"
+];
+
+fs.writeFileSync(path.join(enemiesDir, 'golem_idle.svg'), createSVG(golemIdle));
+fs.writeFileSync(path.join(enemiesDir, 'golem_run1.svg'), createSVG(golemRun1));
+fs.writeFileSync(path.join(enemiesDir, 'golem_run2.svg'), createSVG(golemRun2));
+fs.writeFileSync(path.join(enemiesDir, 'golem_run3.svg'), createSVG(golemRun3));
+fs.writeFileSync(path.join(enemiesDir, 'golem_run4.svg'), createSVG(golemRun4));
+fs.writeFileSync(path.join(enemiesDir, 'golem_dead1.svg'), createSVG(golemDead1));
+fs.writeFileSync(path.join(enemiesDir, 'golem_dead2.svg'), createSVG(golemDead2));
+fs.writeFileSync(path.join(enemiesDir, 'golem_dead3.svg'), createSVG(golemDead3));
+
+// =============================================
+// TERRAIN DECORATION SPRITES
+// =============================================
+
+const tree1Grid = [
+  "......MMMM......",
+  ".....MMMMMM.....",
+  "....MMMMMMMM....",
+  "...MMMMDDMMMM...",
+  "..MMMMDDDMMMMM..",
+  "..MMMMDDMMMMMM..",
+  "...MMMMMMMMMM...",
+  "....MMMMMMMM....",
+  ".....MMMMM......",
+  "......hhhh......",
+  "......hhhh......",
+  "......hhhh......",
+  "................",
+  "................",
+  "................",
+  "................"
+];
+const tree2Grid = [
+  ".....DDDDD......",
+  "....DMMMMMD.....",
+  "...DMMMMMMD.....",
+  "..DMMMMMMMD.....",
+  "..DMMDDMMMMD....",
+  "...DMDDMMMD.....",
+  "....DMMMD.......",
+  ".....DDD........",
+  "......hh........",
+  "......hh........",
+  "......hh........",
+  "................",
+  "................",
+  "................",
+  "................",
+  "................"
+];
+
+const waterGrid = [
+  "cccccccccccccccc",
+  "cuuccccccccuuccc",
+  "ccccccuucccccccc",
+  "cccccccccccccccc",
+  "ccuucccccccuuccc",
+  "cccccccccccccccc",
+  "ccccccuucccccccc",
+  "ccccccccccccccuc",
+  "cuuccccccccuuccc",
+  "cccccccccccccccc",
+  "ccccuucccccccccc",
+  "ccccccccccuucccc",
+  "cccccccccccccccc",
+  "cuuccccccccuuccc",
+  "ccccccuucccccccc",
+  "cccccccccccccccc"
+];
+
+const lavaGrid = [
+  "KKKKKKKKKKKKKKKK",
+  "KIIKKKKKKKKIIKKK",
+  "KKKKKKIIKKKKKKKK",
+  "KKKKKKKKKKKKKKKK",
+  "KKIIKKKKKKKIIKKK",
+  "JJJJJJJJJJJJJJJJ",
+  "KKKKKKIIKKKKKKKK",
+  "KKKKKKKKKKKKKKKK",
+  "KIIKKKKKKKKIIKKK",
+  "KKKKKKKKKKKKKKKK",
+  "KKKKIIKKKKKKKKKK",
+  "JJJJJJJJJJJJJJJJ",
+  "KKKKKKKKKKKKKKKK",
+  "KIIKKKKKKKKIIKKK",
+  "KKKKKKIIKKKKKKKK",
+  "KKKKKKKKKKKKKKKK"
+];
+
+const fireTrailGrid = [
+  "................",
+  "................",
+  "................",
+  "................",
+  "................",
+  "......II........",
+  ".....IJJI.......",
+  ".....IJJI.......",
+  "......II........",
+  "................",
+  "................",
+  "................",
+  "................",
+  "................",
+  "................",
+  "................"
+];
+
+const telegraphGrid = [
+  "................",
+  "....rrrrrr......",
+  "..rr......rr....",
+  ".r..........r...",
+  ".r..........r...",
+  "r............r..",
+  "r............r..",
+  "r............r..",
+  "r............r..",
+  "r............r..",
+  ".r..........r...",
+  ".r..........r...",
+  "..rr......rr....",
+  "....rrrrrr......",
+  "................",
+  "................"
+];
+
+fs.writeFileSync(path.join(mapDir, 'tree1.svg'), createSVG(tree1Grid));
+fs.writeFileSync(path.join(mapDir, 'tree2.svg'), createSVG(tree2Grid));
+fs.writeFileSync(path.join(mapDir, 'water.svg'), createSVG(waterGrid));
+fs.writeFileSync(path.join(mapDir, 'lava.svg'), createSVG(lavaGrid));
+fs.writeFileSync(path.join(mapDir, 'fire_trail.svg'), createSVG(fireTrailGrid));
+fs.writeFileSync(path.join(mapDir, 'telegraph.svg'), createSVG(telegraphGrid));
+
+// --- NEW ARTIFACTS & EXPLORATION ASSETS ---
+const relicPlainsGrid = [
+  "................",
+  ".......yy.......",
+  "......yyyy......",
+  ".....yywyyy.....",
+  "....yyyyywyy....",
+  "...yyLyyyLyyy...",
+  "..yyyLLyyLLyyy..",
+  "..yywwLLLLwwyy..",
+  "..yyyLLyyLLyyy..",
+  "...yyLyyyLyyy...",
+  "....yyyyywyy....",
+  ".....yywyyy.....",
+  "......yyyy......",
+  ".......yy.......",
+  "................",
+  "................"
+];
+const relicMagmaGrid = relicPlainsGrid.map(r => r.replace(/y/g, 'I').replace(/L/g, 'a').replace(/w/g, 'r'));
+const relicVoidGrid = relicPlainsGrid.map(r => r.replace(/y/g, 'R').replace(/L/g, 'E').replace(/w/g, 'P'));
+
+const shrineFloorGrid = [
+  "4333333333333334",
+  "3111111111111113",
+  "3111111111111113",
+  "3112211111122113",
+  "3112211111122113",
+  "3111111111111113",
+  "3111112222111113",
+  "3111112222111113",
+  "3111112222111113",
+  "3111112222111113",
+  "3111111111111113",
+  "3112211111122113",
+  "3112211111122113",
+  "3111111111111113",
+  "3111111111111113",
+  "4333333333333334"
+];
+
+const shrinePillarGrid = [
+  "   33333333   ",
+  "  3444444443  ",
+  "  3433333343  ",
+  "   35555553   ",
+  "   35333353   ",
+  "   35333353   ",
+  "   35333353   ",
+  "   35333353   ",
+  "   35333353   ",
+  "   35333353   ",
+  "   35333353   ",
+  "   35555553   ",
+  "  3433333343  ",
+  "  3444444443  ",
+  "   33333333   ",
+  "              "
+];
+
+const compassArrowGrid = [
+  ".......y........",
+  "......yyy.......",
+  ".....ywywy......",
+  "....ywwywwy.....",
+  "...ywwwwwwwy....",
+  "....ywwywwy.....",
+  ".....ywywy......",
+  "......yyy.......",
+  ".......y........",
+  "................",
+  "................",
+  "................",
+  "................",
+  "................",
+  "................",
+  "................"
+];
+
+const merchantTentGrid = [
+  "       bb       ",
+  "      bwwb      ",
+  "     bwwwpb     ",
+  "    bwwpwppb    ",
+  "   bwwpwppppb   ",
+  "  bwppwppppppb  ",
+  " bpppwwpppppppb ",
+  "bpppppwppppppppb",
+  "hbbbbbbbbbbbbbbh",
+  "h h h u uu h h h",
+  "h h h w ww h h h",
+  "h h h w ww h h h",
+  "h h h w ww h h h",
+  "h h  y yy y  h h",
+  "                ",
+  "                "
+];
+
+fs.writeFileSync(path.join(mapDir, 'relic_plains.svg'), createSVG(relicPlainsGrid));
+fs.writeFileSync(path.join(mapDir, 'relic_magma.svg'), createSVG(relicMagmaGrid));
+fs.writeFileSync(path.join(mapDir, 'relic_void.svg'), createSVG(relicVoidGrid));
+fs.writeFileSync(path.join(mapDir, 'shrine_floor.svg'), createSVG(shrineFloorGrid));
+fs.writeFileSync(path.join(mapDir, 'shrine_pillar.svg'), createSVG(shrinePillarGrid));
+fs.writeFileSync(path.join(mapDir, 'merchant_tent.svg'), createSVG(merchantTentGrid));
+fs.writeFileSync(path.join(mapDir, 'compass_arrow.svg'), createSVG(compassArrowGrid));
 
 console.log("All styled SVGs generated successfully.");
 
@@ -834,6 +1308,12 @@ function genSound(type) {
   if (type === 'fence_slam') duration = 0.4;
   if (type === 'door_creak') duration = 0.6;
   if (type === 'room_clear') duration = 0.8;
+  // New open-world sounds
+  if (type === 'brute_slam') duration = 0.5;
+  if (type === 'shaman_cast') duration = 0.4;
+  if (type === 'elemental_explode') duration = 0.6;
+  if (type === 'wraith_teleport') duration = 0.3;
+  if (type === 'golem_stomp') duration = 0.7;
 
   const samples = new Float32Array(Math.floor(rate * duration));
   let phase = 0;
@@ -926,16 +1406,69 @@ function genSound(type) {
       const clang = Math.sin(t * 800 * Math.PI * 2) * Math.exp(-20 * t);
       sample = (noise * 0.5 + clang * 0.5) * env * 0.5;
     } else if (type === 'door_creak') {
-      // Wood creaking sound, high pitched random scraping
       const freq = 200 + Math.random() * 300;
       phase += 2 * Math.PI * freq / rate;
       sample = Math.sin(phase) * env * (Math.random() * 0.4 + 0.6) * 0.3;
     } else if (type === 'room_clear') {
       const step = Math.floor(t * 8);
-      const freqs = [440, 554, 659, 880]; // Triumphant arpeggio
+      const freqs = [440, 554, 659, 880];
       const freq = freqs[Math.min(step, freqs.length - 1)] || 880;
       phase += 2 * Math.PI * freq / rate;
       sample = (Math.sin(phase) > 0 ? 1 : -1) * env * 0.15;
+    // --- NEW OPEN-WORLD SOUNDS ---
+    } else if (type === 'brute_slam') {
+      // Heavy ground impact — low thud + earth rumble
+      const freq = 60 * Math.exp(-5 * t);
+      phase += 2 * Math.PI * freq / rate;
+      const noise = Math.random() * 2 - 1;
+      const thud = Math.sin(phase) * Math.exp(-8 * t);
+      sample = (thud * 0.7 + noise * 0.3) * env * 0.6;
+    } else if (type === 'shaman_cast') {
+      // Magical whoosh — rising sine with shimmer
+      const freq = 300 + 600 * Math.pow(t / duration, 0.5);
+      phase += 2 * Math.PI * freq / rate;
+      const shimmer = Math.sin(t * 40 * Math.PI) * 0.3;
+      sample = (Math.sin(phase) + shimmer) * env * 0.25;
+    } else if (type === 'elemental_explode') {
+      // Fiery explosion — noise burst + low rumble
+      const noise = Math.random() * 2 - 1;
+      const freq = 80 * Math.exp(-3 * t);
+      phase += 2 * Math.PI * freq / rate;
+      const burst = t < 0.1 ? 1.0 : Math.exp(-5 * (t - 0.1));
+      sample = (noise * burst * 0.5 + Math.sin(phase) * 0.5) * env * 0.5;
+    } else if (type === 'wraith_teleport') {
+      // Phase-shift whoosh — descending then ascending
+      const freq = 800 * Math.abs(Math.sin(t / duration * Math.PI));
+      phase += 2 * Math.PI * freq / rate;
+      sample = Math.sin(phase) * env * 0.2 + (Math.random() * 2 - 1) * env * 0.1;
+    } else if (type === 'golem_stomp') {
+      // Massive ground pound — double thud with sustained rumble
+      const freq = 40 + 20 * Math.sin(t * 4 * Math.PI);
+      phase += 2 * Math.PI * freq / rate;
+      const noise = Math.random() * 2 - 1;
+      const impact1 = t < 0.1 ? Math.exp(-30 * t) : 0;
+      const impact2 = (t > 0.25 && t < 0.35) ? Math.exp(-30 * (t - 0.25)) : 0;
+      sample = (Math.sin(phase) * 0.4 + noise * 0.3) * env * 0.6 + (impact1 + impact2) * 0.4;
+    } else if (type === 'artifact_ping') {
+      const freq = 1200 * Math.exp(-15 * t);
+      phase += 2 * Math.PI * freq / rate;
+      sample = Math.sin(phase) * env * 0.3;
+    } else if (type === 'artifact_pickup') {
+      const freqs = [523.25, 659.25, 783.99, 1046.50];
+      const step = Math.floor(t * 8);
+      const freq = freqs[Math.min(step, freqs.length - 1)] || freqs[3];
+      phase += 2 * Math.PI * freq / rate;
+      sample = (Math.sin(phase) > 0 ? 1 : -1) * env * 0.2;
+    } else if (type === 'shrine_awaken') {
+      const freq = 30 + Math.random() * 20;
+      phase += 2 * Math.PI * freq / rate;
+      const noise = Math.random() * 2 - 1;
+      sample = (Math.sin(phase) * 0.7 + noise * 0.3) * env * 0.5;
+    } else if (type === 'portal_boss_spawn') {
+      const freq = 100 * Math.exp(-2 * t) + 20 * Math.sin(t * 10 * Math.PI);
+      phase += 2 * Math.PI * freq / rate;
+      const noise = Math.random() * 2 - 1;
+      sample = (Math.sin(phase) * 0.6 + noise * 0.4) * env * 0.7;
     }
 
     samples[i] = sample;
@@ -943,7 +1476,7 @@ function genSound(type) {
   return samples;
 }
 
-['shoot', 'death', 'hit', 'kill', 'spawn', 'pickup', 'coin', 'open_inventory', 'close_inventory', 'reload', 'level_up', 'knife_swing', 'mg_shoot', 'shotgun_blast', 'fence_slam', 'door_creak', 'room_clear'].forEach(t => {
+['shoot', 'death', 'hit', 'kill', 'spawn', 'pickup', 'coin', 'open_inventory', 'close_inventory', 'reload', 'level_up', 'knife_swing', 'mg_shoot', 'shotgun_blast', 'fence_slam', 'door_creak', 'room_clear', 'brute_slam', 'shaman_cast', 'elemental_explode', 'wraith_teleport', 'golem_stomp', 'artifact_ping', 'artifact_pickup', 'shrine_awaken', 'portal_boss_spawn'].forEach(t => {
   writeWav(`${t}.wav`, genSound(t));
 });
 

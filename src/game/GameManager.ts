@@ -23,6 +23,118 @@ export const WeaponRegistry: Record<string, WeaponStats> = {
   shotgun: { id: 'shotgun', type: 'ranged', damage: 15, fireRate: 800, spread: 0.8, projectilesPerShot: 5, movementPenalty: 0.95, firingMovementPenalty: 0.6, spriteName: 'shotgun', projectileSpriteName: 'shotgun_pellet', sfx: 'shotgun_blast', maxAmmo: 9, reloadTime: 600 }
 };
 
+// =============================================
+// SIMPLEX NOISE (2D) Ã¢â‚¬â€ Inline implementation
+// =============================================
+const GRAD2 = [[1,1],[-1,1],[1,-1],[-1,-1],[1,0],[-1,0],[0,1],[0,-1]];
+const PERM = new Uint8Array(512);
+const PERM_MOD8 = new Uint8Array(512);
+{
+  const p = new Uint8Array(256);
+  for (let i = 0; i < 256; i++) p[i] = i;
+  // Fisher-Yates shuffle with fixed seed for deterministic terrain
+  let seed = 42;
+  const rng = () => { seed = (seed * 16807 + 0) % 2147483647; return (seed - 1) / 2147483646; };
+  for (let i = 255; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [p[i], p[j]] = [p[j], p[i]];
+  }
+  for (let i = 0; i < 512; i++) {
+    PERM[i] = p[i & 255];
+    PERM_MOD8[i] = PERM[i] % 8;
+  }
+}
+
+function simplex2(xin: number, yin: number): number {
+  const F2 = 0.5 * (Math.sqrt(3.0) - 1.0);
+  const G2 = (3.0 - Math.sqrt(3.0)) / 6.0;
+  const s = (xin + yin) * F2;
+  const i = Math.floor(xin + s);
+  const j = Math.floor(yin + s);
+  const t = (i + j) * G2;
+  const X0 = i - t; const Y0 = j - t;
+  const x0 = xin - X0; const y0 = yin - Y0;
+  const i1 = x0 > y0 ? 1 : 0;
+  const j1 = x0 > y0 ? 0 : 1;
+  const x1 = x0 - i1 + G2; const y1 = y0 - j1 + G2;
+  const x2 = x0 - 1.0 + 2.0 * G2; const y2 = y0 - 1.0 + 2.0 * G2;
+  const ii = i & 255; const jj = j & 255;
+  let n0 = 0, n1 = 0, n2 = 0;
+  let t0 = 0.5 - x0 * x0 - y0 * y0;
+  if (t0 >= 0) { t0 *= t0; const g = GRAD2[PERM_MOD8[ii + PERM[jj]]]; n0 = t0 * t0 * (g[0] * x0 + g[1] * y0); }
+  let t1 = 0.5 - x1 * x1 - y1 * y1;
+  if (t1 >= 0) { t1 *= t1; const g = GRAD2[PERM_MOD8[ii + i1 + PERM[jj + j1]]]; n1 = t1 * t1 * (g[0] * x1 + g[1] * y1); }
+  let t2 = 0.5 - x2 * x2 - y2 * y2;
+  if (t2 >= 0) { t2 *= t2; const g = GRAD2[PERM_MOD8[ii + 1 + PERM[jj + 1]]]; n2 = t2 * t2 * (g[0] * x2 + g[1] * y2); }
+  return 70.0 * (n0 + n1 + n2); // Result in [-1, 1]
+}
+
+// Multi-octave fractal noise for richer terrain
+function fbm2(x: number, y: number, octaves: number = 4): number {
+  let val = 0, amp = 1, freq = 1, max = 0;
+  for (let i = 0; i < octaves; i++) {
+    val += simplex2(x * freq, y * freq) * amp;
+    max += amp;
+    amp *= 0.5;
+    freq *= 2;
+  }
+  return val / max;
+}
+
+// =============================================
+// ENEMY REGISTRY
+// =============================================
+export interface EnemyTypeDef {
+  id: string;
+  hp: number;
+  damage: number;
+  speed: number;        // px/frame multiplier
+  aggroRange: number;   // px
+  deaggroRange: number; // px
+  attackPattern: 'charge' | 'slam' | 'spread_shot' | 'fire_trail' | 'teleport' | 'rock_throw';
+  attackCooldown: number; // frames
+  biomes: number[];       // 0=default, 1=magma, 2=void (-1 = all)
+  spawnWeight: number;
+  isBoss: boolean;
+  spriteKey: string;      // key into enemy texture map
+}
+
+export const EnemyRegistry: Record<string, EnemyTypeDef> = {
+  scout:   { id: 'scout',   hp: 40,  damage: 3,  speed: 2.5, aggroRange: 400, deaggroRange: 600, attackPattern: 'charge',      attackCooldown: 90,  biomes: [-1],  spawnWeight: 5, isBoss: false, spriteKey: 'goblin' },
+  brute:   { id: 'brute',   hp: 120, damage: 8,  speed: 1.2, aggroRange: 300, deaggroRange: 500, attackPattern: 'slam',        attackCooldown: 180, biomes: [-1],  spawnWeight: 3, isBoss: false, spriteKey: 'brute' },
+  shaman:  { id: 'shaman',  hp: 60,  damage: 5,  speed: 1.5, aggroRange: 500, deaggroRange: 700, attackPattern: 'spread_shot', attackCooldown: 120, biomes: [-1],  spawnWeight: 2, isBoss: false, spriteKey: 'shaman' },
+  magma:   { id: 'magma',   hp: 100, damage: 7,  speed: 2.0, aggroRange: 350, deaggroRange: 600, attackPattern: 'fire_trail',  attackCooldown: 150, biomes: [1],   spawnWeight: 3, isBoss: false, spriteKey: 'magma' },
+  wraith:  { id: 'wraith',  hp: 70,  damage: 10, speed: 3.0, aggroRange: 350, deaggroRange: 550, attackPattern: 'teleport',    attackCooldown: 200, biomes: [2],   spawnWeight: 3, isBoss: false, spriteKey: 'wraith' },
+  golem:   { id: 'golem',   hp: 300, damage: 15, speed: 0.8, aggroRange: 250, deaggroRange: 500, attackPattern: 'rock_throw',  attackCooldown: 240, biomes: [-1],  spawnWeight: 0.5, isBoss: true, spriteKey: 'golem' },
+};
+
+// =============================================
+// CHUNK & SPAWN TYPES
+// =============================================
+const CHUNK_SIZE = 32; // tiles per chunk edge
+const TILE_PX = 64;    // pixels per tile
+const CHUNK_PX = CHUNK_SIZE * TILE_PX; // 2048px per chunk
+
+interface SpawnPoint {
+  wx: number;           // world tile x
+  wy: number;           // world tile y
+  enemyTypeId: string;
+  respawnTimer: number; // frames until next spawn (0 = ready)
+  currentMonster: Sprite | null;
+  chunkKey: string;
+}
+
+interface ChunkData {
+  cx: number;           // chunk coordinate
+  cy: number;
+  container: Container;
+  floorCells: Set<string>;
+  obstacleCells: Set<string>;
+  spawnPoints: SpawnPoint[];
+  loaded: boolean;
+}
+
+
 export class GameManager {
   private static activeInstance: GameManager | null = null;
   private destroyed = false;
@@ -123,39 +235,50 @@ export class GameManager {
   private damagePopups: { sprite: Text, life: number }[] = [];
   private lastHover: string | null = null;
 
-  // Dungeon Grid
+  // Open-World Grid & Chunks
   private floorCells = new Set<string>();
   private obstacleCells = new Set<string>();
   private exploredCells = new Set<string>();
   private destructibles: { sprite: Sprite, x: number, y: number, hp: number }[] = [];
-  private dungeonRooms: {
-    x: number; y: number; w: number; h: number;
-    cleared: boolean; active: boolean; entered: boolean;
-    doors: { x: number, y: number, sprite: Sprite, open: boolean }[];
-    monstersToSpawn: number;
-    isFinal?: boolean;
-    isStart?: boolean;
-    totalWaves?: number;
-    currentWave?: number;
-    monstersPerWave?: number;
-    waveTimer?: number;
-  }[] = [];
+  private chunks = new Map<string, ChunkData>();
+  private spawnPoints: SpawnPoint[] = [];
+  private openWorldKills = 0;
+  private portalSpawned = false;
+  private fireTrails: { sprite: Sprite, life: number }[] = [];
+  private telegraphs: { sprite: Graphics, life: number, x: number, y: number, radius: number, owner: Sprite | null }[] = [];
+
+  // New enemy texture maps
+  private bruteTextures: Record<string, Texture[]> = {};
+  private shamanTextures: Record<string, Texture[]> = {};
+  private magmaTextures: Record<string, Texture[]> = {};
+  private wraithTextures: Record<string, Texture[]> = {};
+  private golemTextures: Record<string, Texture[]> = {};
+
   public currentDungeonWorld = 1;
   private currentDungeonStage = 1;
+
+  // Artifact Quest System
+  public artifactsCollected: number = 0;
+  public totalArtifactsNeeded: number = 3;
+  private artifactLocations: {cx: number, cy: number, collected: boolean, sprite: Sprite | null, type: string}[] = [];
+  private compassSprite!: Sprite;
+  private sonarTimer = 0;
 
   private playerShadow!: Graphics;
   private minimapGraphics!: Graphics;
   private minimapContainer!: Container;
   private particles: { sprite: Sprite, vx: number, vy: number, life: number, maxLife: number }[] = [];
 
-  private spawnParticles(x: number, y: number, color: number, count: number) {
+  private spawnParticles(x: number, y: number, color: number, count: number, isDash: boolean = false) {
     for (let i = 0; i < count; i++) {
-      const p = new Graphics().circle(0, 0, 2).fill(color);
+      const radius = isDash ? 3 : 2 + Math.random() * 3;
+      const p = new Graphics().circle(0, 0, radius).fill(color);
       p.x = x; p.y = y; p.zIndex = y + 10;
       this.worldContainer.addChild(p);
       const angle = Math.random() * Math.PI * 2;
-      const speed = Math.random() * 5 + 2;
-      this.particles.push({ sprite: p as any, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: 20, maxLife: 20 });
+      const speed = isDash ? Math.random() * 2 : Math.random() * 8 + 2;
+      const life = isDash ? 10 + Math.random()*10 : 20 + Math.random()*20;
+      this.particles.push({ sprite: p as any, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: life, maxLife: life });
     }
   }
 
@@ -163,7 +286,7 @@ export class GameManager {
   private audioPool: Record<string, HTMLAudioElement[]> = {};
 
   private preloadAudio() {
-    const files = ['shoot', 'hit', 'pickup', 'drink', 'death', 'kill', 'spawn', 'open_inventory', 'close_inventory', 'reload', 'level_up', 'knife_swing', 'sword_swing', 'mg_shoot', 'shotgun_blast', 'empty_click', 'room_clear'];
+    const files = ['shoot', 'hit', 'pickup', 'drink', 'death', 'kill', 'spawn', 'open_inventory', 'close_inventory', 'reload', 'level_up', 'knife_swing', 'sword_swing', 'mg_shoot', 'shotgun_blast', 'empty_click', 'room_clear', 'brute_slam', 'shaman_cast', 'elemental_explode', 'wraith_teleport', 'golem_stomp', 'artifact_ping', 'artifact_pickup', 'shrine_awaken', 'portal_boss_spawn'];
     files.forEach(f => {
       this.audioPool[f] = Array(5).fill(null).map(() => {
         const a = new Audio(`/assets/audio/${f}.wav`);
@@ -374,12 +497,28 @@ export class GameManager {
       portal: await loadTex('/assets/map/portal.svg'),
       crate: await loadTex('/assets/map/crate.svg'),
       bones: await loadTex('/assets/map/bones.svg'),
-      web: await loadTex('/assets/map/web.svg')
+      web: await loadTex('/assets/map/web.svg'),
+      tree1: await loadTex('/assets/map/tree1.svg'),
+      tree2: await loadTex('/assets/map/tree2.svg'),
+      water: await loadTex('/assets/map/water.svg'),
+      lava: await loadTex('/assets/map/lava.svg'),
+      fire_trail: await loadTex('/assets/map/fire_trail.svg'),
+      telegraph: await loadTex('/assets/map/telegraph.svg'),
+      relic_plains: await loadTex('/assets/map/relic_plains.svg'),
+      relic_magma: await loadTex('/assets/map/relic_magma.svg'),
+      relic_void: await loadTex('/assets/map/relic_void.svg'),
+      shrine_floor: await loadTex('/assets/map/shrine_floor.svg'),
+      shrine_pillar: await loadTex('/assets/map/shrine_pillar.svg'),
+      merchant_tent: await loadTex('/assets/map/merchant_tent.svg'),
+      compass_arrow: await loadTex('/assets/map/compass_arrow.svg')
     };
 
     [this.potionTexture, this.coinTexture, this.merchantTexture, 
      ...this.mapTextures.floor, ...this.mapTextures.customFloor, ...this.mapTextures.wall_h, ...this.mapTextures.wall_v, ...this.mapTextures.rock, 
-     this.mapTextures.fence, this.mapTextures.portal, this.mapTextures.crate, this.mapTextures.bones, this.mapTextures.web
+     this.mapTextures.fence, this.mapTextures.portal, this.mapTextures.crate, this.mapTextures.bones, this.mapTextures.web,
+     this.mapTextures.tree1, this.mapTextures.tree2, this.mapTextures.water, this.mapTextures.lava, this.mapTextures.fire_trail, this.mapTextures.telegraph,
+     this.mapTextures.relic_plains, this.mapTextures.relic_magma, this.mapTextures.relic_void,
+     this.mapTextures.shrine_floor, this.mapTextures.shrine_pillar, this.mapTextures.merchant_tent, this.mapTextures.compass_arrow
     ].forEach(t => t.source.scaleMode = 'nearest');
 
     const gIdle = await Assets.load('/assets/enemies/goblin_idle.svg');
@@ -412,6 +551,11 @@ export class GameManager {
     this.weaponTextures.ebullet.source.scaleMode = 'nearest';
     Object.values(this.weaponTextures).forEach((t: any) => { if (t?.source) t.source.scaleMode = 'nearest'; });
 
+    // Apply nearest-neighbor scaling to all enemy textures
+    const applyNearest = (texMap: Record<string, Texture[]>) => {
+      Object.values(texMap).forEach(arr => arr.forEach((t: any) => { if (t?.source) t.source.scaleMode = 'nearest'; }));
+    };
+
     this.goblinTextures.idle.forEach((t: any) => t.source.scaleMode = 'nearest');
     this.goblinTextures.run.forEach((t: any) => t.source.scaleMode = 'nearest');
     this.goblinBlueTextures.run.forEach((t: any) => t.source.scaleMode = 'nearest');
@@ -421,11 +565,61 @@ export class GameManager {
     this.goblinBlueTextures.dead1[0].source.scaleMode = 'nearest';
     this.goblinBlueTextures.dead2[0].source.scaleMode = 'nearest';
     this.goblinBlueTextures.dead3[0].source.scaleMode = 'nearest';
+
+    // Load new open-world enemy textures
+    const loadEnemySet = async (prefix: string) => ({
+      idle: [await Assets.load(`/assets/enemies/${prefix}_idle.svg`)],
+      run: [
+        await Assets.load(`/assets/enemies/${prefix}_run1.svg`),
+        await Assets.load(`/assets/enemies/${prefix}_run2.svg`),
+        await Assets.load(`/assets/enemies/${prefix}_run3.svg`),
+        await Assets.load(`/assets/enemies/${prefix}_run4.svg`)
+      ],
+      dead1: [await Assets.load(`/assets/enemies/${prefix}_dead1.svg`)],
+      dead2: [await Assets.load(`/assets/enemies/${prefix}_dead2.svg`)],
+      dead3: [await Assets.load(`/assets/enemies/${prefix}_dead3.svg`)],
+    });
+
+    this.bruteTextures = await loadEnemySet('brute');
+    this.shamanTextures = await loadEnemySet('shaman');
+    this.golemTextures = await loadEnemySet('golem');
+
+    // Magma and wraith don't have idle frames, use run[0]
+    this.magmaTextures = {
+      idle: [await Assets.load('/assets/enemies/magma_run1.svg')],
+      run: [
+        await Assets.load('/assets/enemies/magma_run1.svg'),
+        await Assets.load('/assets/enemies/magma_run2.svg'),
+        await Assets.load('/assets/enemies/magma_run3.svg'),
+        await Assets.load('/assets/enemies/magma_run4.svg')
+      ],
+      dead1: [await Assets.load('/assets/enemies/magma_dead1.svg')],
+      dead2: [await Assets.load('/assets/enemies/magma_dead2.svg')],
+      dead3: [await Assets.load('/assets/enemies/magma_dead3.svg')],
+    };
+    this.wraithTextures = {
+      idle: [await Assets.load('/assets/enemies/wraith_run1.svg')],
+      run: [
+        await Assets.load('/assets/enemies/wraith_run1.svg'),
+        await Assets.load('/assets/enemies/wraith_run2.svg'),
+        await Assets.load('/assets/enemies/wraith_run3.svg'),
+        await Assets.load('/assets/enemies/wraith_run4.svg')
+      ],
+      dead1: [await Assets.load('/assets/enemies/wraith_dead1.svg')],
+      dead2: [await Assets.load('/assets/enemies/wraith_dead2.svg')],
+      dead3: [await Assets.load('/assets/enemies/wraith_dead3.svg')],
+    };
+
+    applyNearest(this.bruteTextures);
+    applyNearest(this.shamanTextures);
+    applyNearest(this.magmaTextures);
+    applyNearest(this.wraithTextures);
+    applyNearest(this.golemTextures);
   }
 
   private setupPlayer() {
     if (this.gameMode === 'dungeon') {
-      this.generateDungeonMap();
+      this.initOpenWorld();
     } else {
       this.generateWaveMap();
     }
@@ -487,10 +681,10 @@ export class GameManager {
 
   private generateWaveMap() {
     const radius = 1000;
-
     const bId = (this.currentDungeonWorld - 1) % 3;
+
     const TILE_SIZE = 64;
-    const padding = Math.ceil((radius * 2.5 / 2) / TILE_SIZE);
+    const padding = Math.ceil(radius / TILE_SIZE) + 1;
     
     const floorContainer = new Container();
     floorContainer.zIndex = -100000;
@@ -505,7 +699,9 @@ export class GameManager {
          else tex = this.mapTextures.customFloor[3];
          const sprite = new Sprite(tex);
          sprite.anchor.set(0.5);
-         sprite.scale.set(4);
+         // 64x64 guarantees visual density matches everything else perfectly.
+         sprite.width = 64;
+         sprite.height = 64;
          sprite.x = x * TILE_SIZE;
          sprite.y = y * TILE_SIZE;
          floorContainer.addChild(sprite);
@@ -531,268 +727,445 @@ export class GameManager {
     }
   }
 
-  private generateDungeonMap() {
+  private initOpenWorld() {
+    this.floorCells.clear();
     this.obstacleCells.clear();
     this.exploredCells.clear();
     this.destructibles = [];
+    this.chunks.clear();
+    this.spawnPoints = [];
+    this.openWorldKills = 0;
+    this.portalSpawned = false;
 
-    // Let's place rooms such that we draw a corridor from the center of previous room to the center of next room.
-    let curX = 0;
-    let curY = 0;
-    const roomCount = 3 + Math.floor(this.currentDungeonStage * 1.5);
-    const rooms: { x: number, y: number, w: number, h: number }[] = [];
+    // Artifact Quest Setup
+    this.artifactsCollected = 0;
+    this.totalArtifactsNeeded = 2 + this.currentDungeonWorld; // Scale with world
+    this.artifactLocations = [];
+    
+    // Pick random distant chunks for artifacts
+    for (let i = 0; i < this.totalArtifactsNeeded; i++) {
+       const angle = (i / this.totalArtifactsNeeded) * Math.PI * 2 + Math.random() * 0.5;
+       const distance = 8 + Math.random() * 5 + this.currentDungeonWorld * 2; // 8-15 chunks away initially
+       const acx = Math.floor(Math.cos(angle) * distance);
+       const acy = Math.floor(Math.sin(angle) * distance);
+       const biomeType = (this.currentDungeonWorld - 1) % 3;
+       let type = 'relic_plains';
+       if (biomeType === 1) type = 'relic_magma';
+       if (biomeType === 2) type = 'relic_void';
 
-    for (let i = 0; i < roomCount; i++) {
-      const rw = 16 + Math.floor(Math.random() * 8); // larger rooms
-      const rh = 16 + Math.floor(Math.random() * 8);
-      rooms.push({ x: curX, y: curY, w: rw, h: rh });
+       this.artifactLocations.push({ cx: acx, cy: acy, collected: false, sprite: null, type });
+    }
 
-      // Determine next room position. Move either purely horizontally or purely vertically to avoid diagonal issues, or both!
-      const dist = 30 + Math.floor(Math.random() * 20); // spread them out
-      if (Math.random() > 0.5) {
-         curX += dist;
-      } else {
-         curY -= dist; // Up
+    if (this.compassSprite) {
+       this.compassSprite.destroy();
+    }
+    this.compassSprite = new Sprite(this.mapTextures.compass_arrow);
+    this.compassSprite.anchor.set(0.5, 0.5);
+    this.compassSprite.scale.set(3);
+    this.compassSprite.zIndex = 999999;
+    this.compassSprite.alpha = 0; // Hide until player moves
+    this.worldContainer.addChild(this.compassSprite);
+
+    // Generate initial chunks around spawn (3x3 grid)
+    for (let cx = -1; cx <= 1; cx++) {
+      for (let cy = -1; cy <= 1; cy++) {
+        this.generateChunk(cx, cy);
       }
-      
-      // sometimes move both
-      if (Math.random() > 0.5) {
-         if (Math.random() > 0.5) curX += dist;
-         else curY -= dist;
+    }
+  }
+
+  private getBiomeAt(wx: number, wy: number): number {
+    // Biome is determined by current world level (0=Plains, 1=Magma, 2=Void)
+    return (this.currentDungeonWorld - 1) % 3;
+  }
+
+  private generateChunk(cx: number, cy: number) {
+    const key = `${cx},${cy}`;
+    if (this.chunks.has(key)) return;
+
+    const container = new Container();
+    container.zIndex = -100000;
+    const chunk: ChunkData = {
+      cx, cy, container,
+      floorCells: new Set(),
+      obstacleCells: new Set(),
+      spawnPoints: [],
+      loaded: true
+    };
+
+    const noiseScale = 0.06;  // Controls terrain feature size
+    const treeScale = 0.12;
+    const waterScale = 0.04;
+
+    // Check if this chunk contains an artifact
+    const artifactData = this.artifactLocations.find(a => a.cx === cx && a.cy === cy);
+
+    for (let lx = 0; lx < CHUNK_SIZE; lx++) {
+      for (let ly = 0; ly < CHUNK_SIZE; ly++) {
+        const wx = cx * CHUNK_SIZE + lx;
+        const wy = cy * CHUNK_SIZE + ly;
+        const cellKey = `${wx},${wy}`;
+
+        const biome = this.getBiomeAt(wx, wy);
+
+        // Shrine Generation
+        if (artifactData && !artifactData.collected) {
+           const isCenter = lx >= 14 && lx <= 18 && ly >= 14 && ly <= 18;
+           if (isCenter) {
+              this.obstacleCells.add(cellKey);
+              chunk.obstacleCells.add(cellKey);
+              const isPillar = (lx === 14 && ly === 14) || (lx === 18 && ly === 14) || (lx === 14 && ly === 18) || (lx === 18 && ly === 18);
+              
+              const shrineSprite = new Sprite(isPillar ? this.mapTextures.shrine_pillar : this.mapTextures.shrine_floor);
+              shrineSprite.anchor.set(0.5);
+              shrineSprite.width = TILE_PX; shrineSprite.height = TILE_PX;
+              shrineSprite.x = wx * TILE_PX + TILE_PX / 2; shrineSprite.y = wy * TILE_PX + TILE_PX / 2;
+              shrineSprite.zIndex = isPillar ? wy * TILE_PX + TILE_PX / 2 : -50;
+              container.addChild(shrineSprite);
+
+              if (lx === 16 && ly === 16) {
+                 // Spawn Artifact
+                 const artifactSprite = new Sprite(this.mapTextures[artifactData.type]);
+                 artifactSprite.anchor.set(0.5);
+                 artifactSprite.scale.set(4);
+                 artifactSprite.x = wx * TILE_PX + TILE_PX / 2;
+                 artifactSprite.y = wy * TILE_PX + TILE_PX / 2;
+                 artifactSprite.zIndex = wy * TILE_PX + TILE_PX / 2 + 1;
+                 container.addChild(artifactSprite);
+                 artifactData.sprite = artifactSprite;
+
+                 // Spawn Shrine Guardians
+                 const gTypes = ['shaman', 'brute', 'magma', 'wraith'];
+                 const gType = gTypes[biome] || 'brute';
+                 
+                 const spawns = [ {x: wx-2, y: wy}, {x: wx+2, y: wy}, {x: wx, y: wy-2}, {x: wx, y: wy+2} ];
+                 for (const s of spawns) {
+                     const sp: SpawnPoint = {
+                        wx: s.x, wy: s.y,
+                        enemyTypeId: gType,
+                        respawnTimer: 0,
+                        currentMonster: null,
+                        chunkKey: key
+                     };
+                     chunk.spawnPoints.push(sp);
+                     this.spawnPoints.push(sp);
+                     // Spawn them immediately as "sleeping" guardians
+                     this.spawnOpenWorldEnemy(sp);
+                     if (sp.currentMonster) {
+                         (sp.currentMonster as any).aiState = 'sleeping';
+                         (sp.currentMonster as any).stateTimer = 99999;
+                         sp.currentMonster.tint = 0x888888; // Stone-like color
+                     }
+                 }
+              }
+              continue;
+           }
+        }
+
+        const terrainNoise = fbm2(wx * noiseScale, wy * noiseScale, 4);
+        const treeNoise = fbm2(wx * treeScale + 100, wy * treeScale + 100, 3);
+        const waterNoise = fbm2(wx * waterScale + 500, wy * waterScale + 500, 3);
+
+        // Rock formations - impassable walls created by noise
+        if (terrainNoise > 0.48) {
+          // Dense rock / wall
+          this.obstacleCells.add(cellKey);
+          chunk.obstacleCells.add(cellKey);
+          const rock = new Sprite(this.mapTextures.rock[biome]);
+          rock.anchor.set(0.5); rock.scale.set(4);
+          rock.x = wx * TILE_PX + TILE_PX / 2; rock.y = wy * TILE_PX + TILE_PX / 2;
+          rock.zIndex = wy * TILE_PX + TILE_PX / 2;
+          container.addChild(rock);
+          continue;
+        }
+
+        // Water/Lava pools Ã¢â‚¬â€ impassable decorative terrain
+        if (waterNoise > 0.5 && terrainNoise < 0.1) {
+          this.obstacleCells.add(cellKey);
+          chunk.obstacleCells.add(cellKey);
+          const poolTex = biome === 1 ? this.mapTextures.lava : this.mapTextures.water;
+          const pool = new Sprite(poolTex);
+          pool.anchor.set(0.5); pool.scale.set(4);
+          pool.x = wx * TILE_PX + TILE_PX / 2; pool.y = wy * TILE_PX + TILE_PX / 2;
+          pool.zIndex = -50;
+          container.addChild(pool);
+          // Still place floor underneath for visual continuity
+          continue;
+        }
+
+        // Walkable floor
+        this.floorCells.add(cellKey);
+        chunk.floorCells.add(cellKey);
+
+        // Procedural grass tile rendering
+        const grassPalettes = [
+          [0x3a7030, 0x2f6028, 0x4a8038, 0x356a2c, 0x2d5520], // Plains greens
+          [0x3a2525, 0x4a2828, 0x352020, 0x402222, 0x301a1a], // Magma charred
+          [0x1a1a30, 0x222242, 0x1e1e38, 0x25254a, 0x181830], // Void purple
+        ];
+        const palette = grassPalettes[biome] || grassPalettes[0];
+        const grassColor = palette[Math.floor(Math.random() * palette.length)];
+
+        if (!(chunk as any).floorGfx) {
+           (chunk as any).floorGfx = new Graphics();
+           (chunk as any).floorGfx.zIndex = -100001;
+           container.addChild((chunk as any).floorGfx);
+        }
+        (chunk as any).floorGfx.rect(wx * TILE_PX, wy * TILE_PX, TILE_PX, TILE_PX).fill(grassColor);
+
+        if (Math.random() < 0.3) {
+          const bladeColor = biome === 0 ? 0x5a9848 : biome === 1 ? 0x5a3535 : 0x353560;
+          const bx = wx * TILE_PX + 4 + Math.random() * (TILE_PX - 8);
+          const by = wy * TILE_PX + 4 + Math.random() * (TILE_PX - 8);
+          (chunk as any).floorGfx.rect(bx, by, 2 + Math.random() * 3, 2).fill(bladeColor);
+        }
+
+        // Tree/pillar clusters Ã¢â‚¬â€ smaller impassable obstacles
+        if (treeNoise > 0.45 && terrainNoise < 0.2) {
+          this.obstacleCells.add(cellKey);
+          chunk.obstacleCells.add(cellKey);
+          const treeTex = Math.random() > 0.5 ? this.mapTextures.tree1 : this.mapTextures.tree2;
+          const tree = new Sprite(treeTex);
+          tree.anchor.set(0.5, 0.8); tree.scale.set(4);
+          tree.x = wx * TILE_PX + TILE_PX / 2; tree.y = wy * TILE_PX + TILE_PX / 2;
+          tree.zIndex = wy * TILE_PX + TILE_PX / 2 + 5;
+          container.addChild(tree);
+          continue;
+        }
+
+        // Destructible crates Ã¢â‚¬â€ scattered naturally
+        if (Math.random() < 0.008 && terrainNoise < 0.2) {
+          this.obstacleCells.add(cellKey);
+          chunk.obstacleCells.add(cellKey);
+          const crate = new Sprite(this.mapTextures.crate);
+          crate.anchor.set(0.5, 0.75); crate.scale.set(4);
+          crate.x = wx * TILE_PX + TILE_PX / 2; crate.y = wy * TILE_PX + TILE_PX / 2;
+          crate.zIndex = wy * TILE_PX + TILE_PX / 2;
+          container.addChild(crate);
+          this.destructibles.push({ sprite: crate, x: wx, y: wy, hp: 50 });
+          continue;
+        }
+
+        // Visual clutter (bones, webs) Ã¢â‚¬â€ sparse decoration
+        if (Math.random() < 0.015) {
+          const isBone = Math.random() > 0.5;
+          const clutter = new Sprite(isBone ? this.mapTextures.bones : this.mapTextures.web);
+          clutter.anchor.set(0.5); clutter.scale.set(4);
+          clutter.x = wx * TILE_PX + TILE_PX / 2; clutter.y = wy * TILE_PX + TILE_PX / 2;
+          clutter.zIndex = -50;
+          clutter.alpha = 0.4 + Math.random() * 0.4;
+          container.addChild(clutter);
+        }
       }
     }
 
-    // Now carve floor cells for each room
-    rooms.forEach((r, i) => {
-      const roomCells = new Set<string>();
-      for (let x = r.x; x < r.x + r.w; x++) {
-        for (let y = r.y; y > r.y - r.h; y--) {
-          roomCells.add(`${x},${y}`);
+    // Generate walls at biome/floor boundaries
+    chunk.floorCells.forEach(cellKey => {
+      const [wx, wy] = cellKey.split(',').map(Number);
+      const biome = this.getBiomeAt(wx, wy);
+      const dirs = [[0,-1],[0,1],[-1,0],[1,0]];
+      for (const [ddx, ddy] of dirs) {
+        const nKey = `${wx+ddx},${wy+ddy}`;
+        if (this.obstacleCells.has(nKey) && !this.floorCells.has(nKey)) {
+          const isH = ddy !== 0;
+          const wallTex = isH ? this.mapTextures.wall_h[biome] : this.mapTextures.wall_v[biome];
+          const w = new Sprite(wallTex);
+          w.anchor.set(0.5); w.scale.set(4);
+          w.x = (wx + ddx * 0.5) * TILE_PX + TILE_PX / 2;
+          w.y = (wy + ddy * 0.5) * TILE_PX + TILE_PX / 2;
+          w.zIndex = w.y + 10;
+          container.addChild(w);
         }
       }
+    });
 
-      // Sculpt irregular architectural shapes
-      const carves = Math.floor(Math.random() * 4);
-      for (let c = 0; c < carves; c++) {
-        const cornerX = Math.random() > 0.5 ? r.x : r.x + r.w - 1;
-        const cornerY = Math.random() > 0.5 ? r.y : r.y - r.h + 1;
-        const carveW = 3 + Math.floor(Math.random() * 6);
-        const carveH = 3 + Math.floor(Math.random() * 6);
-        
-        const dirX = cornerX === r.x ? 1 : -1;
-        const dirY = cornerY === r.y ? -1 : 1; 
+    // Place spawn points (2-4 per chunk, in open areas)
+    const spawnCount = 2 + Math.floor(Math.random() * 3);
+    const floorArr = Array.from(chunk.floorCells);
+    for (let s = 0; s < spawnCount && floorArr.length > 0; s++) {
+      const idx = Math.floor(Math.random() * floorArr.length);
+      const [swx, swy] = floorArr[idx].split(',').map(Number);
 
-        for (let w = 0; w < carveW; w++) {
-          for (let h = 0; h < carveH; h++) {
-            roomCells.delete(`${cornerX + w * dirX},${cornerY + h * dirY}`);
+      // Check it's not on an obstacle
+      if (this.obstacleCells.has(`${swx},${swy}`)) continue;
+
+      // Pick enemy type weighted by biome
+      const biome = this.getBiomeAt(swx, swy);
+      const candidates = Object.values(EnemyRegistry).filter(e =>
+        e.biomes.includes(-1) || e.biomes.includes(biome)
+      );
+      const totalWeight = candidates.reduce((sum, c) => sum + c.spawnWeight, 0);
+      let roll = Math.random() * totalWeight;
+      let picked = candidates[0];
+      for (const c of candidates) {
+        roll -= c.spawnWeight;
+        if (roll <= 0) { picked = c; break; }
+      }
+
+      const sp: SpawnPoint = {
+        wx: swx, wy: swy,
+        enemyTypeId: picked.id,
+        respawnTimer: 0,
+        currentMonster: null,
+        chunkKey: key
+      };
+      chunk.spawnPoints.push(sp);
+      this.spawnPoints.push(sp);
+    }
+
+    this.worldContainer.addChild(container);
+    this.chunks.set(key, chunk);
+  }
+
+  private updateChunks() {
+    const pcx = Math.floor(this.player.x / CHUNK_PX);
+    const pcy = Math.floor(this.player.y / CHUNK_PX);
+    const loadRadius = 2;
+    const unloadRadius = 4;
+
+    // Load chunks nearby
+    for (let dx = -loadRadius; dx <= loadRadius; dx++) {
+      for (let dy = -loadRadius; dy <= loadRadius; dy++) {
+        const cx = pcx + dx;
+        const cy = pcy + dy;
+        const key = `${cx},${cy}`;
+        if (!this.chunks.has(key)) {
+          this.generateChunk(cx, cy);
+        } else {
+          const chunk = this.chunks.get(key)!;
+          if (!chunk.loaded) {
+            this.worldContainer.addChild(chunk.container);
+            chunk.loaded = true;
           }
         }
       }
-
-      roomCells.forEach(cell => this.floorCells.add(cell));
-
-      const isFinal = (i === roomCount - 1);
-      const isStart = (i === 0);
-
-      this.dungeonRooms.push({
-        x: r.x, y: r.y, w: r.w, h: r.h,
-        cleared: false, active: false, entered: false,
-        doors: [], monstersToSpawn: (isFinal || isStart) ? 0 : 8 + this.currentDungeonStage * 6,
-        isFinal, isStart
-      });
-    });
-
-    // Now carve corridors connecting centers of rooms
-    for (let i = 0; i < roomCount - 1; i++) {
-        const r1 = rooms[i];
-        const r2 = rooms[i+1];
-
-        const cx1 = Math.floor(r1.x + r1.w / 2);
-        const cy1 = Math.floor(r1.y - r1.h / 2);
-        const cx2 = Math.floor(r2.x + r2.w / 2);
-        const cy2 = Math.floor(r2.y - r2.h / 2);
-
-        // draw L-shaped corridor
-        const cRadius = 6; // HUGE corridors (width = 13)
-
-        // Horizontal segment from cx1 to cx2 at cy1
-        const startX = Math.min(cx1, cx2);
-        const endX = Math.max(cx1, cx2);
-        for(let x = startX; x <= endX; x++) {
-            for(let w = -cRadius; w <= cRadius; w++) {
-                this.floorCells.add(`${x},${cy1 + w}`);
-            }
-        }
-
-        // Vertical segment from cy1 to cy2 at cx2
-        const startY = Math.min(cy1, cy2);
-        const endY = Math.max(cy1, cy2);
-        for(let y = startY; y <= endY; y++) {
-            for(let w = -cRadius; w <= cRadius; w++) {
-                this.floorCells.add(`${cx2 + w},${y}`);
-            }
-        }
     }
 
-    // Spawn Props over the whole floorCells
-    const bId = (this.currentDungeonWorld - 1) % 3;
-
-    rooms.forEach((r, i) => {
-      // Spawn Hard Obstacles (Rocks)
-      if (i > 0) {
-        const numRocks = Math.floor(Math.random() * 6);
-        for (let k = 0; k < numRocks; k++) {
-           const rx = r.x + 3 + Math.floor(Math.random() * (r.w - 6));
-           const ry = r.y - 3 - Math.floor(Math.random() * (r.h - 6));
-           if (this.floorCells.has(`${rx},${ry}`)) {
-              this.obstacleCells.add(`${rx},${ry}`);
-              const rock = new Sprite(this.mapTextures.rock[bId]);
-              rock.anchor.set(0.5); rock.scale.set(4);
-              rock.x = rx * 64; rock.y = ry * 64; rock.zIndex = rock.y;
-              this.worldContainer.addChild(rock);
-           }
-        }
-
-        // Spawn Destructibles (Crates)
-        const numCrates = Math.floor(Math.random() * 6);
-        for (let c = 0; c < numCrates; c++) {
-           const cx = r.x + 2 + Math.floor(Math.random() * (r.w - 4));
-           const cy = r.y - 2 - Math.floor(Math.random() * (r.h - 4));
-           if (this.floorCells.has(`${cx},${cy}`) && !this.obstacleCells.has(`${cx},${cy}`)) {
-              this.obstacleCells.add(`${cx},${cy}`);
-              const crate = new Sprite(this.mapTextures.crate);
-              crate.anchor.set(0.5); crate.scale.set(4);
-              crate.x = cx * 64; crate.y = cy * 64; crate.zIndex = crate.y;
-              this.worldContainer.addChild(crate);
-              this.destructibles.push({ sprite: crate, x: cx, y: cy, hp: 50 });
-           }
-        }
+    // Unload distant chunks (remove from scene, keep data)
+    // Also fully purge very distant chunks to free memory
+    const purgeRadius = 8;
+    const keysToDelete: string[] = [];
+    this.chunks.forEach((chunk, key) => {
+      const dx = Math.abs(chunk.cx - pcx);
+      const dy = Math.abs(chunk.cy - pcy);
+      if ((dx > unloadRadius || dy > unloadRadius) && chunk.loaded) {
+        this.worldContainer.removeChild(chunk.container);
+        chunk.loaded = false;
       }
-
-      // Visual Clutter
-      const numClutter = 5 + Math.floor(Math.random() * 10);
-      for (let c = 0; c < numClutter; c++) {
-         const cx = r.x + 2 + Math.floor(Math.random() * (r.w - 4));
-         const cy = r.y - 2 - Math.floor(Math.random() * (r.h - 4));
-         if (this.floorCells.has(`${cx},${cy}`) && !this.obstacleCells.has(`${cx},${cy}`)) {
-            const isBone = Math.random() > 0.6;
-            const clutter = new Sprite(isBone ? this.mapTextures.bones : this.mapTextures.web);
-            clutter.anchor.set(0.5); clutter.scale.set(4);
-            clutter.x = cx * 64; clutter.y = cy * 64;
-            clutter.zIndex = -50; 
-            clutter.alpha = 0.5 + Math.random() * 0.5;
-            this.worldContainer.addChild(clutter);
-         }
+      // Purge chunks far beyond unload radius to free memory
+      if (dx > purgeRadius || dy > purgeRadius) {
+        if (chunk.loaded) {
+          this.worldContainer.removeChild(chunk.container);
+        }
+        // Remove cell data from global sets
+        chunk.floorCells.forEach(c => this.floorCells.delete(c));
+        chunk.obstacleCells.forEach(c => this.obstacleCells.delete(c));
+        // Remove spawn points belonging to this chunk
+        this.spawnPoints = this.spawnPoints.filter(sp => sp.chunkKey !== key);
+        // Destroy container GPU resources
+        chunk.container.destroy({ children: true });
+        keysToDelete.push(key);
       }
     });
+    for (const k of keysToDelete) this.chunks.delete(k);
+  }
 
-    const TILE_SIZE = 64;
-
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    this.floorCells.forEach(key => {
-      const [cx, cy] = key.split(',').map(Number);
-      if (cx < minX) minX = cx;
-      if (cx > maxX) maxX = cx;
-      if (cy < minY) minY = cy;
-      if (cy > maxY) maxY = cy;
-    });
-
-    // Floor rendering: Massive grid of individual sprites (using custom floor tiles)
-    const PAD = 10; // 10 padding cells past walls for cool effect
-    minX -= PAD;
-    maxX += PAD;
-    minY -= PAD;
-    maxY += PAD;
-
-    const floorContainer = new Container();
-    floorContainer.zIndex = -100000;
-
-    for (let x = minX; x <= maxX; x++) {
-      for (let y = minY; y <= maxY; y++) {
-         const r = Math.random();
-         let tex;
-         if (r < 0.65) tex = this.mapTextures.customFloor[0];
-         else if (r < 0.85) tex = this.mapTextures.customFloor[1];
-         else if (r < 0.93) tex = this.mapTextures.customFloor[2];
-         else tex = this.mapTextures.customFloor[3];
-         const sprite = new Sprite(tex);
-         sprite.anchor.set(0.5);
-         sprite.scale.set(4);
-         sprite.x = x * TILE_SIZE;
-         sprite.y = y * TILE_SIZE;
-         floorContainer.addChild(sprite);
-      }
+  private getEnemyTexturesForType(typeId: string): Record<string, Texture[]> {
+    switch (typeId) {
+      case 'scout': return this.goblinTextures;
+      case 'brute': return this.bruteTextures;
+      case 'shaman': return this.shamanTextures;
+      case 'magma': return this.magmaTextures;
+      case 'wraith': return this.wraithTextures;
+      case 'golem': return this.golemTextures;
+      default: return this.goblinTextures;
     }
-    
-    this.worldContainer.addChild(floorContainer);
+  }
 
-    const wallCells = new Set<string>();
+  private spawnOpenWorldEnemy(sp: SpawnPoint) {
+    const def = EnemyRegistry[sp.enemyTypeId];
+    if (!def) return;
 
-    // Render thin walls precisely on the boundaries where the floor ends
-    this.floorCells.forEach(key => {
-      const [cx, cy] = key.split(',').map(Number);
-      if (!this.floorCells.has(`${cx},${cy-1}`)) {
-          const w = new Sprite(this.mapTextures.wall_h[bId]);
-          w.anchor.set(0.5, 0.5); w.scale.set(4);
-          w.x = cx * TILE_SIZE; w.y = cy * TILE_SIZE - TILE_SIZE/2;
-          w.zIndex = w.y + 10;
-          this.worldContainer.addChild(w);
-      }
-      if (!this.floorCells.has(`${cx},${cy+1}`)) {
-          const w = new Sprite(this.mapTextures.wall_h[bId]);
-          w.anchor.set(0.5, 0.5); w.scale.set(4);
-          w.x = cx * TILE_SIZE; w.y = cy * TILE_SIZE + TILE_SIZE/2;
-          w.zIndex = w.y + 10;
-          this.worldContainer.addChild(w);
-      }
-      if (!this.floorCells.has(`${cx-1},${cy}`)) {
-          const w = new Sprite(this.mapTextures.wall_v[bId]);
-          w.anchor.set(0.5, 0.5); w.scale.set(4);
-          w.x = cx * TILE_SIZE - TILE_SIZE/2; w.y = cy * TILE_SIZE;
-          w.zIndex = w.y + 10;
-          this.worldContainer.addChild(w);
-      }
-      if (!this.floorCells.has(`${cx+1},${cy}`)) {
-          const w = new Sprite(this.mapTextures.wall_v[bId]);
-          w.anchor.set(0.5, 0.5); w.scale.set(4);
-          w.x = cx * TILE_SIZE + TILE_SIZE/2; w.y = cy * TILE_SIZE;
-          w.zIndex = w.y + 10;
-          this.worldContainer.addChild(w);
-      }
-    });
+    const textures = this.getEnemyTexturesForType(sp.enemyTypeId);
+    const monster = new Sprite(textures.run[0]);
+    monster.anchor.set(0.5, 1);
+    monster.scale.set(0);
+    monster.alpha = 0;
+    monster.x = sp.wx * TILE_PX;
+    monster.y = sp.wy * TILE_PX;
 
-    // Populate Fences at Room Boundaries
-    // We search the perimeter of the room and place fences ONLY on cells that connect to floorCells outside the room
-    for (const r of this.dungeonRooms) {
-      for (let x = r.x; x < r.x + r.w; x++) {
-        for (let y = r.y; y > r.y - r.h; y--) {
-          if (x === r.x || x === r.x + r.w - 1 || y === r.y || y === r.y - r.h + 1) {
-            let hasExit = false;
-            for (let nx = x - 1; nx <= x + 1; nx++) {
-              for (let ny = y - 1; ny <= y + 1; ny++) {
-                if (nx >= r.x && nx < r.x + r.w && ny <= r.y && ny > r.y - r.h) continue;
-                if (this.floorCells.has(`${nx},${ny}`)) {
-                  hasExit = true; break;
-                }
-              }
-              if (hasExit) break;
-            }
-            if (hasExit) {
-              const fence = new Sprite(this.mapTextures.fence);
-              fence.anchor.set(0.5, 0);
-              fence.scale.set(4);
-              fence.x = x * TILE_SIZE;
-              fence.y = y * TILE_SIZE - TILE_SIZE / 2 - 80;
-              fence.alpha = 0;
-              fence.zIndex = y * TILE_SIZE + 10;
-              this.worldContainer.addChild(fence);
-              r.doors.push({ x, y, sprite: fence, open: true });
-            }
+    // Distance-based difficulty scaling
+    const dist = Math.sqrt(sp.wx * sp.wx + sp.wy * sp.wy);
+    const scaleFactor = 1 + dist / 200;
+
+    (monster as any).isSpawning = true;
+    (monster as any).spawnTimer = 30;
+    (monster as any).enemyTypeId = sp.enemyTypeId;
+    (monster as any).type = def.attackPattern === 'spread_shot' ? 'ranged' : (def.attackPattern === 'charge' ? 'melee' : 'special');
+    (monster as any).attackTimer = def.attackCooldown * (0.5 + Math.random() * 0.5);
+    (monster as any).hp = Math.floor(def.hp * scaleFactor);
+    (monster as any).maxHp = (monster as any).hp;
+    (monster as any).damage = Math.floor(def.damage * scaleFactor);
+    (monster as any).speed = def.speed;
+    (monster as any).aggroRange = def.aggroRange;
+    (monster as any).deaggroRange = def.deaggroRange;
+    (monster as any).attackPattern = def.attackPattern;
+    (monster as any).attackCooldownMax = def.attackCooldown;
+    (monster as any).isBoss = def.isBoss;
+    (monster as any).homeX = sp.wx * TILE_PX;
+    (monster as any).homeY = sp.wy * TILE_PX;
+    (monster as any).aiState = 'idle';
+    (monster as any).stateTimer = 60 + Math.random() * 120;
+    (monster as any).patrolTargetX = 0;
+    (monster as any).patrolTargetY = 0;
+    (monster as any).animTimer = Math.random() * 4;
+    (monster as any).teleportCooldown = 0;
+    (monster as any).chargeDir = { x: 0, y: 0 };
+    (monster as any).isCharging = false;
+
+    const hpBar = new Graphics(); hpBar.zIndex = 999999; this.worldContainer.addChild(hpBar);
+    (monster as any).hpBar = hpBar;
+    const shadow = new Graphics().ellipse(0, 0, def.isBoss ? 8 : 4, def.isBoss ? 3 : 1.5).fill({ color: 0x000000, alpha: 0.5 });
+    shadow.zIndex = -99998;
+    shadow.scale.set(0);
+    this.worldContainer.addChild(shadow);
+    (monster as any).shadow = shadow;
+
+    this.worldContainer.addChild(monster);
+    this.monsters.push(monster);
+    sp.currentMonster = monster;
+  }
+
+  private updateSpawns() {
+    const maxAlive = 15;
+    const alive = this.monsters.length;
+
+    for (const sp of this.spawnPoints) {
+      // Skip if chunk is unloaded
+      const chunk = this.chunks.get(sp.chunkKey);
+      if (!chunk || !chunk.loaded) continue;
+
+      // Check if monster is dead
+      if (sp.currentMonster && !this.monsters.includes(sp.currentMonster)) {
+        sp.currentMonster = null;
+        sp.respawnTimer = 60 * 60 + Math.random() * 60 * 60; // 60-120 seconds
+      }
+
+      // Handle respawn timer
+      if (sp.currentMonster === null) {
+        sp.respawnTimer -= 1;
+        if (sp.respawnTimer <= 0 && alive < maxAlive) {
+          const dist = Math.hypot(this.player.x - sp.wx * TILE_PX, this.player.y - sp.wy * TILE_PX);
+          // Only spawn when player is 300-800px away
+          if (dist > 300 && dist < 800) {
+            this.spawnOpenWorldEnemy(sp);
           }
         }
       }
     }
   }
+
+
 
   private handleKeyDown = (e: KeyboardEvent) => {
     this.keys[e.code] = true;
@@ -950,53 +1323,7 @@ export class GameManager {
     window.addEventListener('settings-toggle', this.handleSettingsToggle);
   }
 
-  private spawnMonsterInRoom(room: any, immediate = false) {
-    let tx, ty;
-    let attempts = 0;
-    do {
-      tx = room.x + 2 + Math.floor(Math.random() * (room.w - 4));
-      ty = room.y - 2 - Math.floor(Math.random() * (room.h - 4));
-      attempts++;
-    } while (this.obstacleCells.has(`${tx},${ty}`) && attempts < 20);
 
-    let sx = tx * 64;
-    let sy = ty * 64;
-
-    const isRanged = Math.random() > 0.6;
-    const monster = new Sprite(isRanged ? this.goblinBlueTextures.run[0] : this.goblinTextures.run[0]);
-    monster.anchor.set(0.5, 1); 
-    
-    if (immediate) {
-      monster.scale.set(4);
-      monster.alpha = 1;
-      (monster as any).isSpawning = false;
-    } else {
-      monster.scale.set(0); 
-      monster.alpha = 0;
-      (monster as any).isSpawning = true; 
-      (monster as any).spawnTimer = 30; // 0.5 sec spawn
-    }
-
-    monster.x = sx; monster.y = sy;
-    (monster as any).type = isRanged ? 'ranged' : 'melee';
-    (monster as any).attackTimer = Math.random() * 60 + 60;
-    (monster as any).hp = 20 + this.currentDungeonStage * 15;
-    (monster as any).maxHp = (monster as any).hp;
-    (monster as any).damage = 1 + this.currentDungeonStage;
-    (monster as any).dungeonRoom = room;
-
-    const hpBar = new Graphics(); hpBar.zIndex = 999999; this.worldContainer.addChild(hpBar);
-    (monster as any).hpBar = hpBar;
-    const shadow = new Graphics().ellipse(0, 0, 4, 1.5).fill({ color: 0x000000, alpha: 0.5 });
-    shadow.zIndex = -99998; 
-    shadow.scale.set(immediate ? 1 : 0);
-    this.worldContainer.addChild(shadow);
-    (monster as any).shadow = shadow;
-    (monster as any).animTimer = Math.random() * 4;
-
-    this.worldContainer.addChild(monster);
-    this.monsters.push(monster);
-  }
 
   private spawnMonster() {
     if (this.gameMode === 'dungeon') return; // Handled rigidly by Rooms
@@ -1198,105 +1525,197 @@ export class GameManager {
         }
       }
     } else if (this.gameMode === 'dungeon') {
-      let activeRoom = this.dungeonRooms.find(r =>
-        this.player.x / 64 >= r.x + 1 && this.player.x / 64 <= r.x + r.w - 1 &&
-        this.player.y / 64 <= r.y - 1 && this.player.y / 64 >= r.y - r.h + 1
-      );
+      // Open-world updates
+      this.updateChunks();
+      this.updateSpawns();
 
-      if (activeRoom && !activeRoom.entered) {
-        activeRoom.entered = true;
-        activeRoom.active = true;
-        activeRoom.doors.forEach(d => { d.open = false; });
-        this.playSound('fence_slam');
-
-        // Initialize wave logic
-        const hasMonsters = activeRoom.monstersToSpawn > 0;
-        activeRoom.totalWaves = hasMonsters ? 1 + Math.floor(Math.random() * 3) : 0; // 1 to 3 waves
-        activeRoom.currentWave = hasMonsters ? 1 : 0;
-        // At least 1 per wave
-        activeRoom.monstersPerWave = hasMonsters ? Math.max(1, Math.ceil(activeRoom.monstersToSpawn / activeRoom.totalWaves)) : 0;
-        activeRoom.waveTimer = 0;
-
-        // Spawn first sequence immediately without animation
-        for (let i = 0; i < activeRoom.monstersPerWave; i++) {
-          this.spawnMonsterInRoom(activeRoom, true);
+      // Update fire trails
+      for (let i = this.fireTrails.length - 1; i >= 0; i--) {
+        this.fireTrails[i].life -= 1;
+        this.fireTrails[i].sprite.alpha = Math.max(0, this.fireTrails[i].life / 300);
+        if (this.fireTrails[i].life <= 0) {
+          this.worldContainer.removeChild(this.fireTrails[i].sprite);
+          this.fireTrails[i].sprite.destroy();
+          this.fireTrails.splice(i, 1);
         }
       }
 
-      if (activeRoom && activeRoom.active) {
-        let alive = this.monsters.filter(m => (m as any).dungeonRoom === activeRoom).length;
-        
-        // Process progressive wave drops
-        if (activeRoom.currentWave! < activeRoom.totalWaves!) {
-           // We ONLY advance once the CURRENT wave is totally wiped out
-           if (alive <= 0) {
-              activeRoom.currentWave!++;
-              
-              // Spawning remaining entities
-              const remaining = activeRoom.monstersToSpawn - (activeRoom.currentWave! - 1) * activeRoom.monstersPerWave!;
-              const toSpawn = Math.max(0, Math.min(activeRoom.monstersPerWave!, remaining));
-              
-              for (let i = 0; i < toSpawn; i++) {
-                 this.spawnMonsterInRoom(activeRoom, false);
-              }
-              // recheck alive pool
-              alive = this.monsters.filter(m => (m as any).dungeonRoom === activeRoom).length;
-           }
+      // Update telegraphs
+      for (let i = this.telegraphs.length - 1; i >= 0; i--) {
+        const tg = this.telegraphs[i];
+        tg.life -= 1;
+        tg.sprite.alpha = 0.3 + 0.4 * Math.sin(performance.now() / 100);
+        if (tg.life <= 0) {
+          // Deal damage if player is in blast radius
+          const pdist = Math.hypot(this.player.x - tg.x, this.player.y - tg.y);
+          if (pdist < tg.radius && !this.isInvulnerable) {
+            const dmg = tg.owner ? ((tg.owner as any).damage || 8) : 8;
+            this.playerHP -= dmg;
+            this.isInvulnerable = true;
+            this.invulnerableTimer = 60;
+            if (this.playerHP <= 0) this.playSound('death');
+            else this.playSound('hit');
+            this.spawnParticles(this.player.x, this.player.y, 0xff4400, 8);
+          }
+          this.worldContainer.removeChild(tg.sprite);
+          tg.sprite.destroy();
+          this.telegraphs.splice(i, 1);
         }
+      }
 
-        if (alive <= 0 && activeRoom.currentWave! >= activeRoom.totalWaves!) {
-          activeRoom.active = false;
-          activeRoom.cleared = true;
-          activeRoom.doors.forEach(d => { d.open = true; });
-          this.playSound('door_creak');
+      // Update fire trails — damage player on contact
+      for (const ft of this.fireTrails) {
+        if (!this.isInvulnerable) {
+          const fdist = Math.hypot(this.player.x - ft.sprite.x, this.player.y - ft.sprite.y);
+          if (fdist < 24) {
+            this.playerHP -= 2;
+            this.isInvulnerable = true;
+            this.invulnerableTimer = 30;
+            if (this.playerHP <= 0) this.playSound('death');
+            else this.playSound('hit');
+            break;
+          }
+        }
+      }
+
+      // Artifact Compass & Sonar
+      let nearestArtifact: {cx: number, cy: number, dist: number} | null = null;
+      for (const loc of this.artifactLocations) {
+         if (!loc.collected) {
+            const ax = loc.cx * CHUNK_PX + (CHUNK_PX/2);
+            const ay = loc.cy * CHUNK_PX + (CHUNK_PX/2);
+            const dist = Math.hypot(this.player.x - ax, this.player.y - ay);
+            if (!nearestArtifact || dist < nearestArtifact.dist) {
+               nearestArtifact = { cx: loc.cx, cy: loc.cy, dist };
+            }
+
+            // Artifact Collection
+            if (dist < 100) {
+               loc.collected = true;
+               this.artifactsCollected++;
+               if (loc.sprite) {
+                  this.worldContainer.removeChild(loc.sprite);
+                  loc.sprite.destroy();
+                  loc.sprite = null;
+               }
+               this.playSound('artifact_pickup');
+               
+               // Visual popup
+               const style = new TextStyle({ fontFamily: "'CustomFont', Arial", fontSize: 24, fill: '#FFD700', stroke: { color: '#000000', width: 4 }, fontWeight: 'bold' });
+               const popText = new Text({ text: `ARTIFACT ${this.artifactsCollected}/${this.totalArtifactsNeeded}`, style });
+               popText.anchor.set(0.5, 0.5);
+               popText.x = this.player.x;
+               popText.y = this.player.y - 100;
+               popText.zIndex = this.player.y + 100;
+               this.worldContainer.addChild(popText);
+               this.damagePopups.push({ sprite: popText, life: 120 });
+               
+               // Wake up Guardians in this chunk
+               const chunkKey = `${loc.cx},${loc.cy}`;
+               const chunk = this.chunks.get(chunkKey);
+               if (chunk) {
+                  this.playSound('shrine_awaken');
+                  for (const sp of chunk.spawnPoints) {
+                     if (sp.currentMonster && (sp.currentMonster as any).aiState === 'sleeping') {
+                        (sp.currentMonster as any).aiState = 'idle';
+                        (sp.currentMonster as any).stateTimer = 0;
+                        sp.currentMonster.tint = 0xFFFFFF; // Revert to normal colors
+                        // Buff them
+                        (sp.currentMonster as any).maxHp *= 2;
+                        (sp.currentMonster as any).hp = (sp.currentMonster as any).maxHp;
+                        (sp.currentMonster as any).damage *= 1.5;
+                        (sp.currentMonster as any).speed *= 1.2;
+                     }
+                  }
+               }
+            }
+         }
+      }
+
+      if (nearestArtifact && this.compassSprite) {
+          const ax = nearestArtifact.cx * CHUNK_PX + (CHUNK_PX/2);
+          const ay = nearestArtifact.cy * CHUNK_PX + (CHUNK_PX/2);
+          const angle = Math.atan2(ay - this.player.y, ax - this.player.x);
+          this.compassSprite.x = this.player.x + Math.cos(angle) * 80;
+          this.compassSprite.y = this.player.y - 30 + Math.sin(angle) * 80;
+          this.compassSprite.rotation = angle;
           
-          if (!activeRoom.isStart && !activeRoom.isFinal) {
-             this.playSound('room_clear');
-             const style = new TextStyle({ fontFamily: "'CustomFont', Arial", fontSize: 36, fill: '#00ff00', stroke: { color: '#000000', width: 5 }, fontWeight: 'bold' });
-             const clearText = new Text({ text: 'ROOM CLEARED!', style });
-             clearText.anchor.set(0.5, 0.5);
-             clearText.x = activeRoom.x * 64 + (activeRoom.w / 2) * 64;
-             clearText.y = activeRoom.y * 64 - (activeRoom.h / 2) * 64 - 32;
-             clearText.zIndex = clearText.y + 100;
-             this.worldContainer.addChild(clearText);
-             this.damagePopups.push({ sprite: clearText, life: 120 });
+          if (this.isSprinting || (this.keys['KeyW'] || this.keys['KeyA'] || this.keys['KeyS'] || this.keys['KeyD']) === false) {
+             this.compassSprite.alpha = Math.min(1, this.compassSprite.alpha + 0.05);
+          } else {
+             this.compassSprite.alpha = Math.max(0, this.compassSprite.alpha - 0.05);
           }
 
-          if (activeRoom.isFinal) {
-             if (!this.merchantSprite) {
-                this.merchantSprite = new Sprite(this.merchantTexture);
-                this.merchantSprite.anchor.set(0.5, 0.5);
-                this.merchantSprite.scale.set(4);
-                this.merchantSprite.x = (activeRoom.x + activeRoom.w / 2) * 64 - 100;
-                this.merchantSprite.y = (activeRoom.y - activeRoom.h / 2) * 64;
-                this.worldContainer.addChild(this.merchantSprite);
-             }
-
-             if (!this.portalSprite) {
-                this.portalSprite = new Sprite(this.mapTextures.portal);
-                this.portalSprite.anchor.set(0.5, 0.5);
-                this.portalSprite.scale.set(4);
-                this.portalSprite.x = (activeRoom.x + activeRoom.w / 2) * 64 + 100;
-                this.portalSprite.y = (activeRoom.y - activeRoom.h / 2) * 64;
-                this.portalSprite.alpha = 0.8;
-                this.worldContainer.addChild(this.portalSprite);
-
-                const pGlow = new Graphics().circle(0, 0, 32).fill({ color: 0x00ffff, alpha: 0.2 });
-                this.portalSprite.addChild(pGlow);
-             }
+          // Sonar Ping
+          this.sonarTimer -= dt;
+          if (this.sonarTimer <= 0) {
+              const pingInterval = Math.max(30, nearestArtifact.dist / 10); // Faster when closer
+              this.sonarTimer = pingInterval;
+              if (nearestArtifact.dist < 1500) {
+                 this.playSound('artifact_ping');
+              }
           }
-        }
+      } else if (this.compassSprite) {
+          this.compassSprite.alpha = 0;
       }
 
-      // Animate fences drop/lift
-      for (const r of this.dungeonRooms) {
-        const isClosed = r.entered && !r.cleared;
-        for (const d of r.doors) {
-          const targetY = isClosed ? d.y * 64 - 32 : d.y * 64 - 80;
-          d.sprite.y += (targetY - d.sprite.y) * 0.2;
-          d.sprite.alpha = Math.max(0, Math.min(1, d.sprite.alpha + (isClosed ? 0.1 : -0.1)));
+      // Portal spawn on collecting all artifacts
+      if (this.artifactsCollected >= this.totalArtifactsNeeded && !this.portalSpawned) {
+        this.portalSpawned = true;
+        
+        // Spawn portal near player in an open spot if possible
+        const portalX = this.player.x + (Math.random() > 0.5 ? 200 : -200);
+        const portalY = this.player.y + (Math.random() > 0.5 ? 200 : -200);
+
+        this.portalSprite = new Sprite(this.mapTextures.portal);
+        this.portalSprite.anchor.set(0.5, 0.5);
+        this.portalSprite.scale.set(4);
+        this.portalSprite.x = portalX;
+        this.portalSprite.y = portalY;
+        this.portalSprite.alpha = 0.8;
+        this.portalSprite.zIndex = portalY;
+        this.worldContainer.addChild(this.portalSprite);
+        const pGlow = new Graphics().circle(0, 0, 32).fill({ color: 0x00ffff, alpha: 0.2 });
+        this.portalSprite.addChild(pGlow);
+
+        // Also spawn merchant nearby
+        this.merchantSprite = new Sprite(this.merchantTexture);
+        this.merchantSprite.anchor.set(0.5, 0.5);
+        this.merchantSprite.scale.set(4);
+        this.merchantSprite.x = portalX - 100;
+        this.merchantSprite.y = portalY;
+        this.merchantSprite.zIndex = portalY;
+        this.worldContainer.addChild(this.merchantSprite);
+
+        this.playSound('portal_boss_spawn');
+        
+        // Spawn Gatekeeper Boss
+        const sp: SpawnPoint = {
+             wx: Math.floor(portalX/TILE_PX), wy: Math.floor((portalY+100)/TILE_PX),
+             enemyTypeId: 'golem', // Use Golem as the Gatekeeper
+             respawnTimer: 0,
+             currentMonster: null,
+             chunkKey: `${Math.floor(portalX/CHUNK_PX)},${Math.floor(portalY/CHUNK_PX)}`
+        };
+        this.spawnOpenWorldEnemy(sp);
+        if (sp.currentMonster) {
+             (sp.currentMonster as any).isGatekeeper = true;
+             sp.currentMonster.scale.set(8); // Make it huge (4 is normal, 8 is 2x)
+             (sp.currentMonster as any).maxHp *= 3;
+             (sp.currentMonster as any).hp = (sp.currentMonster as any).maxHp;
+             (sp.currentMonster as any).damage *= 2;
         }
+
+        const style = new TextStyle({ fontFamily: "'CustomFont', Arial", fontSize: 36, fill: '#ff0000', stroke: { color: '#000000', width: 5 }, fontWeight: 'bold' });
+        const clearText = new Text({ text: 'GATEKEEPER AWAKENED!', style });
+        clearText.anchor.set(0.5, 0.5);
+        clearText.x = this.player.x;
+        clearText.y = this.player.y - 100;
+        clearText.zIndex = this.player.y + 100;
+        this.worldContainer.addChild(clearText);
+        this.damagePopups.push({ sprite: clearText, life: 120 });
       }
+
     }
 
     // Dungeon interaction zones
@@ -1317,24 +1736,47 @@ export class GameManager {
     if (this.gameMode === 'dungeon' && this.portalSprite && this.portalSprite.parent) {
        const pDist = Math.hypot(this.player.x - this.portalSprite.x, this.player.y - this.portalSprite.y);
        if (pDist < 80) {
+          // Check if Gatekeeper is dead
+          let gatekeeperAlive = false;
+          for (const m of this.monsters) {
+             if ((m as any).isGatekeeper) {
+                gatekeeperAlive = true;
+                break;
+             }
+          }
+          
           isNearPortal = true;
           if (this.keys['Space']) {
-             this.keys['Space'] = false;
-             this.playSound('level_up');
-             this.currentDungeonStage++;
-             if (this.currentDungeonStage > 3) {
-                this.currentDungeonStage = 1;
-                this.currentDungeonWorld++;
-             }
+             if (gatekeeperAlive) {
+                 this.keys['Space'] = false;
+                 // Visual popup warning
+                 const style = new TextStyle({ fontFamily: "'CustomFont', Arial", fontSize: 24, fill: '#ff0000', stroke: { color: '#000000', width: 4 }, fontWeight: 'bold' });
+                 const popText = new Text({ text: "DEFEAT THE GATEKEEPER!", style });
+                 popText.anchor.set(0.5, 0.5);
+                 popText.x = this.player.x;
+                 popText.y = this.player.y - 100;
+                 popText.zIndex = this.player.y + 100;
+                 this.worldContainer.addChild(popText);
+                 this.damagePopups.push({ sprite: popText, life: 60 });
+                 this.playSound('empty_click');
+             } else {
+                 this.keys['Space'] = false;
+                 this.playSound('level_up');
+                 this.currentDungeonStage++;
+                 if (this.currentDungeonStage > 3) {
+                    this.currentDungeonStage = 1;
+                    this.currentDungeonWorld++;
+                 }
              this.portalSprite.destroy({ children: true });
              this.portalSprite = null;
              if (this.merchantSprite) {
                 this.merchantSprite.destroy();
                 this.merchantSprite = null;
              }
+             this.portalSpawned = false;
+             this.openWorldKills = 0;
 
              this.worldContainer.removeChildren();
-             this.dungeonRooms = [];
              this.floorCells.clear();
              this.bullets = [];
              this.particles = [];
@@ -1343,12 +1785,14 @@ export class GameManager {
              this.monsters = [];
              this.corpses = [];
              this.damagePopups = [];
+             this.fireTrails = [];
+             this.telegraphs = [];
 
-             this.generateDungeonMap();
+             this.initOpenWorld();
 
-             const startRoom = this.dungeonRooms[0];
-             this.player.x = (startRoom.x + startRoom.w / 2) * 64;
-             this.player.y = (startRoom.y - startRoom.h / 2) * 64;
+             // Spawn at origin of new world
+             this.player.x = 0;
+             this.player.y = 0;
 
              this.worldContainer.addChild(this.playerShadow);
              this.worldContainer.addChild(this.player);
@@ -1357,6 +1801,7 @@ export class GameManager {
              this.worldContainer.addChild(this.staminaGroup);
              
              this.dispatchState();
+             }
           }
        }
     }
@@ -1449,6 +1894,7 @@ export class GameManager {
             this.isSprinting = true;
             speed *= 1.6;
             this.stamina = Math.max(0, this.stamina - dt * 1.5);
+            if (Math.random() > 0.6) this.spawnParticles(this.player.x, this.player.y, 0xaaaaaa, 1, true);
           } else {
             this.isSprinting = false;
           }
@@ -1473,8 +1919,16 @@ export class GameManager {
       const barColor = (this.stamina < 50 || this.rollCooldownTimer > 0) ? 0xFFA500 : 0x00FF00;
       this.staminaBarFill.stroke({ width: 8, color: barColor, cap: 'round' });
     }
-    // Fixed bug where bar disappeared instantly
-    this.staminaGroup.visible = true;
+    // Auto-hide stamina bar when full and not on cooldown
+    if (this.stamina >= this.maxStamina && this.rollCooldownTimer <= 0) {
+      this.staminaGroup.alpha -= 0.05 * dt;
+      if (this.staminaGroup.alpha < 0) this.staminaGroup.alpha = 0;
+      this.staminaGroup.visible = this.staminaGroup.alpha > 0;
+    } else {
+      this.staminaGroup.visible = true;
+      this.staminaGroup.alpha += 0.1 * dt;
+      if (this.staminaGroup.alpha > 1) this.staminaGroup.alpha = 1;
+    }
 
     // Dynamic Weapon Movement Penalties
     const activeStats = WeaponRegistry[this.inventory[this.activeSlot].id];
@@ -1584,7 +2038,7 @@ export class GameManager {
       }
     }
 
-    // Use items or shoot — always read activeSlot fresh, never cache the object
+    // Use items or shoot Ã¢â‚¬â€ always read activeSlot fresh, never cache the object
     const now = performance.now();
     const slotIdx = this.activeSlot;
     const slotId = this.inventory[slotIdx].id;
@@ -1757,26 +2211,17 @@ export class GameManager {
 
     if (this.gameMode === 'dungeon') {
       // Smooth Continuous AABB Sliding Collision
-      const radius = 24;
+      const radius = 20;
       
       const checkCollision = (px: number, py: number) => {
-        const minCX = Math.round((px - radius) / 64);
-        const maxCX = Math.round((px + radius) / 64);
-        const minCY = Math.round((py - radius) / 64);
-        const maxCY = Math.round((py + radius) / 64);
+        const minCX = Math.floor((px - radius) / TILE_PX);
+        const maxCX = Math.floor((px + radius) / TILE_PX);
+        const minCY = Math.floor((py - radius) / TILE_PX);
+        const maxCY = Math.floor((py + radius) / TILE_PX);
 
         for (let x = minCX; x <= maxCX; x++) {
           for (let y = minCY; y <= maxCY; y++) {
-            if (!this.floorCells.has(`${x},${y}`)) return true; // Hitting solid wall boundary
-            
-            // Checking Door Status dynamically
-            let hitDoor = false;
-            for (const r of this.dungeonRooms) {
-              if (r.active && r.doors.find(d => d.x === x && d.y === y && !d.open)) {
-                hitDoor = true; break;
-              }
-            }
-            if (hitDoor) return true;
+            if (this.obstacleCells.has(`${x},${y}`)) return true; // Hard obstacle/crate collision
           }
         }
         return false;
@@ -1879,10 +2324,11 @@ export class GameManager {
 
         // Bullet Wall Collision
         if (this.gameMode === 'dungeon') {
-          const bx = Math.round(b.sprite.x / 64);
-          const by = Math.round(b.sprite.y / 64);
-          if (!this.floorCells.has(`${bx},${by}`) || this.obstacleCells.has(`${bx},${by}`)) {
+          const bx = Math.floor(b.sprite.x / TILE_PX);
+          const by = Math.floor(b.sprite.y / TILE_PX);
+          if (this.obstacleCells.has(`${bx},${by}`)) {
             b.life = 0; // smash into standard wall
+            if (!b.isEnemy) this.spawnParticles(b.sprite.x, b.sprite.y, 0x888888, 4); // Wall hit sparks
             
              if (this.obstacleCells.has(`${bx},${by}`)) {
                for (let d = this.destructibles.length - 1; d >= 0; d--) {
@@ -1912,14 +2358,6 @@ export class GameManager {
                  }
                }
              }
-          } else {
-            let closedDoorHit = false;
-            for (const r of this.dungeonRooms) {
-              if (r.active && r.doors.find(d => d.x === bx && d.y === by && !d.open)) {
-                closedDoorHit = true; break;
-              }
-            }
-            if (closedDoorHit) b.life = 0; // smash into fence
           }
         }
       }
@@ -1991,11 +2429,14 @@ export class GameManager {
             if ((monster as any).hp <= 0) {
               this.playSound('kill');
               const isRanged = (monster as any).type === 'ranged';
-
               // Progression & Rewards
-              const expGain = isRanged ? 1.5 * this.wave : 1.0 * this.wave;
+              const isTypedRanged = (monster as any).type === 'ranged';
+              const expGain = isTypedRanged ? 1.5 * Math.max(1, this.wave) : 1.0 * Math.max(1, this.wave);
               this.gainExp(expGain);
               this.enemiesAlive--;
+              if (this.gameMode === 'dungeon') {
+                this.openWorldKills++;
+              }
               this.dispatchState();
 
               if (Math.random() < 0.20) { // 20% drop chance
@@ -2009,8 +2450,8 @@ export class GameManager {
                 this.coinDrops.push({ sprite: coinSprite, life: 600 });
               }
 
-              const textures = isRanged ? this.goblinBlueTextures : this.goblinTextures;
-              const corpse = new Sprite(textures.dead1[0]);
+              const textures = (monster as any).enemyTypeId ? this.getEnemyTexturesForType((monster as any).enemyTypeId) : (isRanged ? this.goblinBlueTextures : this.goblinTextures);
+              const corpse = new Sprite(textures.dead1 ? textures.dead1[0] : textures.run[0]);
               corpse.anchor.set(0.5, 1);
               corpse.scale.set(4);
               corpse.scale.x = monster.scale.x;
@@ -2045,6 +2486,46 @@ export class GameManager {
               this.monsters.splice(j, 1);
             }
             if (!(b as any).isMelee) break; // Pierce indefinitely if it is a melee attack!
+          }
+        }
+        
+        // Melee destructible barrel tracking
+        if ((b as any).isMelee) {
+          for (let d = this.destructibles.length - 1; d >= 0; d--) {
+            const crate = this.destructibles[d];
+            const mDist = Math.hypot(this.player.x - (crate.x * 64), (this.player.y - 12) - (crate.y * 64));
+            if (mDist < 160) {
+              const mAngle = Math.atan2((crate.y * 64) - (this.player.y - 12), (crate.x * 64) - this.player.x);
+              let bladeAngle = (b as any).sprite.rotation - Math.PI / 2;
+              let diff = Math.abs(mAngle - bladeAngle);
+              if (diff > Math.PI) diff = Math.PI * 2 - diff; // Normalize
+              
+              if (diff <= 0.45) { // Solid 50 degree sweep threshold
+                 if ((b as any).hitSet && (b as any).hitSet.has(crate)) continue;
+                 if ((b as any).hitSet) (b as any).hitSet.add(crate);
+                 
+                 crate.hp -= (activeStats ? activeStats.damage : this.playerDmg);
+                 this.playSound('hit');
+                 this.spawnParticles(crate.x * 64, crate.y * 64, 0xddaa55, 5); // Wood splinters
+
+                 if (crate.hp <= 0) {
+                   this.obstacleCells.delete(`${crate.x},${crate.y}`);
+                   this.worldContainer.removeChild(crate.sprite);
+                   crate.sprite.destroy();
+                   this.destructibles.splice(d, 1);
+                   this.playSound('kill');
+
+                   // 25% chance to drop coin
+                   if (Math.random() < 0.25) {
+                      const coinSprite = new Sprite(this.coinTexture);
+                      coinSprite.anchor.set(0.5, 0.5); coinSprite.scale.set(0.15);
+                      coinSprite.x = crate.x * 64; coinSprite.y = crate.y * 64; coinSprite.zIndex = crate.y * 64;
+                      this.worldContainer.addChild(coinSprite);
+                      this.coinDrops.push({ sprite: coinSprite, life: 600 });
+                   }
+                 }
+              }
+            }
           }
         }
       }
@@ -2090,16 +2571,150 @@ export class GameManager {
 
       // Animation ticks
       (monster as any).animTimer += dt * 0.15;
-      const frames = (monster as any).type === 'ranged' ? this.goblinBlueTextures.run : this.goblinTextures.run;
-      monster.texture = frames[Math.floor((monster as any).animTimer) % frames.length];
+      const enemyTextures = (monster as any).enemyTypeId
+        ? this.getEnemyTexturesForType((monster as any).enemyTypeId)
+        : ((monster as any).type === 'ranged' ? this.goblinBlueTextures : this.goblinTextures);
+      const frames = enemyTextures.run || [];
+      if (frames.length > 0) {
+        monster.texture = frames[Math.floor((monster as any).animTimer) % frames.length];
+      }
 
       const trueAngle = Math.atan2(this.player.y - monster.y, this.player.x - monster.x);
       const dist = Math.hypot(this.player.x - monster.x, this.player.y - monster.y);
 
       let targetX = this.player.x;
       let targetY = this.player.y;
+      const attackPattern = (monster as any).attackPattern || 'charge';
+      const aggroRange = (monster as any).aggroRange || 400;
+      const deaggroRange = (monster as any).deaggroRange || 600;
+      const homeX = (monster as any).homeX || monster.x;
+      const homeY = (monster as any).homeY || monster.y;
 
-      if ((monster as any).type === 'ranged') {
+      // Open-world AI state machine
+      if (this.gameMode === 'dungeon' && (monster as any).aiState) {
+        const aiState = (monster as any).aiState;
+
+        if (aiState === 'idle') {
+          targetX = monster.x; targetY = monster.y;
+          (monster as any).stateTimer -= dt;
+          if (dist < aggroRange) {
+            (monster as any).aiState = 'chase';
+          } else if ((monster as any).stateTimer <= 0) {
+            (monster as any).aiState = 'patrol';
+            (monster as any).patrolTargetX = homeX + (Math.random() - 0.5) * 400;
+            (monster as any).patrolTargetY = homeY + (Math.random() - 0.5) * 400;
+            (monster as any).stateTimer = 120 + Math.random() * 180;
+          }
+        } else if (aiState === 'patrol') {
+          targetX = (monster as any).patrolTargetX;
+          targetY = (monster as any).patrolTargetY;
+          (monster as any).stateTimer -= dt;
+          const distToPatrol = Math.hypot(targetX - monster.x, targetY - monster.y);
+          if (dist < aggroRange) {
+            (monster as any).aiState = 'chase';
+          } else if (distToPatrol < 32 || (monster as any).stateTimer <= 0) {
+            (monster as any).aiState = 'idle';
+            (monster as any).stateTimer = 60 + Math.random() * 120;
+          }
+        } else if (aiState === 'chase') {
+          targetX = this.player.x; targetY = this.player.y;
+          if (dist > deaggroRange) {
+            (monster as any).aiState = 'idle';
+            (monster as any).stateTimer = 60;
+            targetX = homeX; targetY = homeY;
+          }
+
+          // Attack patterns
+          (monster as any).attackTimer -= dt;
+          if ((monster as any).attackTimer <= 0 && dist < aggroRange) {
+            (monster as any).attackTimer = (monster as any).attackCooldownMax || 120;
+
+            if (attackPattern === 'slam') {
+              // Brute: telegraph then AoE slam
+              this.playSound('brute_slam');
+              const tg = new Graphics().circle(0, 0, 80).fill({ color: 0xff0000, alpha: 0.2 }).stroke({ width: 2, color: 0xff0000 });
+              tg.x = this.player.x; tg.y = this.player.y; tg.zIndex = -1;
+              this.worldContainer.addChild(tg);
+              this.telegraphs.push({ sprite: tg, life: 48, x: this.player.x, y: this.player.y, radius: 80, owner: monster });
+              // After telegraph expires, nearby player takes damage (handled in telegraph update)
+
+            } else if (attackPattern === 'spread_shot') {
+              // Shaman: 3-bullet fan
+              this.playSound('shaman_cast');
+              for (let s = -1; s <= 1; s++) {
+                const angle = trueAngle + s * 0.3;
+                const ebullet = new Sprite(this.weaponTextures.ebullet);
+                ebullet.anchor.set(0.5, 0.5); ebullet.scale.set(3);
+                ebullet.x = monster.x; ebullet.y = monster.y - 24;
+                ebullet.rotation = angle;
+                this.worldContainer.addChild(ebullet);
+                this.bullets.push({ sprite: ebullet, vx: Math.cos(angle) * 6, vy: Math.sin(angle) * 6, isEnemy: true });
+              }
+
+            } else if (attackPattern === 'fire_trail') {
+              // Magma elemental: charge in a line + leave fire dots
+              (monster as any).isCharging = true;
+              (monster as any).chargeDir = { x: Math.cos(trueAngle), y: Math.sin(trueAngle) };
+              (monster as any).stateTimer = 30; // Charge for 30 frames
+
+            } else if (attackPattern === 'teleport') {
+              // Wraith: teleport behind player
+              if ((monster as any).teleportCooldown <= 0) {
+                this.playSound('wraith_teleport');
+                const behindAngle = trueAngle + Math.PI;
+                monster.x = this.player.x + Math.cos(behindAngle) * 80;
+                monster.y = this.player.y + Math.sin(behindAngle) * 80;
+                monster.alpha = 0.5;
+                (monster as any).teleportCooldown = 180;
+                (monster as any).attackTimer = 30; // Quick strike after teleport
+              }
+
+            } else if (attackPattern === 'rock_throw') {
+              // Golem: arcing projectile
+              this.playSound('golem_stomp');
+              const ebullet = new Sprite(this.mapTextures.rock[0]);
+              ebullet.anchor.set(0.5, 0.5); ebullet.scale.set(2);
+              ebullet.x = monster.x; ebullet.y = monster.y - 40;
+              ebullet.rotation = trueAngle;
+              this.worldContainer.addChild(ebullet);
+              this.bullets.push({ sprite: ebullet, vx: Math.cos(trueAngle) * 5, vy: Math.sin(trueAngle) * 5, isEnemy: true });
+
+            } else {
+              // Default charge/melee - no projectile
+            }
+          }
+        }
+
+        // Handle charge movement for magma elemental
+        if ((monster as any).isCharging) {
+          (monster as any).stateTimer -= dt;
+          const cd = (monster as any).chargeDir;
+          monster.x += cd.x * 6 * dt;
+          monster.y += cd.y * 6 * dt;
+
+          // Leave fire trail
+          if (Math.random() > 0.5) {
+            const ft = new Sprite(this.mapTextures.fire_trail);
+            ft.anchor.set(0.5); ft.scale.set(3);
+            ft.x = monster.x; ft.y = monster.y;
+            ft.zIndex = -1; ft.alpha = 0.8;
+            this.worldContainer.addChild(ft);
+            this.fireTrails.push({ sprite: ft, life: 300 });
+          }
+
+          if ((monster as any).stateTimer <= 0) {
+            (monster as any).isCharging = false;
+          }
+          // Skip normal movement during charge
+        }
+
+        // Wraith fade-in after teleport
+        if ((monster as any).teleportCooldown > 0) {
+          (monster as any).teleportCooldown -= dt;
+          if (monster.alpha < 1) monster.alpha = Math.min(1, monster.alpha + 0.03);
+        }
+
+      } else if ((monster as any).type === 'ranged') {
         // Orbit logic
         if (!(monster as any).orbitDir) (monster as any).orbitDir = Math.random() > 0.5 ? 1 : -1;
 
@@ -2170,15 +2785,6 @@ export class GameManager {
             for (let y = minCY; y <= maxCY; y++) {
               if (!this.floorCells.has(`${x},${y}`)) return true; // Hitting solid wall boundary
               if (this.obstacleCells.has(`${x},${y}`)) return true; // Hard obstacle/crate collision
-              
-              // Checking Door Status dynamically
-              let hitDoor = false;
-              for (const r of this.dungeonRooms) {
-                if (r.active && r.doors.find(d => d.x === x && d.y === y && !d.open)) {
-                  hitDoor = true; break;
-                }
-              }
-              if (hitDoor) return true;
             }
           }
           return false;
@@ -2283,23 +2889,38 @@ export class GameManager {
     const size = 200;
     const halfSize = size / 2;
     const scale = 4; // pixels per tile
+    const viewTiles = Math.ceil(halfSize / scale); // Only check tiles visible on minimap
 
     // Background
     this.minimapGraphics.rect(0, 0, size, size).fill({ color: 0x000000, alpha: 0.6 }).stroke({ width: 2, color: 0x444444 });
 
-    // Draw explored cells
-    const px = Math.round(this.player.x / 64);
-    const py = Math.round(this.player.y / 64);
+    // Draw explored cells — only scan the visible range instead of all explored cells
+    const px = Math.floor(this.player.x / TILE_PX);
+    const py = Math.floor(this.player.y / TILE_PX);
 
-    this.exploredCells.forEach(key => {
-      const [tx, ty] = key.split(',').map(Number);
-      const dx = (tx - px) * scale + halfSize;
-      const dy = (ty - py) * scale + halfSize;
-
-      if (dx >= 0 && dx < size && dy >= 0 && dy < size) {
-        this.minimapGraphics.rect(dx, dy, scale, scale).fill(0x888888);
+    for (let tx = px - viewTiles; tx <= px + viewTiles; tx++) {
+      for (let ty = py - viewTiles; ty <= py + viewTiles; ty++) {
+        const key = `${tx},${ty}`;
+        if (this.exploredCells.has(key)) {
+          const dx = (tx - px) * scale + halfSize;
+          const dy = (ty - py) * scale + halfSize;
+          const isObstacle = this.obstacleCells.has(key);
+          this.minimapGraphics.rect(dx, dy, scale, scale).fill(isObstacle ? 0x444444 : 0x888888);
+        }
       }
-    });
+    }
+
+    // Draw artifact markers on minimap
+    for (const loc of this.artifactLocations) {
+      if (loc.collected) continue;
+      const ax = loc.cx * CHUNK_SIZE + CHUNK_SIZE / 2;
+      const ay = loc.cy * CHUNK_SIZE + CHUNK_SIZE / 2;
+      const adx = (ax - px) * scale + halfSize;
+      const ady = (ay - py) * scale + halfSize;
+      if (adx >= 0 && adx < size && ady >= 0 && ady < size) {
+        this.minimapGraphics.circle(adx, ady, 3).fill(0xFFD700);
+      }
+    }
 
     // Draw Player dot
     this.minimapGraphics.rect(halfSize - scale/2, halfSize - scale/2, scale, scale).fill(0xffffff);

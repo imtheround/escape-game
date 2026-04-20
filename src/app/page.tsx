@@ -397,7 +397,7 @@ export default function Home() {
                       {/* Item SVGs */}
                       {slot.id !== '' && (
                         <img 
-                          src={`/assets/character/${slot.id === 'potion' ? '../items/potion' : (slot.id === 'gun' ? 'gun1' : slot.id)}.svg`} 
+                          src={`/assets/character/${slot.id === 'potion' ? '../items/potion' : (slot.id === 'gun' ? 'gun1' : slot.id)}.svg?v=2`} 
                           alt={slot.id} 
                           className={`${slot.id === 'potion' ? 'w-12 h-12' : 'w-16 h-16'} object-contain drop-shadow-[2px_2px_0_rgba(0,0,0,1)] pointer-events-none`} 
                           style={{ imageRendering: "pixelated" }} 
@@ -498,7 +498,7 @@ export default function Home() {
                     {/* Item SVGs */}
                     {slot.id !== '' && (
                       <img 
-                        src={`/assets/character/${slot.id === 'potion' ? '../items/potion' : (slot.id === 'gun' ? 'gun1' : slot.id)}.svg`} 
+                        src={`/assets/character/${slot.id === 'potion' ? '../items/potion' : (slot.id === 'gun' ? 'gun1' : slot.id)}.svg?v=2`} 
                         alt={slot.id} 
                         className={`${slot.id === 'potion' ? 'w-8 h-8' : 'w-10 h-10'} object-contain drop-shadow-[2px_2px_0_rgba(0,0,0,1)] pointer-events-none`} 
                         style={{ imageRendering: "pixelated" }} 
