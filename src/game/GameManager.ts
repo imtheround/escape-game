@@ -213,6 +213,8 @@ export class GameManager {
   private rollDirection = { x: 0, y: 0 };
   private rollTimer = 0;
   private rollCooldownTimer = 0;
+  private playerVx = 0;
+  private playerVy = 0;
   private staminaGroup!: Container;
   private staminaBarFill!: Graphics;
 
@@ -643,7 +645,7 @@ export class GameManager {
     }
 
     this.player = new Sprite(this.slimeTextures.idle[0]);
-    this.player.anchor.set(0.5, 1);
+    this.player.anchor.set(0.5, 0.875);
     this.player.scale.set(4); // Scale up pixel art (16x16 -> 64x64)
     this.player.x = 0;
     this.player.y = 0;
@@ -1031,7 +1033,7 @@ export class GameManager {
           (chunk as any).shadowGfx.ellipse(pixX + offsetX, pixY + offsetY, 28, 10).fill({ color: 0x000000, alpha: 0.35 });
 
           const rock = new Sprite(this.mapTextures.rock[biome]);
-          rock.anchor.set(0.5, 0.85);
+          rock.anchor.set(0.5, 0.625);
           rock.scale.set(3 + Math.random() * 2.5); // high variation
           rock.rotation = (Math.random() - 0.5) * 0.2;
           rock.x = pixX + offsetX;
@@ -1054,13 +1056,19 @@ export class GameManager {
           }
 
           const poolColor = 0x1a75ff;
+          const shallowColor = 0x3385ff;
 
-          (chunk as any).waterGfx.circle(pixX, pixY, 45 + Math.random() * 15).fill({ color: poolColor, alpha: 0.95 });
+          // Draw strict 64x64 water tile to perfectly match the grid collision hitbox
+          const rx = wx * TILE_PX;
+          const ry = wy * TILE_PX;
+
+          (chunk as any).waterGfx.rect(rx, ry, TILE_PX, TILE_PX).fill({ color: shallowColor, alpha: 0.95 });
+          (chunk as any).waterGfx.rect(rx + 4, ry + 4, TILE_PX - 8, TILE_PX - 8).fill({ color: poolColor, alpha: 0.95 });
           
-          // Subtle ripples
-          if (Math.random() > 0.5) {
-             const rw = 10 + Math.random() * 20;
-             (chunk as any).waterGfx.ellipse(pixX + (Math.random()-0.5)*20, pixY + (Math.random()-0.5)*20, rw, 2).fill({color: 0xffffff, alpha: 0.2});
+          // Stylized wave lines
+          if (Math.random() > 0.3) {
+             (chunk as any).waterGfx.moveTo(rx + 16, ry + 20).lineTo(rx + 32, ry + 20).stroke({width: 2, color: 0xffffff, alpha: 0.3, cap: 'round'});
+             (chunk as any).waterGfx.moveTo(rx + 32, ry + 40).lineTo(rx + 48, ry + 40).stroke({width: 2, color: 0xffffff, alpha: 0.2, cap: 'round'});
           }
           continue;
         }
@@ -1079,7 +1087,7 @@ export class GameManager {
 
           const treeTex = Math.random() > 0.5 ? this.mapTextures.tree1 : this.mapTextures.tree2;
           const tree = new Sprite(treeTex);
-          tree.anchor.set(0.5, 0.85);
+          tree.anchor.set(0.5, 0.75);
           tree.scale.set(2.5 + Math.random() * 3.5); // High variation
           tree.x = pixX + offsetX;
           tree.y = pixY + offsetY;
@@ -1104,7 +1112,7 @@ export class GameManager {
           (chunk as any).shadowGfx.ellipse(pixX + offsetX, pixY + offsetY, 16, 6).fill({ color: 0x000000, alpha: 0.3 });
 
           const crate = new Sprite(this.mapTextures.crate);
-          crate.anchor.set(0.5, 0.85);
+          crate.anchor.set(0.5, 0.6875);
           crate.scale.set(3.5 + Math.random());
           crate.rotation = (Math.random() - 0.5) * 0.3;
           crate.x = pixX + offsetX;
@@ -1247,7 +1255,7 @@ export class GameManager {
 
     const textures = this.getEnemyTexturesForType(sp.enemyTypeId);
     const monster = new Sprite(textures.run[0]);
-    monster.anchor.set(0.5, 1);
+    monster.anchor.set(0.5, 0.8125);
     monster.scale.set(0);
     monster.alpha = 0;
     monster.x = sp.wx * TILE_PX;
@@ -1427,7 +1435,7 @@ export class GameManager {
     this.merchantTimer = 45 * 60; // 45 seconds in frames (at 60fps)
 
     this.merchantSprite = new Sprite(this.merchantTexture);
-    this.merchantSprite.anchor.set(0.5, 1);
+    this.merchantSprite.anchor.set(0.5, 0.625);
     this.merchantSprite.scale.set(4);
     this.merchantSprite.x = 0;
     this.merchantSprite.y = 0;
@@ -1525,7 +1533,7 @@ export class GameManager {
 
     const isRanged = Math.random() > 0.5;
     const monster = new Sprite(isRanged ? this.goblinBlueTextures.run[0] : this.goblinTextures.run[0]);
-    monster.anchor.set(0.5, 1);
+    monster.anchor.set(0.5, 0.8125);
     monster.scale.set(0);
     monster.alpha = 0;
     monster.x = x;
@@ -2093,14 +2101,14 @@ export class GameManager {
       if (this.rollTimer <= 0) {
         this.isRolling = false;
         this.isInvulnerable = false;
-        this.player.anchor.y = 1; // reset jump offset
+        this.player.anchor.y = 0.875; // reset jump offset
       } else {
         // Wacky smooth math: Quadratic ease-out speed + Sine wave jumping
         const p = 1 - (this.rollTimer / 24); // 0.0 to 1.0 progress
         speed = 40 * Math.pow(1 - p, 2) * dt; 
         
         // Z-axis jump offset for extreme smoothness
-        this.player.anchor.y = 1 + Math.sin(p * Math.PI) * 0.35;
+        this.player.anchor.y = 0.875 + Math.sin(p * Math.PI) * 0.35;
         
         dx = this.rollDirection.x;
         dy = this.rollDirection.y;
@@ -2432,33 +2440,80 @@ export class GameManager {
         this.player.scale.x = flipSign;
     }
 
-    // Bounds Check the Player
-    const nextX = this.player.x + dx * speed;
-    const nextY = this.player.y + dy * speed * 0.75; // 45-degree angle
+    // Apply Smooth Acceleration / Friction
+    const targetVx = dx * speed;
+    const targetVy = dy * speed * 0.75;
+    this.playerVx += (targetVx - this.playerVx) * 0.2 * dt;
+    this.playerVy += (targetVy - this.playerVy) * 0.2 * dt;
+
+    const nextX = this.player.x + this.playerVx * dt;
+    const nextY = this.player.y + this.playerVy * dt;
 
     if (this.gameMode === 'dungeon') {
-      // Smooth Continuous AABB Sliding Collision
-      const radius = 20;
+      // True Mesh-Based Sliding Collision (Circle vs Circle)
+      const playerRadius = 16;
       
-      const checkCollision = (px: number, py: number) => {
-        const minCX = Math.floor((px - radius) / TILE_PX);
-        const maxCX = Math.floor((px + radius) / TILE_PX);
-        const minCY = Math.floor((py - radius) / TILE_PX);
-        const maxCY = Math.floor((py + radius) / TILE_PX);
+      const checkGridCollision = (px: number, py: number) => {
+        const minCX = Math.floor((px - playerRadius) / TILE_PX);
+        const maxCX = Math.floor((px + playerRadius) / TILE_PX);
+        const minCY = Math.floor((py - playerRadius) / TILE_PX);
+        const maxCY = Math.floor((py + playerRadius) / TILE_PX);
 
         for (let x = minCX; x <= maxCX; x++) {
           for (let y = minCY; y <= maxCY; y++) {
-            if (this.obstacleCells.has(`${x},${y}`) || this.waterCells.has(`${x},${y}`)) return true; // Hard obstacle/crate collision
+            if (this.waterCells.has(`${x},${y}`)) return true;
           }
         }
         return false;
       };
 
-      if (!checkCollision(nextX, this.player.y)) {
+      // 1. Hard Grid Boundaries (Water)
+      if (!checkGridCollision(nextX, this.player.y)) {
         this.player.x = nextX;
+      } else {
+        this.playerVx = 0;
       }
-      if (!checkCollision(this.player.x, nextY)) {
+      
+      if (!checkGridCollision(this.player.x, nextY)) {
         this.player.y = nextY;
+      } else {
+        this.playerVy = 0;
+      }
+      
+      // 2. Resolve Prop Overlaps (Push-out Sliding Physics)
+      const pcx = Math.floor(this.player.x / CHUNK_PX);
+      const pcy = Math.floor(this.player.y / CHUNK_PX);
+      for (let cx = pcx - 1; cx <= pcx + 1; cx++) {
+        for (let cy = pcy - 1; cy <= pcy + 1; cy++) {
+          const chunk = this.chunks.get(`${cx},${cy}`);
+          if (chunk) {
+            for (const prop of chunk.props) {
+              const propRadius = prop.width * 0.25;
+              const minDist = playerRadius + propRadius;
+              const cdx = this.player.x - prop.x;
+              const cdy = this.player.y - prop.y; // prop.y is base
+              const distSq = cdx*cdx + cdy*cdy;
+              
+              if (distSq < minDist * minDist && distSq > 0) {
+                 const dist = Math.sqrt(distSq);
+                 const overlap = minDist - dist;
+                 const nx = cdx / dist;
+                 const ny = cdy / dist;
+                 
+                 // Push the player out
+                 this.player.x += nx * overlap;
+                 this.player.y += ny * overlap;
+                 
+                 // Nullify velocity towards the obstacle for smooth sliding
+                 const dot = this.playerVx * nx + this.playerVy * ny;
+                 if (dot < 0) {
+                    this.playerVx -= nx * dot;
+                    this.playerVy -= ny * dot;
+                 }
+              }
+            }
+          }
+        }
       }
     } else {
       this.player.x = nextX;
@@ -2549,48 +2604,70 @@ export class GameManager {
         b.sprite.x += b.vx * dt;
         b.sprite.y += b.vy * dt;
 
-        // Bullet Wall Collision
+        // Bullet Wall/Prop Collision
         if (this.gameMode === 'dungeon') {
-          const bx = Math.floor(b.sprite.x / TILE_PX);
-          const by = Math.floor(b.sprite.y / TILE_PX);
-          if (this.obstacleCells.has(`${bx},${by}`)) {
-            b.life = 0; // smash into standard wall
-            
-            const pType = this.propTypes.get(`${bx},${by}`);
-            if (!b.isEnemy) {
-               if (pType === 'tree') this.spawnParticles(b.sprite.x, b.sprite.y, 0x44aa44, 4); // Leaves
-               else if (pType === 'rock') this.spawnParticles(b.sprite.x, b.sprite.y, 0x888888, 4); // Dust
-               else this.spawnParticles(b.sprite.x, b.sprite.y, 0x555555, 4);
-            }
-            
-             if (pType === 'crate' && this.obstacleCells.has(`${bx},${by}`)) {
-               for (let d = this.destructibles.length - 1; d >= 0; d--) {
-                 const crate = this.destructibles[d];
-                 if (crate.x === bx && crate.y === by) {
-                   crate.hp -= this.playerDmg;
-                   this.playSound('hit');
-                   this.spawnParticles(crate.sprite.x, crate.sprite.y, 0xddaa55, 5); // Wood splinters
-
-                   if (crate.hp <= 0) {
-                     this.obstacleCells.delete(`${bx},${by}`);
-                     this.worldContainer.removeChild(crate.sprite);
-                     crate.sprite.destroy();
-                     this.destructibles.splice(d, 1);
-                     this.playSound('kill');
-
-                     // 25% chance to drop coin
-                     if (Math.random() < 0.25) {
-                        const coinSprite = new Sprite(this.coinTexture);
-                        coinSprite.anchor.set(0.5, 0.5); coinSprite.scale.set(0.15);
-                        coinSprite.x = bx * 64; coinSprite.y = by * 64; coinSprite.zIndex = by * 64;
-                        this.worldContainer.addChild(coinSprite);
-                        this.coinDrops.push({ sprite: coinSprite, life: 600 });
-                     }
+          // Check against meshes
+          const pcx = Math.floor(b.sprite.x / CHUNK_PX);
+          const pcy = Math.floor(b.sprite.y / CHUNK_PX);
+          let collided = false;
+          
+          for (let cx = pcx - 1; cx <= pcx + 1; cx++) {
+            for (let cy = pcy - 1; cy <= pcy + 1; cy++) {
+              const chunk = this.chunks.get(`${cx},${cy}`);
+              if (chunk && !collided) {
+                for (const prop of chunk.props) {
+                   // Bullet hits the "body" of the prop (center of visual width/height)
+                   const propRadius = prop.width * 0.35;
+                   const dx = b.sprite.x - prop.x;
+                   const dy = b.sprite.y - (prop.y - prop.height * 0.4); // Target center of mass
+                   if (dx*dx + dy*dy < (10 + propRadius) * (10 + propRadius)) {
+                      b.life = 0; // Destroy bullet
+                      collided = true;
+                      
+                      if (!b.isEnemy) {
+                         if (prop.texture === this.mapTextures.crate) {
+                            // Find and damage crate
+                            for (let d = this.destructibles.length - 1; d >= 0; d--) {
+                               const crate = this.destructibles[d];
+                               if (crate.sprite === prop) {
+                                  crate.hp -= this.playerDmg;
+                                  this.playSound('hit');
+                                  this.spawnParticles(crate.sprite.x, crate.sprite.y - 30, 0xddaa55, 5); // Wood splinters
+                                  
+                                  if (crate.hp <= 0) {
+                                     const px = prop.x;
+                                     const py = prop.y;
+                                     
+                                     this.obstacleCells.delete(`${crate.x},${crate.y}`);
+                                     this.worldContainer.removeChild(crate.sprite);
+                                     crate.sprite.destroy();
+                                     this.destructibles.splice(d, 1);
+                                     
+                                     const propIdx = chunk.props.indexOf(prop);
+                                     if (propIdx >= 0) chunk.props.splice(propIdx, 1);
+                                     
+                                     this.playSound('kill');
+                                     if (Math.random() < 0.25) {
+                                        const coinSprite = new Sprite(this.coinTexture);
+                                        coinSprite.anchor.set(0.5, 0.5); coinSprite.scale.set(0.15);
+                                        coinSprite.x = px; coinSprite.y = py; coinSprite.zIndex = py;
+                                        this.worldContainer.addChild(coinSprite);
+                                        this.coinDrops.push({ sprite: coinSprite, life: 600 });
+                                     }
+                                  }
+                                  break;
+                               }
+                            }
+                         } else {
+                            // Hit indestructible rock or tree
+                            this.spawnParticles(b.sprite.x, b.sprite.y, 0x888888, 4);
+                         }
+                      }
+                      break;
                    }
-                   break;
-                 }
-               }
-             }
+                }
+              }
+            }
           }
         }
       }
@@ -2685,7 +2762,7 @@ export class GameManager {
 
               const textures = (monster as any).enemyTypeId ? this.getEnemyTexturesForType((monster as any).enemyTypeId) : (isRanged ? this.goblinBlueTextures : this.goblinTextures);
               const corpse = new Sprite(textures.dead1 ? textures.dead1[0] : textures.run[0]);
-              corpse.anchor.set(0.5, 1);
+              corpse.anchor.set(0.5, 0.8125);
               corpse.scale.set(4);
               corpse.scale.x = monster.scale.x;
               corpse.x = monster.x;
@@ -2726,9 +2803,9 @@ export class GameManager {
         if ((b as any).isMelee) {
           for (let d = this.destructibles.length - 1; d >= 0; d--) {
             const crate = this.destructibles[d];
-            const mDist = Math.hypot(this.player.x - (crate.x * 64), (this.player.y - 12) - (crate.y * 64));
+            const mDist = Math.hypot(this.player.x - crate.sprite.x, (this.player.y - 12) - (crate.sprite.y - crate.sprite.height * 0.4));
             if (mDist < 160) {
-              const mAngle = Math.atan2((crate.y * 64) - (this.player.y - 12), (crate.x * 64) - this.player.x);
+              const mAngle = Math.atan2((crate.sprite.y - crate.sprite.height * 0.4) - (this.player.y - 12), crate.sprite.x - this.player.x);
               let bladeAngle = (b as any).sprite.rotation - Math.PI / 2;
               let diff = Math.abs(mAngle - bladeAngle);
               if (diff > Math.PI) diff = Math.PI * 2 - diff; // Normalize
@@ -2739,20 +2816,33 @@ export class GameManager {
                  
                  crate.hp -= (activeStats ? activeStats.damage : this.playerDmg);
                  this.playSound('hit');
-                 this.spawnParticles(crate.x * 64, crate.y * 64, 0xddaa55, 5); // Wood splinters
+                 this.spawnParticles(crate.sprite.x, crate.sprite.y - 30, 0xddaa55, 5); // Wood splinters
 
                  if (crate.hp <= 0) {
+                   const cx = crate.sprite.x;
+                   const cy = crate.sprite.y;
+
                    this.obstacleCells.delete(`${crate.x},${crate.y}`);
                    this.worldContainer.removeChild(crate.sprite);
                    crate.sprite.destroy();
                    this.destructibles.splice(d, 1);
+                   
+                   // also remove from chunk.props
+                   const pcx = Math.floor(cx / CHUNK_PX);
+                   const pcy = Math.floor(cy / CHUNK_PX);
+                   const chunk = this.chunks.get(`${pcx},${pcy}`);
+                   if (chunk) {
+                      // We can't search by reference since it's destroyed, so we just filter out destroyed props
+                      chunk.props = chunk.props.filter(p => !p.destroyed);
+                   }
+                   
                    this.playSound('kill');
 
                    // 25% chance to drop coin
                    if (Math.random() < 0.25) {
                       const coinSprite = new Sprite(this.coinTexture);
                       coinSprite.anchor.set(0.5, 0.5); coinSprite.scale.set(0.15);
-                      coinSprite.x = crate.x * 64; coinSprite.y = crate.y * 64; coinSprite.zIndex = crate.y * 64;
+                      coinSprite.x = cx; coinSprite.y = cy; coinSprite.zIndex = cy;
                       this.worldContainer.addChild(coinSprite);
                       this.coinDrops.push({ sprite: coinSprite, life: 600 });
                    }
@@ -3011,13 +3101,34 @@ export class GameManager {
       if (this.gameMode === 'dungeon') {
         const mRadius = 24;
         const checkMCollision = (px: number, py: number) => {
-          const minCX = Math.round((px - mRadius) / 64);
-          const maxCX = Math.round((px + mRadius) / 64);
-          const minCY = Math.round((py - mRadius) / 64);
-          const maxCY = Math.round((py + mRadius) / 64);          for (let x = minCX; x <= maxCX; x++) {
+          // 1. Check Floor Bounds & Water
+          const minCX = Math.floor((px - mRadius) / TILE_PX);
+          const maxCX = Math.floor((px + mRadius) / TILE_PX);
+          const minCY = Math.floor((py - mRadius) / TILE_PX);
+          const maxCY = Math.floor((py + mRadius) / TILE_PX);
+          for (let x = minCX; x <= maxCX; x++) {
             for (let y = minCY; y <= maxCY; y++) {
               if (!this.floorCells.has(`${x},${y}`)) return true; // Hitting solid wall boundary
-              if (this.obstacleCells.has(`${x},${y}`) || this.waterCells.has(`${x},${y}`)) return true; // Hard obstacle/crate collision
+              if (this.waterCells.has(`${x},${y}`)) return true; // Hard obstacle collision
+            }
+          }
+          
+          // 2. Prop Mesh Collision
+          const pcx = Math.floor(px / CHUNK_PX);
+          const pcy = Math.floor(py / CHUNK_PX);
+          for (let cx = pcx - 1; cx <= pcx + 1; cx++) {
+            for (let cy = pcy - 1; cy <= pcy + 1; cy++) {
+              const chunk = this.chunks.get(`${cx},${cy}`);
+              if (chunk) {
+                for (const prop of chunk.props) {
+                  const propRadius = prop.width * 0.25;
+                  const dx = px - prop.x;
+                  const dy = py - prop.y; // prop.y is exactly at its base
+                  if (dx*dx + dy*dy < (mRadius + propRadius) * (mRadius + propRadius)) {
+                    return true;
+                  }
+                }
+              }
             }
           }
           return false;
@@ -3080,8 +3191,8 @@ export class GameManager {
     }
 
     // Y-sorting fix: Assign zIndex natively AFTER movement transforms
-    this.player.zIndex = this.player.y + 24;
-    this.gunSprite.zIndex = this.player.y + 25; // Locked strictly unconditionally above player
+    this.player.zIndex = this.player.y;
+    this.gunSprite.zIndex = this.player.y + 1; // Locked strictly unconditionally above player
 
     // Update Explored Footprint (3x3 grid around player)
     if (this.gameMode === 'dungeon') {
