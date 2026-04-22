@@ -213,6 +213,7 @@ export class GameManager {
   private rollDirection = { x: 0, y: 0 };
   private rollTimer = 0;
   private rollCooldownTimer = 0;
+  private stepTimer = 0;
   private playerVx = 0;
   private playerVy = 0;
   private staminaGroup!: Container;
@@ -306,7 +307,7 @@ export class GameManager {
   private audioPool: Record<string, HTMLAudioElement[]> = {};
 
   private preloadAudio() {
-    const files = ['shoot', 'hit', 'pickup', 'drink', 'death', 'kill', 'spawn', 'open_inventory', 'close_inventory', 'reload', 'level_up', 'knife_swing', 'sword_swing', 'mg_shoot', 'shotgun_blast', 'empty_click', 'room_clear', 'brute_slam', 'shaman_cast', 'elemental_explode', 'wraith_teleport', 'golem_stomp', 'artifact_ping', 'artifact_pickup', 'shrine_awaken', 'portal_boss_spawn'];
+    const files = ['shoot', 'hit', 'pickup', 'drink', 'death', 'kill', 'spawn', 'open_inventory', 'close_inventory', 'reload', 'level_up', 'knife_swing', 'sword_swing', 'mg_shoot', 'shotgun_blast', 'empty_click', 'room_clear', 'brute_slam', 'shaman_cast', 'elemental_explode', 'wraith_teleport', 'golem_stomp', 'artifact_ping', 'artifact_pickup', 'shrine_awaken', 'portal_boss_spawn', 'walk', 'sprint', 'roll'];
     files.forEach(f => {
       this.audioPool[f] = Array(5).fill(null).map(() => {
         const a = new Audio(`/assets/audio/${f}.wav`);
@@ -1721,7 +1722,7 @@ export class GameManager {
     }
 
     this.playerShadow.x = this.player.x;
-    this.playerShadow.y = this.player.y + 24;
+    this.playerShadow.y = this.player.y;
 
     if (this.playerHP <= 0 || this.isInventoryOpen || this.isSettingsOpen) return; // Freeze simulation on death, inventory, or settings
 
@@ -2432,9 +2433,10 @@ export class GameManager {
             this.player.scale.x = Math.sign(flipSign) * (4 - Math.sin(performance.now() / 60) * 0.15);
             this.player.rotation = Math.sin(performance.now() / 100) * 0.05;
         } else {
-            this.player.scale.y += (4 - this.player.scale.y) * 0.2 * dt;
-            this.player.scale.x = Math.sign(flipSign) * (Math.abs(this.player.scale.x) + (4 - Math.abs(this.player.scale.x)) * 0.2 * dt);
-            this.player.rotation += (0 - this.player.rotation) * 0.2 * dt;
+            const scaleBlend = 1 - Math.pow(0.8, dt);
+            this.player.scale.y += (4 - this.player.scale.y) * scaleBlend;
+            this.player.scale.x = Math.sign(flipSign) * (Math.abs(this.player.scale.x) + (4 - Math.abs(this.player.scale.x)) * scaleBlend);
+            this.player.rotation += (0 - this.player.rotation) * scaleBlend;
         }
     } else {
         this.player.scale.x = flipSign;
@@ -2443,8 +2445,9 @@ export class GameManager {
     // Apply Smooth Acceleration / Friction
     const targetVx = dx * speed;
     const targetVy = dy * speed * 0.75;
-    this.playerVx += (targetVx - this.playerVx) * 0.2 * dt;
-    this.playerVy += (targetVy - this.playerVy) * 0.2 * dt;
+    const velBlend = 1 - Math.pow(0.8, dt);
+    this.playerVx += (targetVx - this.playerVx) * velBlend;
+    this.playerVy += (targetVy - this.playerVy) * velBlend;
 
     const nextX = this.player.x + this.playerVx * dt;
     const nextY = this.player.y + this.playerVy * dt;
@@ -3221,8 +3224,9 @@ export class GameManager {
     const targetCamX = this.player.x + lookAheadX;
     const targetCamY = this.player.y - 24 + lookAheadY;
     
-    this.cameraX += (targetCamX - this.cameraX) * 0.12 * dt;
-    this.cameraY += (targetCamY - this.cameraY) * 0.12 * dt;
+    const camBlend = 1 - Math.pow(0.88, dt);
+    this.cameraX += (targetCamX - this.cameraX) * camBlend;
+    this.cameraY += (targetCamY - this.cameraY) * camBlend;
 
     this.worldContainer.x = screenCenter.x - this.cameraX;
     this.worldContainer.y = screenCenter.y - this.cameraY;

@@ -358,8 +358,8 @@ export default function Home() {
           
           {/* Main Inventory Menu */}
           {isInventoryOpen && (
-            <div className="absolute inset-0 z-40 bg-black/80 backdrop-blur-md flex items-center justify-center pointer-events-auto">
-              <div className="relative bg-[#1a1a1a] border-4 border-[#555] p-10 shadow-[0_16px_48px_rgba(0,0,0,1)] flex flex-col items-center min-w-[600px]">
+            <div className="absolute inset-0 z-40 bg-black/80 backdrop-blur-md flex items-center justify-center pointer-events-auto animate-fade-in">
+              <div className="relative bg-[#1a1a1a] border-4 border-[#555] p-10 shadow-[0_16px_48px_rgba(0,0,0,1)] flex flex-col items-center min-w-[600px] animate-pop-in">
                 
                 {/* Close Button */}
                 <button 
