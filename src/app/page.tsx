@@ -66,6 +66,7 @@ export default function Home() {
   const [showShop, setShowShop] = useState(false);
   const [drinkingProgress, setDrinkingProgress] = useState<number | null>(null);
   const [isLoadingAssets, setIsLoadingAssets] = useState(false);
+  const [fps, setFps] = useState(0);
   
   // Instructions
   const [showItemInstruction, setShowItemInstruction] = useState(true);
@@ -108,6 +109,7 @@ export default function Home() {
     };
     const handleExpChange = (e: any) => setExpState(e.detail);
     const handleCoinChange = (e: any) => setCoins(e.detail.coins);
+    const handleFpsChange = (e: any) => setFps(e.detail);
     
     const handleShopOpen = () => setShowShop(true);
     const handleHover = (e: any) => setInteractHover(e.detail);
@@ -124,6 +126,7 @@ export default function Home() {
     window.addEventListener("wave-change", handleWaveChange);
     window.addEventListener("exp-change", handleExpChange);
     window.addEventListener("coin-change", handleCoinChange);
+    window.addEventListener("fps-change", handleFpsChange);
     window.addEventListener("shop-open", handleShopOpen);
     window.addEventListener("interact-hover", handleHover);
     window.addEventListener("keydown", handleKeyDown);
@@ -136,6 +139,7 @@ export default function Home() {
       window.removeEventListener("wave-change", handleWaveChange);
       window.removeEventListener("exp-change", handleExpChange);
       window.removeEventListener("coin-change", handleCoinChange);
+      window.removeEventListener("fps-change", handleFpsChange);
       window.removeEventListener("shop-open", handleShopOpen);
       window.removeEventListener("interact-hover", handleHover);
       window.removeEventListener("keydown", handleKeyDown);
@@ -304,10 +308,17 @@ export default function Home() {
              </div>
           </div>
           
-          {/* Top Right Analytics: Coins */}
-          <div className="absolute top-4 right-4 bg-black/90 border-4 border-[#D4AF37] px-4 py-2 flex items-center gap-2 shadow-lg z-20 pointer-events-none">
-             <div className="w-6 h-6 bg-yellow-400 rounded-full border-2 border-yellow-200 shadow-inner"></div>
-             <span className="text-2xl font-mono font-bold text-yellow-400 drop-shadow-[2px_2px_0_rgba(0,0,0,1)]">{coins}</span>
+          {/* Top Right Analytics: Coins & FPS */}
+          <div className="absolute top-4 right-4 flex flex-col items-end gap-2 z-20 pointer-events-none">
+             <div className="bg-black/90 border-4 border-[#D4AF37] px-4 py-2 flex items-center gap-2 shadow-lg">
+                <div className="w-6 h-6 bg-yellow-400 rounded-full border-2 border-yellow-200 shadow-inner"></div>
+                <span className="text-2xl font-mono font-bold text-yellow-400 drop-shadow-[2px_2px_0_rgba(0,0,0,1)]">{coins}</span>
+             </div>
+             <div className="bg-black/80 px-2 py-1 border-2 border-gray-600 shadow-md">
+                <span className={`text-sm font-mono font-bold ${fps >= 50 ? 'text-green-400' : fps >= 30 ? 'text-yellow-400' : 'text-red-500'}`}>
+                   {Math.round(fps)} FPS
+                </span>
+             </div>
           </div>
 
           {/* UI Overlay (HP Bar) */}

@@ -12,6 +12,7 @@
     "autoprefixer": "^10.5.0",
     "next": "16.1.6",
     "pixi.js": "^8.17.1",
+    "playwright": "^1.59.1",
     "postcss": "^8.5.10",
     "react": "19.2.3",
     "react-dom": "19.2.3"

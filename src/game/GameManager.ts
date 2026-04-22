@@ -130,6 +130,7 @@ interface ChunkData {
   container: Container;
   floorCells: Set<string>;
   obstacleCells: Set<string>;
+  waterCells: Set<string>;
   spawnPoints: SpawnPoint[];
   loaded: boolean;
 }
@@ -145,6 +146,12 @@ export class GameManager {
   private bullets: { sprite: Sprite, vx: number, vy: number, isEnemy: boolean, life?: number }[] = [];
   private keys: Record<string, boolean> = {};
   private isMouseDown: boolean = false;
+  private mouseX: number = 0;
+  private mouseY: number = 0;
+  private targetMouseX: number = 0;
+  private targetMouseY: number = 0;
+  private cameraX: number = 0;
+  private cameraY: number = 0;
   private spawnInterval: NodeJS.Timeout | null = null;
 
   // New Mechanics State
@@ -238,6 +245,8 @@ export class GameManager {
   // Open-World Grid & Chunks
   private floorCells = new Set<string>();
   private obstacleCells = new Set<string>();
+  private waterCells = new Set<string>();
+  private propTypes = new Map<string, string>();
   private exploredCells = new Set<string>();
   private destructibles: { sprite: Sprite, x: number, y: number, hp: number }[] = [];
   private chunks = new Map<string, ChunkData>();
@@ -246,6 +255,8 @@ export class GameManager {
   private portalSpawned = false;
   private fireTrails: { sprite: Sprite, life: number }[] = [];
   private telegraphs: { sprite: Graphics, life: number, x: number, y: number, radius: number, owner: Sprite | null }[] = [];
+  private ambientParticles: { sprite: Graphics, vx: number, vy: number, life: number, maxLife: number, rotSpeed: number }[] = [];
+  private frameCount = 0;
 
   // New enemy texture maps
   private bruteTextures: Record<string, Texture[]> = {};
@@ -268,6 +279,11 @@ export class GameManager {
   private minimapGraphics!: Graphics;
   private minimapContainer!: Container;
   private particles: { sprite: Sprite, vx: number, vy: number, life: number, maxLife: number }[] = [];
+  private crosshair!: Graphics;
+
+  private vignette!: Graphics;
+  private ambientParticles: { sprite: Graphics, vx: number, vy: number, life: number, maxLife: number }[] = [];
+  private ambientContainer!: Container;
 
   private spawnParticles(x: number, y: number, color: number, count: number, isDash: boolean = false) {
     for (let i = 0; i < count; i++) {
@@ -629,6 +645,8 @@ export class GameManager {
     this.player.scale.set(4); // Scale up pixel art (16x16 -> 64x64)
     this.player.x = 0;
     this.player.y = 0;
+    this.cameraX = 0;
+    this.cameraY = 0;
 
     // Create isolated shadow on ground
     this.playerShadow = new Graphics().ellipse(0, 0, 8, 3).fill({ color: 0x000000, alpha: 0.5 });
@@ -677,6 +695,20 @@ export class GameManager {
     // We don't add to worldContainer because we want it fixed to screen
     // We'll add it to the stage or a UI container if available
     this.app.stage.addChild(this.minimapContainer);
+
+    // Setup Crosshair
+    this.crosshair = new Graphics();
+    this.crosshair.circle(0, 0, 6).stroke({ width: 2, color: 0xff0000, alpha: 0.8 });
+    this.crosshair.moveTo(-10, 0).lineTo(10, 0).stroke({ width: 2, color: 0xff0000, alpha: 0.8 });
+    this.crosshair.moveTo(0, -10).lineTo(0, 10).stroke({ width: 2, color: 0xff0000, alpha: 0.8 });
+    this.crosshair.zIndex = 9999999;
+    this.app.stage.addChild(this.crosshair);
+    this.app.canvas.style.cursor = 'none';
+
+    // Ambient Container (In world space, above ground but below UI)
+    this.ambientContainer = new Container();
+    this.ambientContainer.zIndex = 50000;
+    this.worldContainer.addChild(this.ambientContainer);
   }
 
   private generateWaveMap() {
@@ -727,9 +759,52 @@ export class GameManager {
     }
   }
 
+  private updateAmbiance(dt: number) {
+     if (this.gameMode !== 'dungeon') return;
+     
+     // Spawn ambient particles randomly around player
+     if (Math.random() < 0.25) {
+        const p = new Graphics();
+        // Vary color based on biome: 0=plains(pollen), 1=magma(embers), 2=void(dust)
+        const biome = this.getBiomeAt(this.player.x, this.player.y);
+        const color = biome === 0 ? 0xd0f0c0 : biome === 1 ? 0xffaa00 : 0xaa88ff;
+        
+        p.circle(0, 0, 1.5 + Math.random() * 2).fill({color, alpha: 0.5});
+        // Spawn far off-screen so they drift in naturally
+        p.x = this.player.x + (Math.random() - 0.5) * 2500;
+        p.y = this.player.y + (Math.random() - 0.5) * 2000;
+        p.zIndex = 999999; // Float above everything
+        
+        // Wind drift
+        const vx = 15 + Math.random() * 25; // Drift right
+        const vy = -10 + (Math.random() - 0.5) * 15; // Drift slightly up
+        
+        this.worldContainer.addChild(p);
+        this.ambientParticles.push({
+           sprite: p, vx, vy, life: 800, maxLife: 800, rotSpeed: (Math.random() - 0.5) * 0.1
+        });
+     }
+
+     for (let i = this.ambientParticles.length - 1; i >= 0; i--) {
+        const p = this.ambientParticles[i];
+        p.life -= dt;
+        p.sprite.x += p.vx * dt;
+        p.sprite.y += (p.vy + Math.sin(p.life / 20) * 10) * dt; // Sine wave bobbing
+        p.sprite.alpha = (p.life / p.maxLife) * 0.5;
+        p.sprite.rotation += p.rotSpeed * dt;
+        if (p.life <= 0) {
+           this.worldContainer.removeChild(p.sprite);
+           p.sprite.destroy();
+           this.ambientParticles.splice(i, 1);
+        }
+     }
+  }
+
   private initOpenWorld() {
     this.floorCells.clear();
     this.obstacleCells.clear();
+    this.waterCells.clear();
+    this.propTypes.clear();
     this.exploredCells.clear();
     this.destructibles = [];
     this.chunks.clear();
@@ -776,7 +851,7 @@ export class GameManager {
 
   private getBiomeAt(wx: number, wy: number): number {
     // Biome is determined by current world level (0=Plains, 1=Magma, 2=Void)
-    return (this.currentDungeonWorld - 1) % 3;
+    return 0; // Forced to plains biome as requested
   }
 
   private generateChunk(cx: number, cy: number) {
@@ -789,6 +864,7 @@ export class GameManager {
       cx, cy, container,
       floorCells: new Set(),
       obstacleCells: new Set(),
+      waterCells: new Set(),
       spawnPoints: [],
       loaded: true
     };
@@ -862,122 +938,188 @@ export class GameManager {
            }
         }
 
-        const terrainNoise = fbm2(wx * noiseScale, wy * noiseScale, 4);
-        const treeNoise = fbm2(wx * treeScale + 100, wy * treeScale + 100, 3);
-        const waterNoise = fbm2(wx * waterScale + 500, wy * waterScale + 500, 3);
-
-        // Rock formations - impassable walls created by noise
-        if (terrainNoise > 0.48) {
-          // Dense rock / wall
-          this.obstacleCells.add(cellKey);
-          chunk.obstacleCells.add(cellKey);
-          const rock = new Sprite(this.mapTextures.rock[biome]);
-          rock.anchor.set(0.5); rock.scale.set(4);
-          rock.x = wx * TILE_PX + TILE_PX / 2; rock.y = wy * TILE_PX + TILE_PX / 2;
-          rock.zIndex = wy * TILE_PX + TILE_PX / 2;
-          container.addChild(rock);
-          continue;
-        }
-
-        // Water/Lava pools Ã¢â‚¬â€ impassable decorative terrain
-        if (waterNoise > 0.5 && terrainNoise < 0.1) {
-          this.obstacleCells.add(cellKey);
-          chunk.obstacleCells.add(cellKey);
-          const poolTex = biome === 1 ? this.mapTextures.lava : this.mapTextures.water;
-          const pool = new Sprite(poolTex);
-          pool.anchor.set(0.5); pool.scale.set(4);
-          pool.x = wx * TILE_PX + TILE_PX / 2; pool.y = wy * TILE_PX + TILE_PX / 2;
-          pool.zIndex = -50;
-          container.addChild(pool);
-          // Still place floor underneath for visual continuity
-          continue;
-        }
-
         // Walkable floor
         this.floorCells.add(cellKey);
         chunk.floorCells.add(cellKey);
 
-        // Procedural grass tile rendering
-        const grassPalettes = [
-          [0x3a7030, 0x2f6028, 0x4a8038, 0x356a2c, 0x2d5520], // Plains greens
-          [0x3a2525, 0x4a2828, 0x352020, 0x402222, 0x301a1a], // Magma charred
-          [0x1a1a30, 0x222242, 0x1e1e38, 0x25254a, 0x181830], // Void purple
-        ];
-        const palette = grassPalettes[biome] || grassPalettes[0];
-        const grassColor = palette[Math.floor(Math.random() * palette.length)];
+        // Smooth noise for base color blending
+        const colorNoise = (fbm2(wx * 0.15, wy * 0.15, 2) + 1) / 2; // 0 to 1
+        
+        let c1, c2, bladeColor;
+        if (biome === 0) { c1 = {r:58,g:112,b:48}; c2 = {r:45,g:85,b:32}; bladeColor = 0x5a9848; } // Plains
+        else if (biome === 1) { c1 = {r:58,g:37,b:37}; c2 = {r:48,g:26,b:26}; bladeColor = 0x5a3535; } // Magma
+        else { c1 = {r:26,g:26,b:48}; c2 = {r:34,g:34,b:66}; bladeColor = 0x353560; } // Void
+
+        // Lerp color
+        const r = Math.floor(c1.r + (c2.r - c1.r) * colorNoise);
+        const g = Math.floor(c1.g + (c2.g - c1.g) * colorNoise);
+        const b = Math.floor(c1.b + (c2.b - c1.b) * colorNoise);
+        const baseColor = (r << 16) | (g << 8) | b;
 
         if (!(chunk as any).floorGfx) {
            (chunk as any).floorGfx = new Graphics();
            (chunk as any).floorGfx.zIndex = -100001;
            container.addChild((chunk as any).floorGfx);
+           
+           // Draw chunk base background once per chunk to prevent black flashes
+           const chunkBaseColor = biome === 0 ? 0x2f6028 : biome === 1 ? 0x301a1a : 0x181830;
+           (chunk as any).floorGfx.rect(cx * 16 * TILE_PX, cy * 16 * TILE_PX, 16 * TILE_PX, 16 * TILE_PX).fill(chunkBaseColor);
         }
-        (chunk as any).floorGfx.rect(wx * TILE_PX, wy * TILE_PX, TILE_PX, TILE_PX).fill(grassColor);
+        
+        // Organic grass patches: using lower alpha and bigger spread for a seamless blend
+        (chunk as any).floorGfx.circle(wx * TILE_PX + 32, wy * TILE_PX + 32, 50 + Math.random() * 30).fill({color: baseColor, alpha: 0.15});
 
-        if (Math.random() < 0.3) {
-          const bladeColor = biome === 0 ? 0x5a9848 : biome === 1 ? 0x5a3535 : 0x353560;
-          const bx = wx * TILE_PX + 4 + Math.random() * (TILE_PX - 8);
-          const by = wy * TILE_PX + 4 + Math.random() * (TILE_PX - 8);
-          (chunk as any).floorGfx.rect(bx, by, 2 + Math.random() * 3, 2).fill(bladeColor);
+        // Organic grass tufts
+        const tuftNoise = fbm2(wx * 0.3 + 50, wy * 0.3 + 50, 2);
+        if (tuftNoise > 0.2) {
+           const numBlades = 1 + Math.floor(tuftNoise * 3);
+           const centerX = wx * TILE_PX + TILE_PX/2 + (Math.random()-0.5)*20;
+           const centerY = wy * TILE_PX + TILE_PX/2 + (Math.random()-0.5)*20;
+           for(let i=0; i<numBlades; i++) {
+              const bx = centerX + (Math.random()-0.5)*12;
+              const by = centerY + (Math.random()-0.5)*12;
+              const h = 4 + Math.random() * 6;
+              (chunk as any).floorGfx.moveTo(bx, by).lineTo(bx + (Math.random()-0.5)*6, by - h).stroke({width: 2, color: bladeColor, cap: 'round'});
+           }
+        }
+      }
+    }
+
+    // ============================================================
+    // NEW PROP SYSTEM: Noise-Driven Natural Clustering
+    // ============================================================
+
+    for (let lx = 0; lx < CHUNK_SIZE; lx++) {
+      for (let ly = 0; ly < CHUNK_SIZE; ly++) {
+        const wx = cx * CHUNK_SIZE + lx;
+        const wy = cy * CHUNK_SIZE + ly;
+        const cellKey = `${wx},${wy}`;
+        const biome = this.getBiomeAt(wx, wy);
+
+        // Skip shrine area
+        if (artifactData && !artifactData.collected) {
+          if (lx >= 13 && lx <= 19 && ly >= 13 && ly <= 19) continue;
         }
 
-        // Tree/pillar clusters Ã¢â‚¬â€ smaller impassable obstacles
-        if (treeNoise > 0.45 && terrainNoise < 0.2) {
+        const terrainNoise = fbm2(wx * noiseScale, wy * noiseScale, 4);
+        const treeNoise = fbm2(wx * treeScale + 100, wy * treeScale + 100, 3);
+        const waterNoise = fbm2(wx * waterScale + 500, wy * waterScale + 500, 3);
+
+        const pixX = wx * TILE_PX + TILE_PX / 2;
+        const pixY = wy * TILE_PX + TILE_PX / 2;
+
+        // Combine all shadows into a single Graphics object for massive performance boost
+        if (!(chunk as any).shadowGfx) {
+           (chunk as any).shadowGfx = new Graphics();
+           (chunk as any).shadowGfx.zIndex = -99999;
+           container.addChild((chunk as any).shadowGfx);
+        }
+
+        // --- ROCK FORMATIONS: Dense ridges and mountain walls ---
+        if (terrainNoise > 0.42 && Math.random() > 0.25) {
           this.obstacleCells.add(cellKey);
           chunk.obstacleCells.add(cellKey);
+          this.propTypes.set(cellKey, 'rock');
+
+          const offsetX = (Math.random() - 0.5) * 24;
+          const offsetY = (Math.random() - 0.5) * 24;
+
+          // Drop shadow (wide ellipse, grounded)
+          (chunk as any).shadowGfx.ellipse(pixX + offsetX, pixY + offsetY + 24, 28, 10).fill({ color: 0x000000, alpha: 0.35 });
+
+          const rock = new Sprite(this.mapTextures.rock[biome]);
+          rock.anchor.set(0.5, 0.7);
+          rock.scale.set(3 + Math.random() * 2.5); // high variation
+          rock.rotation = (Math.random() - 0.5) * 0.2;
+          rock.x = pixX + offsetX;
+          rock.y = pixY + offsetY;
+          rock.zIndex = rock.y + 20;
+          container.addChild(rock);
+          continue;
+        }
+
+        // --- WATER / LAVA POOLS: Cohesive lakes and rivers ---
+        if (waterNoise > 0.45 && terrainNoise < 0.05) {
+          this.waterCells.add(cellKey);
+          chunk.waterCells.add(cellKey);
+
+          if (!(chunk as any).waterGfx) {
+             (chunk as any).waterGfx = new Graphics();
+             (chunk as any).waterGfx.zIndex = -99999;
+             container.addChild((chunk as any).waterGfx);
+          }
+
+          const poolColor = 0x1a75ff;
+          const rimColor = 0x4da6ff;
+
+          (chunk as any).waterGfx.circle(pixX, pixY, 40 + Math.random() * 20).fill({ color: poolColor, alpha: 0.85 });
+          (chunk as any).waterGfx.circle(pixX, pixY, 45 + Math.random() * 20).stroke({ width: 3, color: rimColor, alpha: 0.5 });
+          continue;
+        }
+
+        // --- TREE GROVES: Dense interconnected forests with clearings ---
+        if (treeNoise > 0.38 && terrainNoise < 0.15 && Math.random() > 0.3) {
+          this.obstacleCells.add(cellKey);
+          chunk.obstacleCells.add(cellKey);
+          this.propTypes.set(cellKey, 'tree');
+
+          const offsetX = (Math.random() - 0.5) * 32;
+          const offsetY = (Math.random() - 0.5) * 32;
+
+          // Shadow under the trunk
+          (chunk as any).shadowGfx.ellipse(pixX + offsetX, pixY + offsetY + 20, 20, 8).fill({ color: 0x000000, alpha: 0.4 });
+
           const treeTex = Math.random() > 0.5 ? this.mapTextures.tree1 : this.mapTextures.tree2;
           const tree = new Sprite(treeTex);
-          tree.anchor.set(0.5, 0.8); tree.scale.set(4);
-          tree.x = wx * TILE_PX + TILE_PX / 2; tree.y = wy * TILE_PX + TILE_PX / 2;
-          tree.zIndex = wy * TILE_PX + TILE_PX / 2 + 5;
+          tree.anchor.set(0.5, 0.85);
+          tree.scale.set(2.5 + Math.random() * 3.5); // High variation
+          tree.x = pixX + offsetX;
+          tree.y = pixY + offsetY;
+          tree.rotation = (Math.random() - 0.5) * 0.15;
+          tree.zIndex = tree.y + 30;
           container.addChild(tree);
           continue;
         }
 
-        // Destructible crates Ã¢â‚¬â€ scattered naturally
-        if (Math.random() < 0.008 && terrainNoise < 0.2) {
+        // --- DESTRUCTIBLE CRATES: Small clusters near clearings ---
+        const crateNoise = fbm2(wx * 0.25 + 300, wy * 0.25 + 300, 2);
+        if (crateNoise > 0.55 && terrainNoise < 0.1 && treeNoise < 0.3 && Math.random() < 0.15) {
           this.obstacleCells.add(cellKey);
           chunk.obstacleCells.add(cellKey);
+          this.propTypes.set(cellKey, 'crate');
+
+          const offsetX = (Math.random() - 0.5) * 16;
+          const offsetY = (Math.random() - 0.5) * 16;
+
+          // Shadow
+          (chunk as any).shadowGfx.ellipse(pixX + offsetX, pixY + offsetY + 20, 16, 6).fill({ color: 0x000000, alpha: 0.3 });
+
           const crate = new Sprite(this.mapTextures.crate);
-          crate.anchor.set(0.5, 0.75); crate.scale.set(4);
-          crate.x = wx * TILE_PX + TILE_PX / 2; crate.y = wy * TILE_PX + TILE_PX / 2;
-          crate.zIndex = wy * TILE_PX + TILE_PX / 2;
+          crate.anchor.set(0.5, 0.75);
+          crate.scale.set(3.5 + Math.random());
+          crate.rotation = (Math.random() - 0.5) * 0.3;
+          crate.x = pixX + offsetX;
+          crate.y = pixY + offsetY;
+          crate.zIndex = crate.y;
           container.addChild(crate);
           this.destructibles.push({ sprite: crate, x: wx, y: wy, hp: 50 });
           continue;
         }
 
-        // Visual clutter (bones, webs) Ã¢â‚¬â€ sparse decoration
-        if (Math.random() < 0.015) {
+        // --- GROUND CLUTTER: Bones, webs — sparse decoration in open areas ---
+        if (Math.random() < 0.012 && terrainNoise < 0.15 && treeNoise < 0.25) {
           const isBone = Math.random() > 0.5;
           const clutter = new Sprite(isBone ? this.mapTextures.bones : this.mapTextures.web);
-          clutter.anchor.set(0.5); clutter.scale.set(4);
-          clutter.x = wx * TILE_PX + TILE_PX / 2; clutter.y = wy * TILE_PX + TILE_PX / 2;
+          clutter.anchor.set(0.5); clutter.scale.set(3.5 + Math.random());
+          clutter.x = pixX + (Math.random() - 0.5) * 16;
+          clutter.y = pixY + (Math.random() - 0.5) * 16;
           clutter.zIndex = -50;
-          clutter.alpha = 0.4 + Math.random() * 0.4;
+          clutter.alpha = 0.3 + Math.random() * 0.3;
+          clutter.rotation = Math.random() * Math.PI * 2;
           container.addChild(clutter);
         }
       }
     }
-
-    // Generate walls at biome/floor boundaries
-    chunk.floorCells.forEach(cellKey => {
-      const [wx, wy] = cellKey.split(',').map(Number);
-      const biome = this.getBiomeAt(wx, wy);
-      const dirs = [[0,-1],[0,1],[-1,0],[1,0]];
-      for (const [ddx, ddy] of dirs) {
-        const nKey = `${wx+ddx},${wy+ddy}`;
-        if (this.obstacleCells.has(nKey) && !this.floorCells.has(nKey)) {
-          const isH = ddy !== 0;
-          const wallTex = isH ? this.mapTextures.wall_h[biome] : this.mapTextures.wall_v[biome];
-          const w = new Sprite(wallTex);
-          w.anchor.set(0.5); w.scale.set(4);
-          w.x = (wx + ddx * 0.5) * TILE_PX + TILE_PX / 2;
-          w.y = (wy + ddy * 0.5) * TILE_PX + TILE_PX / 2;
-          w.zIndex = w.y + 10;
-          container.addChild(w);
-        }
-      }
-    });
 
     // Place spawn points (2-4 per chunk, in open areas)
     const spawnCount = 2 + Math.floor(Math.random() * 3);
@@ -986,8 +1128,8 @@ export class GameManager {
       const idx = Math.floor(Math.random() * floorArr.length);
       const [swx, swy] = floorArr[idx].split(',').map(Number);
 
-      // Check it's not on an obstacle
-      if (this.obstacleCells.has(`${swx},${swy}`)) continue;
+      // Check it's not on an obstacle or water
+      if (this.obstacleCells.has(`${swx},${swy}`) || this.waterCells.has(`${swx},${swy}`)) continue;
 
       // Pick enemy type weighted by biome
       const biome = this.getBiomeAt(swx, swy);
@@ -1020,8 +1162,8 @@ export class GameManager {
   private updateChunks() {
     const pcx = Math.floor(this.player.x / CHUNK_PX);
     const pcy = Math.floor(this.player.y / CHUNK_PX);
-    const loadRadius = 2;
-    const unloadRadius = 4;
+    const loadRadius = 4; // Massive load radius ensures edge is never seen
+    const unloadRadius = 6;
 
     // Load chunks nearby
     for (let dx = -loadRadius; dx <= loadRadius; dx++) {
@@ -1059,7 +1201,8 @@ export class GameManager {
         }
         // Remove cell data from global sets
         chunk.floorCells.forEach(c => this.floorCells.delete(c));
-        chunk.obstacleCells.forEach(c => this.obstacleCells.delete(c));
+        chunk.obstacleCells.forEach(c => { this.obstacleCells.delete(c); this.propTypes.delete(c); });
+        chunk.waterCells.forEach(c => this.waterCells.delete(c));
         // Remove spawn points belonging to this chunk
         this.spawnPoints = this.spawnPoints.filter(sp => sp.chunkKey !== key);
         // Destroy container GPU resources
@@ -1239,6 +1382,7 @@ export class GameManager {
 
   private handleMouseDown = (e: MouseEvent) => { if (e.button === 0) this.isMouseDown = true; };
   private handleMouseUp = (e: MouseEvent) => { if (e.button === 0) this.isMouseDown = false; };
+  private handleMouseMove = (e: MouseEvent) => { this.targetMouseX = e.clientX; this.targetMouseY = e.clientY; };
 
   private handleSlotChange = (e: any) => {
     if (e.detail >= 0 && e.detail <= 2) {
@@ -1315,6 +1459,7 @@ export class GameManager {
     window.addEventListener('keyup', this.handleKeyUp);
     window.addEventListener('mousedown', this.handleMouseDown);
     window.addEventListener('mouseup', this.handleMouseUp);
+    window.addEventListener('mousemove', this.handleMouseMove);
     window.addEventListener('inventory-swap', this.handleSwap);
     window.addEventListener('inventory-close', this.handleClose);
     window.addEventListener('slot-change', this.handleSlotChange);
@@ -1398,20 +1543,12 @@ export class GameManager {
     this.monsters.push(monster);
   }
 
-  private useWeapon(target: Sprite | null, dx: number, dy: number) {
+  private useWeapon(targetAngle: number) {
     const weaponId = this.inventory[this.activeSlot].id;
     const stats = WeaponRegistry[weaponId];
     if (!stats) return;
 
-    let baseAngle = 0;
-
-    if (target) {
-      baseAngle = Math.atan2(target.y - (this.player.y - 12), target.x - this.player.x);
-    } else if (dx !== 0 || dy !== 0) {
-      baseAngle = Math.atan2(dy, dx);
-    } else {
-      baseAngle = this.player.scale.x > 0 ? 0 : Math.PI;
-    }
+    const baseAngle = targetAngle;
 
     if (stats.type === 'melee') {
       this.gunRecoil = 1.0;
@@ -1485,6 +1622,75 @@ export class GameManager {
   }
 
   private update(dt: number) {
+    if (this.destroyed) return;
+    this.frameCount++;
+    if (this.frameCount % 10 === 0) {
+      window.dispatchEvent(new CustomEvent('fps-change', { detail: this.app.ticker.FPS }));
+    }
+
+    if (this.isLoading) return;
+
+    this.mouseX += (this.targetMouseX - this.mouseX) * 0.3 * dt;
+    this.mouseY += (this.targetMouseY - this.mouseY) * 0.3 * dt;
+
+    if (this.crosshair) {
+      this.crosshair.x = this.mouseX;
+      this.crosshair.y = this.mouseY;
+    }
+
+    const halfW = this.app.screen.width / 2;
+    const halfH = this.app.screen.height / 2;
+
+    // Ambient Particles Logic
+    const px = Math.floor(this.player.x / TILE_PX);
+    const py = Math.floor(this.player.y / TILE_PX);
+    const isMagma = this.getBiomeAt(px, py) === 1;
+    const isVoid = this.getBiomeAt(px, py) === 2;
+    
+    // Spawn new ambient particle around camera
+    if (Math.random() < 0.4) { 
+       const p = new Graphics();
+       let color = 0xffffff;
+       if (isMagma) color = 0xff5500;
+       else if (isVoid) color = 0xaa00ff;
+       else color = 0xaaddff; // plains gets pollen/fireflies
+       
+       const size = 1 + Math.random() * 2;
+       p.circle(0, 0, size).fill({color, alpha: 0.3 + Math.random()*0.3});
+       p.blendMode = 'add';
+       
+       const sx = (Math.random() - 0.5) * this.app.screen.width * 1.5;
+       const sy = (Math.random() - 0.5) * this.app.screen.height * 1.5;
+       p.x = this.player.x + sx;
+       p.y = this.player.y + sy;
+       
+       this.ambientContainer.addChild(p);
+       this.ambientParticles.push({
+          sprite: p,
+          vx: (Math.random() - 0.5) * 0.5 + (isMagma ? 0 : 0.5),
+          vy: (Math.random() - 0.5) * 0.5 - (isMagma ? 2.5 : 0.5), // Magma embers rise faster
+          life: 0,
+          maxLife: 150 + Math.random() * 150
+       });
+    }
+
+    for (let i = this.ambientParticles.length - 1; i >= 0; i--) {
+       const ap = this.ambientParticles[i];
+       ap.life += dt;
+       ap.sprite.x += ap.vx * dt;
+       ap.sprite.y += ap.vy * dt;
+       ap.sprite.x += Math.sin(ap.life / 20) * 0.3 * dt; // Sway
+       
+       const lifeRatio = ap.life / ap.maxLife;
+       if (lifeRatio > 0.8) ap.sprite.alpha = 1 - ((lifeRatio - 0.8) * 5);
+       
+       if (ap.life >= ap.maxLife) {
+          this.ambientContainer.removeChild(ap.sprite);
+          ap.sprite.destroy();
+          this.ambientParticles.splice(i, 1);
+       }
+    }
+
     // Broadcast HP changes via Custom Event
     if (this.playerHP !== this.lastHP) {
       window.dispatchEvent(new CustomEvent('hp-change', { detail: this.playerHP }));
@@ -1528,6 +1734,7 @@ export class GameManager {
       // Open-world updates
       this.updateChunks();
       this.updateSpawns();
+      this.updateAmbiance(dt);
 
       // Update fire trails
       for (let i = this.fireTrails.length - 1; i >= 0; i--) {
@@ -2021,22 +2228,10 @@ export class GameManager {
       }
     }
 
-    // Find nearest enemy for targeting (only on screen)
-    let nearestMonster: Sprite | null = null;
-    let minDist = Infinity;
-    const halfW = this.app.screen.width / 2;
-    const halfH = this.app.screen.height / 2;
-
-    for (const monster of this.monsters) {
-      // Check if monster is within the camera bounds
-      if (Math.abs(this.player.x - monster.x) < halfW && Math.abs(this.player.y - monster.y) < halfH) {
-        const dist = Math.hypot(this.player.x - monster.x, this.player.y - monster.y);
-        if (dist < minDist) {
-          minDist = dist;
-          nearestMonster = monster;
-        }
-      }
-    }
+    // Cursor-based targeting
+    const worldMouseX = this.mouseX - this.worldContainer.x;
+    const worldMouseY = this.mouseY - this.worldContainer.y;
+    const targetAngle = Math.atan2(worldMouseY - this.gunSprite.y, worldMouseX - this.gunSprite.x);
 
     // Use items or shoot Ã¢â‚¬â€ always read activeSlot fresh, never cache the object
     const now = performance.now();
@@ -2062,7 +2257,7 @@ export class GameManager {
     if (!this.isRolling && (this.keys['Space'] || this.isMouseDown) && now - this.lastShootTime > fireRateMs) {
       this.lastShootTime = now;
       if (WeaponRegistry[slotId]) {
-         this.useWeapon(nearestMonster, dx, dy);
+         this.useWeapon(targetAngle);
       }
     }
 
@@ -2166,10 +2361,7 @@ export class GameManager {
       this.player.texture = frames[frameIdx];
     }
 
-    let targetAngle = dx !== 0 || dy !== 0 ? Math.atan2(dy, dx) : (this.player.scale.x > 0 ? 0 : Math.PI);
-    if (nearestMonster) {
-      targetAngle = Math.atan2(nearestMonster.y - this.gunSprite.y, nearestMonster.x - this.gunSprite.x);
-    }
+    // targetAngle is calculated above based on cursor
 
     const isMeleeEquipped = WeaponRegistry[slotId] && WeaponRegistry[slotId].type === 'melee';
     const defaultScale = isMeleeEquipped ? 6 : 3;
@@ -2201,9 +2393,23 @@ export class GameManager {
        this.gunSprite.y = this.player.y - 12 - Math.sin(targetAngle) * recoilDist;
     }
 
-    // Sprite flipping logic (Prioritize facing tracking angle)
-    if (Math.abs(targetAngle) > Math.PI / 2) this.player.scale.x = -4;
-    else this.player.scale.x = 4;
+    // Sprite flipping & bouncy physics
+    const flipSign = Math.abs(targetAngle) > Math.PI / 2 ? -4 : 4;
+    
+    if (this.gameMode === 'dungeon') {
+        const isMoving = dx !== 0 || dy !== 0;
+        if (isMoving && !this.isRolling) {
+            this.player.scale.y = 4 + Math.sin(performance.now() / 60) * 0.3;
+            this.player.scale.x = Math.sign(flipSign) * (4 - Math.sin(performance.now() / 60) * 0.15);
+            this.player.rotation = Math.sin(performance.now() / 100) * 0.05;
+        } else {
+            this.player.scale.y += (4 - this.player.scale.y) * 0.2 * dt;
+            this.player.scale.x = Math.sign(flipSign) * (Math.abs(this.player.scale.x) + (4 - Math.abs(this.player.scale.x)) * 0.2 * dt);
+            this.player.rotation += (0 - this.player.rotation) * 0.2 * dt;
+        }
+    } else {
+        this.player.scale.x = flipSign;
+    }
 
     // Bounds Check the Player
     const nextX = this.player.x + dx * speed;
@@ -2221,7 +2427,7 @@ export class GameManager {
 
         for (let x = minCX; x <= maxCX; x++) {
           for (let y = minCY; y <= maxCY; y++) {
-            if (this.obstacleCells.has(`${x},${y}`)) return true; // Hard obstacle/crate collision
+            if (this.obstacleCells.has(`${x},${y}`) || this.waterCells.has(`${x},${y}`)) return true; // Hard obstacle/crate collision
           }
         }
         return false;
@@ -2328,9 +2534,15 @@ export class GameManager {
           const by = Math.floor(b.sprite.y / TILE_PX);
           if (this.obstacleCells.has(`${bx},${by}`)) {
             b.life = 0; // smash into standard wall
-            if (!b.isEnemy) this.spawnParticles(b.sprite.x, b.sprite.y, 0x888888, 4); // Wall hit sparks
             
-             if (this.obstacleCells.has(`${bx},${by}`)) {
+            const pType = this.propTypes.get(`${bx},${by}`);
+            if (!b.isEnemy) {
+               if (pType === 'tree') this.spawnParticles(b.sprite.x, b.sprite.y, 0x44aa44, 4); // Leaves
+               else if (pType === 'rock') this.spawnParticles(b.sprite.x, b.sprite.y, 0x888888, 4); // Dust
+               else this.spawnParticles(b.sprite.x, b.sprite.y, 0x555555, 4);
+            }
+            
+             if (pType === 'crate' && this.obstacleCells.has(`${bx},${by}`)) {
                for (let d = this.destructibles.length - 1; d >= 0; d--) {
                  const crate = this.destructibles[d];
                  if (crate.x === bx && crate.y === by) {
@@ -2784,7 +2996,7 @@ export class GameManager {
           const maxCY = Math.round((py + mRadius) / 64);          for (let x = minCX; x <= maxCX; x++) {
             for (let y = minCY; y <= maxCY; y++) {
               if (!this.floorCells.has(`${x},${y}`)) return true; // Hitting solid wall boundary
-              if (this.obstacleCells.has(`${x},${y}`)) return true; // Hard obstacle/crate collision
+              if (this.obstacleCells.has(`${x},${y}`) || this.waterCells.has(`${x},${y}`)) return true; // Hard obstacle/crate collision
             }
           }
           return false;
@@ -2869,10 +3081,19 @@ export class GameManager {
       monster.zIndex = monster.y;
     }
     // Also rank bullets
-    for (const b of this.bullets) b.sprite.zIndex = b.sprite.y + 10;    // Camera Tracking
+    for (const b of this.bullets) b.sprite.zIndex = b.sprite.y + 10;    // Camera Tracking (Lerped with Look-ahead)
     const screenCenter = { x: this.app.screen.width / 2, y: this.app.screen.height / 2 };
-    this.worldContainer.x = screenCenter.x - this.player.x;
-    this.worldContainer.y = screenCenter.y - (this.player.y - 24);
+    const lookAheadX = (this.mouseX - screenCenter.x) * 0.2;
+    const lookAheadY = (this.mouseY - screenCenter.y) * 0.2;
+    
+    const targetCamX = this.player.x + lookAheadX;
+    const targetCamY = this.player.y - 24 + lookAheadY;
+    
+    this.cameraX += (targetCamX - this.cameraX) * 0.12 * dt;
+    this.cameraY += (targetCamY - this.cameraY) * 0.12 * dt;
+
+    this.worldContainer.x = screenCenter.x - this.cameraX;
+    this.worldContainer.y = screenCenter.y - this.cameraY;
 
     // Update Minimap UI Position in case screen resized
     if (this.minimapContainer) {
@@ -2892,7 +3113,7 @@ export class GameManager {
     const viewTiles = Math.ceil(halfSize / scale); // Only check tiles visible on minimap
 
     // Background
-    this.minimapGraphics.rect(0, 0, size, size).fill({ color: 0x000000, alpha: 0.6 }).stroke({ width: 2, color: 0x444444 });
+    this.minimapGraphics.circle(halfSize, halfSize, halfSize).fill({ color: 0x111118, alpha: 0.85 });
 
     // Draw explored cells — only scan the visible range instead of all explored cells
     const px = Math.floor(this.player.x / TILE_PX);
@@ -2900,15 +3121,26 @@ export class GameManager {
 
     for (let tx = px - viewTiles; tx <= px + viewTiles; tx++) {
       for (let ty = py - viewTiles; ty <= py + viewTiles; ty++) {
+        const dx = (tx - px) * scale + halfSize;
+        const dy = (ty - py) * scale + halfSize;
+        
+        // Circular clipping
+        if (Math.hypot(dx - halfSize, dy - halfSize) > halfSize - 4) continue;
+        
         const key = `${tx},${ty}`;
         if (this.exploredCells.has(key)) {
-          const dx = (tx - px) * scale + halfSize;
-          const dy = (ty - py) * scale + halfSize;
           const isObstacle = this.obstacleCells.has(key);
-          this.minimapGraphics.rect(dx, dy, scale, scale).fill(isObstacle ? 0x444444 : 0x888888);
+          const biome = this.getBiomeAt(tx, ty);
+          let mColor = biome === 0 ? 0x3a5f30 : biome === 1 ? 0x5c2b2b : 0x2a2a44;
+          if (isObstacle) mColor = 0x222222;
+          
+          this.minimapGraphics.rect(dx, dy, scale, scale).fill(mColor);
         }
       }
     }
+    
+    // Fancy Border
+    this.minimapGraphics.circle(halfSize, halfSize, halfSize).stroke({ width: 4, color: 0xcfb53b, alpha: 0.8 });
 
     // Draw artifact markers on minimap
     for (const loc of this.artifactLocations) {
@@ -2935,6 +3167,7 @@ export class GameManager {
     if (GameManager.activeInstance === this) GameManager.activeInstance = null;
     window.removeEventListener('keydown', this.handleKeyDown);
     window.removeEventListener('keyup', this.handleKeyUp);
+    window.removeEventListener('mousemove', this.handleMouseMove);
     window.removeEventListener('inventory-swap', this.handleSwap);
     window.removeEventListener('inventory-close', this.handleClose);
     window.removeEventListener('slot-change', this.handleSlotChange);
