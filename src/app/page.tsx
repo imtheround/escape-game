@@ -77,7 +77,7 @@ export default function Home() {
     const handleHpChange = (e: any) => {
       setHp(e.detail);
       if (e.detail <= 0) {
-        setGameState('gameover');
+        setGameState(prev => prev === 'playing_dungeon' ? 'gameover_dungeon' : 'gameover_wave');
       }
     };
     
@@ -149,7 +149,7 @@ export default function Home() {
   }, [hasPickedUpPotion]);
 
   useEffect(() => {
-    if ((gameState === 'playing_wave' || gameState === 'playing_dungeon') && !hasPickedUpPotion) {
+    if ((gameState.startsWith('playing_')) && !hasPickedUpPotion) {
       const t = setTimeout(() => setShowItemInstruction(false), 8000);
       return () => clearTimeout(t);
     }
@@ -246,29 +246,29 @@ export default function Home() {
         </div>
       )}
 
-      {(gameState === 'playing_wave' || gameState === 'playing_dungeon' || gameState === 'gameover') && <GameCanvas mode={gameState === 'playing_dungeon' ? 'dungeon' : 'wave'} />}
+      {(gameState.startsWith('playing_') || gameState.startsWith('gameover_')) && <GameCanvas mode={gameState.includes('dungeon') ? 'dungeon' : 'wave'} />}
       
       {gameState === 'start' && (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm">
           <h1 className="text-6xl font-black text-red-600 mb-8 tracking-widest drop-shadow-[0_4px_4px_rgba(255,0,0,0.5)]">ESCAPE</h1>
-          <div className="flex gap-8">
-            <button 
-              onClick={() => { setGameState('playing_wave'); setIsLoadingAssets(true); }}
-              className="px-8 py-4 bg-[#333] border-4 border-white text-2xl font-bold hover:bg-white hover:text-black transition-colors"
-            >
-              WAVE MODE
-            </button>
+          <div className="flex flex-col items-center gap-4">
             <button 
               onClick={() => { setGameState('playing_dungeon'); setIsLoadingAssets(true); }}
-              className="px-8 py-4 bg-indigo-900 border-4 border-indigo-400 text-2xl font-bold hover:bg-indigo-400 hover:text-black transition-colors"
+              className="px-12 py-6 bg-indigo-900 border-4 border-indigo-400 text-4xl font-bold hover:bg-indigo-400 hover:text-black transition-colors shadow-[0_0_20px_rgba(129,140,248,0.5)]"
             >
-              DUNGEON MODE
+              START DUNGEON
+            </button>
+            <button 
+              onClick={() => { setGameState('playing_wave'); setIsLoadingAssets(true); }}
+              className="px-6 py-2 bg-[#333] border-2 border-gray-500 text-lg font-bold text-gray-300 hover:bg-gray-500 hover:text-black transition-colors"
+            >
+              WAVE SURVIVAL (CLASSIC)
             </button>
           </div>
         </div>
       )}
 
-      {gameState === 'gameover' && (
+      {gameState.startsWith('gameover_') && (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm">
           <h1 className="text-7xl font-black text-red-600 mb-8 tracking-widest animate-bounce">DIED</h1>
           <button 
@@ -280,12 +280,12 @@ export default function Home() {
         </div>
       )}
 
-      {(gameState === 'playing_wave' || gameState === 'playing_dungeon' || gameState === 'gameover') && (
+      {(gameState.startsWith('playing_') || gameState.startsWith('gameover_')) && (
         <>
           {/* Top Center Analytics: Waves and EXP */}
           <div className="absolute top-4 left-1/2 -translate-x-1/2 flex flex-col items-center z-20 pointer-events-none">
-             <div className="bg-black/90 border-4 border-[#444] px-6 py-2 shadow-lg mb-2 flex items-center gap-4">
-               {gameState === 'playing_dungeon' ? (
+              <div className="bg-black/90 border-4 border-[#444] px-6 py-2 shadow-lg mb-2 flex items-center gap-4">
+               {gameState.includes('dungeon') ? (
                  <span className="text-2xl font-mono text-white tracking-widest font-bold drop-shadow-md">
                    <span className="text-indigo-400">WORLD {waveState.world || 1}</span> <span className="text-gray-500 mx-2">-</span> <span className="text-red-400">STAGE {waveState.stage || 1}</span>
                  </span>

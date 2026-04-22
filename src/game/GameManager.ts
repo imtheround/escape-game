@@ -132,6 +132,7 @@ interface ChunkData {
   obstacleCells: Set<string>;
   waterCells: Set<string>;
   spawnPoints: SpawnPoint[];
+  props: Sprite[];
   loaded: boolean;
 }
 
@@ -247,6 +248,8 @@ export class GameManager {
   private obstacleCells = new Set<string>();
   private waterCells = new Set<string>();
   private propTypes = new Map<string, string>();
+  
+  private chunkQueue: {cx: number, cy: number}[] = [];
   private exploredCells = new Set<string>();
   private destructibles: { sprite: Sprite, x: number, y: number, hp: number }[] = [];
   private chunks = new Map<string, ChunkData>();
@@ -282,7 +285,6 @@ export class GameManager {
   private crosshair!: Graphics;
 
   private vignette!: Graphics;
-  private ambientParticles: { sprite: Graphics, vx: number, vy: number, life: number, maxLife: number }[] = [];
   private ambientContainer!: Container;
 
   private spawnParticles(x: number, y: number, color: number, count: number, isDash: boolean = false) {
@@ -866,6 +868,7 @@ export class GameManager {
       obstacleCells: new Set(),
       waterCells: new Set(),
       spawnPoints: [],
+      props: [],
       loaded: true
     };
 
@@ -963,7 +966,7 @@ export class GameManager {
            
            // Draw chunk base background once per chunk to prevent black flashes
            const chunkBaseColor = biome === 0 ? 0x2f6028 : biome === 1 ? 0x301a1a : 0x181830;
-           (chunk as any).floorGfx.rect(cx * 16 * TILE_PX, cy * 16 * TILE_PX, 16 * TILE_PX, 16 * TILE_PX).fill(chunkBaseColor);
+           (chunk as any).floorGfx.rect(cx * CHUNK_PX, cy * CHUNK_PX, CHUNK_PX, CHUNK_PX).fill(chunkBaseColor);
         }
         
         // Organic grass patches: using lower alpha and bigger spread for a seamless blend
@@ -1016,7 +1019,7 @@ export class GameManager {
         }
 
         // --- ROCK FORMATIONS: Dense ridges and mountain walls ---
-        if (terrainNoise > 0.42 && Math.random() > 0.25) {
+        if (terrainNoise > 0.40 && Math.random() > 0.3) {
           this.obstacleCells.add(cellKey);
           chunk.obstacleCells.add(cellKey);
           this.propTypes.set(cellKey, 'rock');
@@ -1024,22 +1027,23 @@ export class GameManager {
           const offsetX = (Math.random() - 0.5) * 24;
           const offsetY = (Math.random() - 0.5) * 24;
 
-          // Drop shadow (wide ellipse, grounded)
-          (chunk as any).shadowGfx.ellipse(pixX + offsetX, pixY + offsetY + 24, 28, 10).fill({ color: 0x000000, alpha: 0.35 });
+          // Drop shadow (wide ellipse, grounded at sprite base)
+          (chunk as any).shadowGfx.ellipse(pixX + offsetX, pixY + offsetY, 28, 10).fill({ color: 0x000000, alpha: 0.35 });
 
           const rock = new Sprite(this.mapTextures.rock[biome]);
-          rock.anchor.set(0.5, 0.7);
+          rock.anchor.set(0.5, 0.85);
           rock.scale.set(3 + Math.random() * 2.5); // high variation
           rock.rotation = (Math.random() - 0.5) * 0.2;
           rock.x = pixX + offsetX;
           rock.y = pixY + offsetY;
-          rock.zIndex = rock.y + 20;
-          container.addChild(rock);
+          rock.zIndex = rock.y;
+          this.worldContainer.addChild(rock);
+          chunk.props.push(rock);
           continue;
         }
 
         // --- WATER / LAVA POOLS: Cohesive lakes and rivers ---
-        if (waterNoise > 0.45 && terrainNoise < 0.05) {
+        if (waterNoise > 0.45 && terrainNoise < 0.1) {
           this.waterCells.add(cellKey);
           chunk.waterCells.add(cellKey);
 
@@ -1050,15 +1054,19 @@ export class GameManager {
           }
 
           const poolColor = 0x1a75ff;
-          const rimColor = 0x4da6ff;
 
-          (chunk as any).waterGfx.circle(pixX, pixY, 40 + Math.random() * 20).fill({ color: poolColor, alpha: 0.85 });
-          (chunk as any).waterGfx.circle(pixX, pixY, 45 + Math.random() * 20).stroke({ width: 3, color: rimColor, alpha: 0.5 });
+          (chunk as any).waterGfx.circle(pixX, pixY, 45 + Math.random() * 15).fill({ color: poolColor, alpha: 0.95 });
+          
+          // Subtle ripples
+          if (Math.random() > 0.5) {
+             const rw = 10 + Math.random() * 20;
+             (chunk as any).waterGfx.ellipse(pixX + (Math.random()-0.5)*20, pixY + (Math.random()-0.5)*20, rw, 2).fill({color: 0xffffff, alpha: 0.2});
+          }
           continue;
         }
 
         // --- TREE GROVES: Dense interconnected forests with clearings ---
-        if (treeNoise > 0.38 && terrainNoise < 0.15 && Math.random() > 0.3) {
+        if (treeNoise > 0.35 && terrainNoise < 0.15 && Math.random() > 0.3) {
           this.obstacleCells.add(cellKey);
           chunk.obstacleCells.add(cellKey);
           this.propTypes.set(cellKey, 'tree');
@@ -1067,7 +1075,7 @@ export class GameManager {
           const offsetY = (Math.random() - 0.5) * 32;
 
           // Shadow under the trunk
-          (chunk as any).shadowGfx.ellipse(pixX + offsetX, pixY + offsetY + 20, 20, 8).fill({ color: 0x000000, alpha: 0.4 });
+          (chunk as any).shadowGfx.ellipse(pixX + offsetX, pixY + offsetY, 20, 8).fill({ color: 0x000000, alpha: 0.4 });
 
           const treeTex = Math.random() > 0.5 ? this.mapTextures.tree1 : this.mapTextures.tree2;
           const tree = new Sprite(treeTex);
@@ -1076,14 +1084,15 @@ export class GameManager {
           tree.x = pixX + offsetX;
           tree.y = pixY + offsetY;
           tree.rotation = (Math.random() - 0.5) * 0.15;
-          tree.zIndex = tree.y + 30;
-          container.addChild(tree);
+          tree.zIndex = tree.y;
+          this.worldContainer.addChild(tree);
+          chunk.props.push(tree);
           continue;
         }
 
         // --- DESTRUCTIBLE CRATES: Small clusters near clearings ---
         const crateNoise = fbm2(wx * 0.25 + 300, wy * 0.25 + 300, 2);
-        if (crateNoise > 0.55 && terrainNoise < 0.1 && treeNoise < 0.3 && Math.random() < 0.15) {
+        if (crateNoise > 0.55 && terrainNoise < 0.1 && treeNoise < 0.25 && Math.random() < 0.15) {
           this.obstacleCells.add(cellKey);
           chunk.obstacleCells.add(cellKey);
           this.propTypes.set(cellKey, 'crate');
@@ -1092,16 +1101,17 @@ export class GameManager {
           const offsetY = (Math.random() - 0.5) * 16;
 
           // Shadow
-          (chunk as any).shadowGfx.ellipse(pixX + offsetX, pixY + offsetY + 20, 16, 6).fill({ color: 0x000000, alpha: 0.3 });
+          (chunk as any).shadowGfx.ellipse(pixX + offsetX, pixY + offsetY, 16, 6).fill({ color: 0x000000, alpha: 0.3 });
 
           const crate = new Sprite(this.mapTextures.crate);
-          crate.anchor.set(0.5, 0.75);
+          crate.anchor.set(0.5, 0.85);
           crate.scale.set(3.5 + Math.random());
           crate.rotation = (Math.random() - 0.5) * 0.3;
           crate.x = pixX + offsetX;
           crate.y = pixY + offsetY;
           crate.zIndex = crate.y;
-          container.addChild(crate);
+          this.worldContainer.addChild(crate);
+          chunk.props.push(crate);
           this.destructibles.push({ sprite: crate, x: wx, y: wy, hp: 50 });
           continue;
         }
@@ -1162,8 +1172,8 @@ export class GameManager {
   private updateChunks() {
     const pcx = Math.floor(this.player.x / CHUNK_PX);
     const pcy = Math.floor(this.player.y / CHUNK_PX);
-    const loadRadius = 4; // Massive load radius ensures edge is never seen
-    const unloadRadius = 6;
+    const loadRadius = 2; // Optimal balance for performance vs view distance
+    const unloadRadius = 4;
 
     // Load chunks nearby
     for (let dx = -loadRadius; dx <= loadRadius; dx++) {
@@ -1172,11 +1182,14 @@ export class GameManager {
         const cy = pcy + dy;
         const key = `${cx},${cy}`;
         if (!this.chunks.has(key)) {
-          this.generateChunk(cx, cy);
+          if (!this.chunkQueue.some(q => q.cx === cx && q.cy === cy)) {
+            this.chunkQueue.push({ cx, cy });
+          }
         } else {
           const chunk = this.chunks.get(key)!;
           if (!chunk.loaded) {
             this.worldContainer.addChild(chunk.container);
+            chunk.props.forEach(p => this.worldContainer.addChild(p));
             chunk.loaded = true;
           }
         }
@@ -1185,19 +1198,21 @@ export class GameManager {
 
     // Unload distant chunks (remove from scene, keep data)
     // Also fully purge very distant chunks to free memory
-    const purgeRadius = 8;
+    const purgeRadius = 5;
     const keysToDelete: string[] = [];
     this.chunks.forEach((chunk, key) => {
       const dx = Math.abs(chunk.cx - pcx);
       const dy = Math.abs(chunk.cy - pcy);
       if ((dx > unloadRadius || dy > unloadRadius) && chunk.loaded) {
         this.worldContainer.removeChild(chunk.container);
+        chunk.props.forEach(p => this.worldContainer.removeChild(p));
         chunk.loaded = false;
       }
       // Purge chunks far beyond unload radius to free memory
       if (dx > purgeRadius || dy > purgeRadius) {
         if (chunk.loaded) {
           this.worldContainer.removeChild(chunk.container);
+          chunk.props.forEach(p => this.worldContainer.removeChild(p));
         }
         // Remove cell data from global sets
         chunk.floorCells.forEach(c => this.floorCells.delete(c));
@@ -1207,6 +1222,7 @@ export class GameManager {
         this.spawnPoints = this.spawnPoints.filter(sp => sp.chunkKey !== key);
         // Destroy container GPU resources
         chunk.container.destroy({ children: true });
+        chunk.props.forEach(p => p.destroy());
         keysToDelete.push(key);
       }
     });
@@ -1628,8 +1644,6 @@ export class GameManager {
       window.dispatchEvent(new CustomEvent('fps-change', { detail: this.app.ticker.FPS }));
     }
 
-    if (this.isLoading) return;
-
     this.mouseX += (this.targetMouseX - this.mouseX) * 0.3 * dt;
     this.mouseY += (this.targetMouseY - this.mouseY) * 0.3 * dt;
 
@@ -1670,7 +1684,8 @@ export class GameManager {
           vx: (Math.random() - 0.5) * 0.5 + (isMagma ? 0 : 0.5),
           vy: (Math.random() - 0.5) * 0.5 - (isMagma ? 2.5 : 0.5), // Magma embers rise faster
           life: 0,
-          maxLife: 150 + Math.random() * 150
+          maxLife: 150 + Math.random() * 150,
+          rotSpeed: 0
        });
     }
 
@@ -1698,7 +1713,7 @@ export class GameManager {
     }
 
     this.playerShadow.x = this.player.x;
-    this.playerShadow.y = this.player.y;
+    this.playerShadow.y = this.player.y + 24;
 
     if (this.playerHP <= 0 || this.isInventoryOpen || this.isSettingsOpen) return; // Freeze simulation on death, inventory, or settings
 
@@ -1733,6 +1748,12 @@ export class GameManager {
     } else if (this.gameMode === 'dungeon') {
       // Open-world updates
       this.updateChunks();
+
+      // Progressively generate 1 chunk per frame to prevent stutter
+      if (this.chunkQueue.length > 0) {
+         const q = this.chunkQueue.shift()!;
+         this.generateChunk(q.cx, q.cy);
+      }
       this.updateSpawns();
       this.updateAmbiance(dt);
 
@@ -3059,8 +3080,8 @@ export class GameManager {
     }
 
     // Y-sorting fix: Assign zIndex natively AFTER movement transforms
-    this.player.zIndex = this.player.y;
-    this.gunSprite.zIndex = this.player.y + 1; // Locked strictly unconditionally above player
+    this.player.zIndex = this.player.y + 24;
+    this.gunSprite.zIndex = this.player.y + 25; // Locked strictly unconditionally above player
 
     // Update Explored Footprint (3x3 grid around player)
     if (this.gameMode === 'dungeon') {
