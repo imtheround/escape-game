@@ -1,44 +1,18 @@
-<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
-  <rect x="14" y="0" width="1" height="1" fill="#808080" />
-  <rect x="15" y="0" width="1" height="1" fill="#808080" />
-  <rect x="13" y="1" width="1" height="1" fill="#808080" />
-  <rect x="14" y="1" width="1" height="1" fill="#808080" />
-  <rect x="15" y="1" width="1" height="1" fill="#808080" />
-  <rect x="12" y="2" width="1" height="1" fill="#808080" />
-  <rect x="13" y="2" width="1" height="1" fill="#808080" />
-  <rect x="14" y="2" width="1" height="1" fill="#808080" />
-  <rect x="11" y="3" width="1" height="1" fill="#808080" />
-  <rect x="12" y="3" width="1" height="1" fill="#808080" />
-  <rect x="13" y="3" width="1" height="1" fill="#808080" />
-  <rect x="10" y="4" width="1" height="1" fill="#808080" />
-  <rect x="11" y="4" width="1" height="1" fill="#808080" />
-  <rect x="12" y="4" width="1" height="1" fill="#808080" />
-  <rect x="9" y="5" width="1" height="1" fill="#808080" />
-  <rect x="10" y="5" width="1" height="1" fill="#808080" />
-  <rect x="11" y="5" width="1" height="1" fill="#808080" />
-  <rect x="8" y="6" width="1" height="1" fill="#808080" />
-  <rect x="9" y="6" width="1" height="1" fill="#808080" />
-  <rect x="10" y="6" width="1" height="1" fill="#808080" />
-  <rect x="7" y="7" width="1" height="1" fill="#808080" />
-  <rect x="8" y="7" width="1" height="1" fill="#808080" />
-  <rect x="9" y="7" width="1" height="1" fill="#808080" />
-  <rect x="6" y="8" width="1" height="1" fill="#808080" />
-  <rect x="7" y="8" width="1" height="1" fill="#808080" />
-  <rect x="8" y="8" width="1" height="1" fill="#808080" />
-  <rect x="5" y="9" width="1" height="1" fill="#808080" />
-  <rect x="6" y="9" width="1" height="1" fill="#808080" />
-  <rect x="7" y="9" width="1" height="1" fill="#808080" />
-  <rect x="4" y="10" width="1" height="1" fill="#8B4513" />
-  <rect x="5" y="10" width="1" height="1" fill="#FFD700" />
-  <rect x="3" y="11" width="1" height="1" fill="#8B4513" />
-  <rect x="4" y="11" width="1" height="1" fill="#8B4513" />
-  <rect x="5" y="11" width="1" height="1" fill="#FFD700" />
-  <rect x="2" y="12" width="1" height="1" fill="#8B4513" />
-  <rect x="3" y="12" width="1" height="1" fill="#8B4513" />
-  <rect x="4" y="12" width="1" height="1" fill="#FFD700" />
-  <rect x="1" y="13" width="1" height="1" fill="#8B4513" />
-  <rect x="2" y="13" width="1" height="1" fill="#8B4513" />
-  <rect x="3" y="13" width="1" height="1" fill="#FFD700" />
-  <rect x="0" y="14" width="1" height="1" fill="#8B4513" />
-  <rect x="1" y="14" width="1" height="1" fill="#8B4513" />
+<svg width="16" height="48" viewBox="0 0 16 48" xmlns="http://www.w3.org/2000/svg">
+  <!-- Anchor is roughly at x=8, y=45.6 -->
+  <!-- Blade -->
+  <path d="M 8 2 L 12 10 L 11 36 L 5 36 L 4 10 Z" fill="#dddddd" />
+  <path d="M 8 2 L 12 10 L 11 36 L 8 36 Z" fill="#ffffff" /> <!-- highlight -->
+  <path d="M 8 2 L 4 10 L 5 36 L 8 36 Z" fill="#bbbbbb" /> <!-- shadow -->
+  <!-- Blood groove / Fuller -->
+  <path d="M 8 10 L 8 32" stroke="#aaaaaa" stroke-width="1" />
+  <!-- Crossguard -->
+  <path d="M 2 36 L 14 36 L 14 39 L 2 39 Z" fill="#d4af37" />
+  <path d="M 2 38 L 14 38" stroke="#aa8c2c" stroke-width="1" /> <!-- guard detail -->
+  <!-- Handle -->
+  <path d="M 6 39 L 10 39 L 10 46 L 6 46 Z" fill="#8b4513" />
+  <path d="M 6 40 L 10 42 M 6 42 L 10 44 M 6 44 L 10 46" stroke="#5c2e0b" stroke-width="1" /> <!-- wrap -->
+  <!-- Pommel -->
+  <circle cx="8" cy="46" r="2" fill="#d4af37" />
+  <circle cx="8" cy="46" r="1" fill="#aa8c2c" /> <!-- pommel detail -->
 </svg>

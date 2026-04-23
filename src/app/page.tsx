@@ -45,7 +45,7 @@ function Heart({ type }: { type: "full" | "half" | "empty" }) {
 }
 
 export default function Home() {
-  const [gameState, setGameState] = useState<'start' | 'playing_wave' | 'playing_dungeon' | 'gameover'>('start');
+  const [gameState, setGameState] = useState<'start' | 'playing' | 'gameover'>('start');
   const [hp, setHp] = useState(10);
   const [inventory, setInventory] = useState<{id: string, count: number}[]>(
     Array(12).fill(null).map((_, i) => i === 0 ? { id: 'gun', count: 1 } : { id: '', count: 0 })
@@ -77,7 +77,7 @@ export default function Home() {
     const handleHpChange = (e: any) => {
       setHp(e.detail);
       if (e.detail <= 0) {
-        setGameState(prev => prev === 'playing_dungeon' ? 'gameover_dungeon' : 'gameover_wave');
+        setGameState('gameover');
       }
     };
     
@@ -149,7 +149,7 @@ export default function Home() {
   }, [hasPickedUpPotion]);
 
   useEffect(() => {
-    if ((gameState.startsWith('playing_')) && !hasPickedUpPotion) {
+    if (gameState === 'playing' && !hasPickedUpPotion) {
       const t = setTimeout(() => setShowItemInstruction(false), 8000);
       return () => clearTimeout(t);
     }
@@ -246,29 +246,23 @@ export default function Home() {
         </div>
       )}
 
-      {(gameState.startsWith('playing_') || gameState.startsWith('gameover_')) && <GameCanvas mode={gameState.includes('dungeon') ? 'dungeon' : 'wave'} />}
+      {(gameState === 'playing' || gameState === 'gameover') && <GameCanvas />}
       
       {gameState === 'start' && (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm">
           <h1 className="text-6xl font-black text-red-600 mb-8 tracking-widest drop-shadow-[0_4px_4px_rgba(255,0,0,0.5)]">ESCAPE</h1>
           <div className="flex flex-col items-center gap-4">
             <button 
-              onClick={() => { setGameState('playing_dungeon'); setIsLoadingAssets(true); }}
+              onClick={() => { setGameState('playing'); setIsLoadingAssets(true); }}
               className="px-12 py-6 bg-indigo-900 border-4 border-indigo-400 text-4xl font-bold hover:bg-indigo-400 hover:text-black transition-colors shadow-[0_0_20px_rgba(129,140,248,0.5)]"
             >
               START DUNGEON
-            </button>
-            <button 
-              onClick={() => { setGameState('playing_wave'); setIsLoadingAssets(true); }}
-              className="px-6 py-2 bg-[#333] border-2 border-gray-500 text-lg font-bold text-gray-300 hover:bg-gray-500 hover:text-black transition-colors"
-            >
-              WAVE SURVIVAL (CLASSIC)
             </button>
           </div>
         </div>
       )}
 
-      {gameState.startsWith('gameover_') && (
+      {gameState === 'gameover' && (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm">
           <h1 className="text-7xl font-black text-red-600 mb-8 tracking-widest animate-bounce">DIED</h1>
           <button 
@@ -280,25 +274,11 @@ export default function Home() {
         </div>
       )}
 
-      {(gameState.startsWith('playing_') || gameState.startsWith('gameover_')) && (
+      {(gameState === 'playing' || gameState === 'gameover') && (
         <>
           {/* Top Center Analytics: Waves and EXP */}
           <div className="absolute top-4 left-1/2 -translate-x-1/2 flex flex-col items-center z-20 pointer-events-none">
-              <div className="bg-black/90 border-4 border-[#444] px-6 py-2 shadow-lg mb-2 flex items-center gap-4">
-               {gameState.includes('dungeon') ? (
-                 <span className="text-2xl font-mono text-white tracking-widest font-bold drop-shadow-md">
-                   <span className="text-indigo-400">WORLD {waveState.world || 1}</span> <span className="text-gray-500 mx-2">-</span> <span className="text-red-400">STAGE {waveState.stage || 1}</span>
-                 </span>
-               ) : (
-                 <>
-                   <span className="text-2xl font-mono text-white tracking-widest font-bold">WAVE {waveState.wave}</span>
-                   <span className="text-xl font-mono text-red-500 font-bold ml-4">
-                     {waveState.gameState === 'merchant' ? 'SHOP PHASE' : `${waveState.enemiesAlive + waveState.enemiesToSpawn} REMAINING`}
-                   </span>
-                 </>
-               )}
-             </div>
-             
+
              {/* EXP Bar */}
              <div className="w-96 bg-black/80 border-2 border-[#555] p-1 flex items-center relative h-6 shadow-[0_4px_8px_rgba(0,0,0,0.8)]">
                 <div className="absolute left-0 top-0 h-full bg-blue-600 transition-all duration-300" style={{ width: `${Math.min(100, (expState.exp / expState.maxExp) * 100)}%` }}></div>
@@ -445,7 +425,7 @@ export default function Home() {
           )}
           
           {/* Merchant Shop Modal */}
-          {showShop && (waveState.gameState === 'merchant' || gameState === 'playing_dungeon') && (
+          {showShop && (gameState === 'playing') && (
              <div className="absolute inset-0 bg-black/80 z-[100] flex items-center justify-center backdrop-blur-sm pointer-events-auto">
                 <div className="bg-[#111] border-8 border-indigo-600 p-8 min-w-[600px] flex flex-col shadow-2xl">
                    <div className="flex justify-between items-center mb-8 border-b-4 border-indigo-900 pb-4">

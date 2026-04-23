@@ -132,7 +132,7 @@ interface ChunkData {
   obstacleCells: Set<string>;
   waterCells: Set<string>;
   spawnPoints: SpawnPoint[];
-  props: Sprite[];
+  props: Container[];
   loaded: boolean;
 }
 
@@ -147,12 +147,14 @@ export class GameManager {
   private bullets: { sprite: Sprite, vx: number, vy: number, isEnemy: boolean, life?: number }[] = [];
   private keys: Record<string, boolean> = {};
   private isMouseDown: boolean = false;
+  public isAiming: boolean = false;
   private mouseX: number = 0;
   private mouseY: number = 0;
   private targetMouseX: number = 0;
   private targetMouseY: number = 0;
   private cameraX: number = 0;
   private cameraY: number = 0;
+  private currentLookAheadAmount: number = 0;
   private spawnInterval: NodeJS.Timeout | null = null;
 
   // New Mechanics State
@@ -219,14 +221,9 @@ export class GameManager {
   private staminaGroup!: Container;
   private staminaBarFill!: Graphics;
 
-  // Wave System
   public gameState: 'playing' | 'merchant' = 'playing';
-  public wave: number = 1;
-  private enemiesToSpawn: number = 15;
   private enemiesAlive: number = 0;
-  private waveSpawnTimer: number = 0;
   private merchantTimer: number = 0;
-
   // Progression & Economy
   public playerExp: number = 0;
   public playerMaxExp: number = 10;
@@ -253,8 +250,8 @@ export class GameManager {
   private propTypes = new Map<string, string>();
   
   private chunkQueue: {cx: number, cy: number}[] = [];
-  private exploredCells = new Set<string>();
-  private destructibles: { sprite: Sprite, x: number, y: number, hp: number }[] = [];
+  private exploredCells: Set<string> = new Set();
+  private destructibles: { sprite: Sprite, x: number, y: number, hp: number, shadow?: Graphics }[] = [];
   private chunks = new Map<string, ChunkData>();
   private spawnPoints: SpawnPoint[] = [];
   private openWorldKills = 0;
@@ -287,7 +284,7 @@ export class GameManager {
   private particles: { sprite: Sprite, vx: number, vy: number, life: number, maxLife: number }[] = [];
   private crosshair!: Graphics;
 
-  private vignette!: Graphics;
+  private vignette!: Sprite;
   private ambientContainer!: Container;
 
   private spawnParticles(x: number, y: number, color: number, count: number, isDash: boolean = false) {
@@ -350,7 +347,7 @@ export class GameManager {
       detail: { ammo: activeInv.ammo || 0, maxAmmo: stats?.maxAmmo || 0, isReloading: this.isReloading }
     }));
     window.dispatchEvent(new CustomEvent('wave-change', {
-      detail: { wave: this.wave, gameState: this.gameState, enemiesAlive: this.enemiesAlive, enemiesToSpawn: this.enemiesToSpawn, merchantTimer: this.merchantTimer, world: this.currentDungeonWorld, stage: this.currentDungeonStage }
+      detail: { gameState: this.gameState, merchantTimer: this.merchantTimer, world: this.currentDungeonWorld, stage: this.currentDungeonStage }
     }));
     window.dispatchEvent(new CustomEvent('exp-change', {
       detail: { exp: this.playerExp, maxExp: this.playerMaxExp, level: this.playerLevel, maxHP: this.playerMaxHP }
@@ -360,10 +357,7 @@ export class GameManager {
     }));
   }
 
-  public gameMode: 'wave' | 'dungeon';
-
-  constructor(mode: 'wave' | 'dungeon' = 'wave') {
-    this.gameMode = mode;
+  constructor() {
     this.app = new Application();
     this.worldContainer = new Container();
     this.worldContainer.sortableChildren = true;
@@ -639,11 +633,7 @@ export class GameManager {
   }
 
   private setupPlayer() {
-    if (this.gameMode === 'dungeon') {
-      this.initOpenWorld();
-    } else {
-      this.generateWaveMap();
-    }
+    this.initOpenWorld();
 
     this.player = new Sprite(this.slimeTextures.idle[0]);
     this.player.anchor.set(0.5, 0.875);
@@ -710,6 +700,25 @@ export class GameManager {
     this.app.stage.addChild(this.crosshair);
     this.app.canvas.style.cursor = 'none';
 
+    // Setup Vignette
+    const q = 256;
+    const canvas = document.createElement('canvas');
+    canvas.width = q; canvas.height = q;
+    const ctx = canvas.getContext('2d')!;
+    const grd = ctx.createRadialGradient(q/2, q/2, 0, q/2, q/2, q/2);
+    grd.addColorStop(0, 'rgba(0,0,0,0)');
+    grd.addColorStop(0.5, 'rgba(0,0,0,0.2)');
+    grd.addColorStop(1, 'rgba(0,0,0,0.8)');
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, 0, q, q);
+    
+    this.vignette = new Sprite(Texture.from(canvas));
+    this.vignette.width = this.app.screen.width;
+    this.vignette.height = this.app.screen.height;
+    this.vignette.zIndex = 5000000;
+    this.vignette.alpha = 0;
+    this.app.stage.addChild(this.vignette);
+
     // Ambient Container (In world space, above ground but below UI)
     this.ambientContainer = new Container();
     this.ambientContainer.zIndex = 50000;
@@ -765,7 +774,7 @@ export class GameManager {
   }
 
   private updateAmbiance(dt: number) {
-     if (this.gameMode !== 'dungeon') return;
+     
      
      // Spawn ambient particles randomly around player
      if (Math.random() < 0.25) {
@@ -1110,7 +1119,10 @@ export class GameManager {
           const offsetY = (Math.random() - 0.5) * 16;
 
           // Shadow
-          (chunk as any).shadowGfx.ellipse(pixX + offsetX, pixY + offsetY, 16, 6).fill({ color: 0x000000, alpha: 0.3 });
+          const crateShadow = new Graphics().ellipse(pixX + offsetX, pixY + offsetY, 16, 6).fill({ color: 0x000000, alpha: 0.3 });
+          crateShadow.zIndex = -99998;
+          this.worldContainer.addChild(crateShadow);
+          chunk.props.push(crateShadow);
 
           const crate = new Sprite(this.mapTextures.crate);
           crate.anchor.set(0.5, 0.6875);
@@ -1121,7 +1133,7 @@ export class GameManager {
           crate.zIndex = crate.y;
           this.worldContainer.addChild(crate);
           chunk.props.push(crate);
-          this.destructibles.push({ sprite: crate, x: wx, y: wy, hp: 50 });
+          this.destructibles.push({ sprite: crate, x: wx, y: wy, hp: 50, shadow: crateShadow });
           continue;
         }
 
@@ -1405,8 +1417,15 @@ export class GameManager {
     this.dispatchState();
   };
 
-  private handleMouseDown = (e: MouseEvent) => { if (e.button === 0) this.isMouseDown = true; };
-  private handleMouseUp = (e: MouseEvent) => { if (e.button === 0) this.isMouseDown = false; };
+  private handleContextMenu = (e: MouseEvent) => { e.preventDefault(); };
+  private handleMouseDown = (e: MouseEvent) => {
+    if (e.button === 0) this.isMouseDown = true;
+    if (e.button === 2) this.isAiming = true;
+  };
+  private handleMouseUp = (e: MouseEvent) => {
+    if (e.button === 0) this.isMouseDown = false;
+    if (e.button === 2) this.isAiming = false;
+  };
   private handleMouseMove = (e: MouseEvent) => { this.targetMouseX = e.clientX; this.targetMouseY = e.clientY; };
 
   private handleSlotChange = (e: any) => {
@@ -1415,21 +1434,6 @@ export class GameManager {
       this.dispatchState();
     }
   };
-
-  public startNextWave() {
-    if (this.gameState !== 'merchant') return;
-    this.gameState = 'playing';
-    this.wave++;
-    this.enemiesToSpawn = 15 + this.wave * 10;
-
-    if (this.merchantSprite) {
-      this.worldContainer.removeChild(this.merchantSprite);
-      this.merchantSprite.destroy();
-      this.merchantSprite = null;
-    }
-    this.playSound('spawn');
-    this.dispatchState();
-  }
 
   private startMerchantPhase() {
     this.gameState = 'merchant';
@@ -1480,6 +1484,7 @@ export class GameManager {
   }
 
   private setupInput() {
+    window.addEventListener('contextmenu', this.handleContextMenu);
     window.addEventListener('keydown', this.handleKeyDown);
     window.addEventListener('keyup', this.handleKeyUp);
     window.addEventListener('mousedown', this.handleMouseDown);
@@ -1488,7 +1493,6 @@ export class GameManager {
     window.addEventListener('inventory-swap', this.handleSwap);
     window.addEventListener('inventory-close', this.handleClose);
     window.addEventListener('slot-change', this.handleSlotChange);
-    window.addEventListener('skip-wave', () => this.startNextWave());
     window.addEventListener('volume-change', this.handleVolumeChange);
     window.addEventListener('settings-toggle', this.handleSettingsToggle);
   }
@@ -1496,7 +1500,7 @@ export class GameManager {
 
 
   private spawnMonster() {
-    if (this.gameMode === 'dungeon') return; // Handled rigidly by Rooms
+
     if (this.playerHP <= 0) return;
 
     const halfW = this.app.screen.width / 2;
@@ -1547,9 +1551,10 @@ export class GameManager {
     (monster as any).attackTimer = Math.random() * 60 + 60; // 1-2 seconds initially
     (monster as any).jitterAngle = 0;
     (monster as any).jitterTimer = 0;
-    (monster as any).hp = 20 + this.wave * 30;
-    (monster as any).maxHp = 20 + this.wave * 30;
-    (monster as any).damage = 1 + this.wave;
+    const distFromStart = Math.hypot(monster.x, monster.y) / 500;
+    (monster as any).hp = 20 + distFromStart * 15;
+    (monster as any).maxHp = (monster as any).hp;
+    (monster as any).damage = 1 + distFromStart * 0.5;
 
     // HP Bar
     const hpBar = new Graphics();
@@ -1630,7 +1635,9 @@ export class GameManager {
         bullet.x = this.player.x;
         bullet.y = this.player.y - 12; // Shoot from barrel level
 
-        const spreadParams = stats.projectilesPerShot > 1 ? (Math.random() - 0.5) * stats.spread : (Math.random() - 0.5) * stats.spread;
+        const spreadModifier = this.isAiming ? 0.02 : 1.0;
+        const baseSpread = stats.projectilesPerShot > 1 ? (Math.random() - 0.5) * stats.spread : (Math.random() - 0.5) * stats.spread;
+        const spreadParams = baseSpread * spreadModifier;
         const finalAngle = baseAngle + spreadParams;
 
         bullet.rotation = finalAngle;
@@ -1726,35 +1733,7 @@ export class GameManager {
 
     if (this.playerHP <= 0 || this.isInventoryOpen || this.isSettingsOpen) return; // Freeze simulation on death, inventory, or settings
 
-    if (this.gameMode === 'wave') {
-      if (this.gameState === 'playing') {
-        if (this.enemiesToSpawn > 0) {
-          this.waveSpawnTimer -= dt;
-          const spawnDelay = Math.max(5, 45 - this.wave * 5); // gets faster
-          if (this.waveSpawnTimer <= 0) {
-            this.spawnMonster();
-            this.enemiesToSpawn--;
-            this.enemiesAlive++;
-            this.waveSpawnTimer = spawnDelay;
-            this.dispatchState(); // Tick HUD
-          }
-        } else if (this.enemiesAlive <= 0) {
-          this.startMerchantPhase();
-        }
-      } else if (this.gameState === 'merchant') {
-        this.merchantTimer -= dt;
-        this.dispatchState();
 
-        if (this.merchantTimer <= 0 || this.keys['KeyG']) {
-          this.startNextWave();
-        } else if (this.keys['KeyF'] && this.merchantSprite) {
-          const dist = Math.hypot(this.player.x - this.merchantSprite.x, this.player.y - this.merchantSprite.y);
-          if (dist < 100) {
-            window.dispatchEvent(new CustomEvent('shop-open'));
-          }
-        }
-      }
-    } else if (this.gameMode === 'dungeon') {
       // Open-world updates
       this.updateChunks();
 
@@ -1953,13 +1932,11 @@ export class GameManager {
         this.damagePopups.push({ sprite: clearText, life: 120 });
       }
 
-    }
-
     // Dungeon interaction zones
     let isNearMerchant = false;
     let isNearPortal = false;
 
-    if (this.gameMode === 'dungeon' && this.merchantSprite) {
+    if (this.merchantSprite) {
        const dist = Math.hypot(this.player.x - this.merchantSprite.x, this.player.y - this.merchantSprite.y);
        if (dist < 100) {
           isNearMerchant = true;
@@ -1970,7 +1947,7 @@ export class GameManager {
        }
     }
 
-    if (this.gameMode === 'dungeon' && this.portalSprite && this.portalSprite.parent) {
+    if (this.portalSprite && this.portalSprite.parent) {
        const pDist = Math.hypot(this.player.x - this.portalSprite.x, this.player.y - this.portalSprite.y);
        if (pDist < 80) {
           // Check if Gatekeeper is dead
@@ -2106,7 +2083,7 @@ export class GameManager {
       } else {
         // Wacky smooth math: Quadratic ease-out speed + Sine wave jumping
         const p = 1 - (this.rollTimer / 24); // 0.0 to 1.0 progress
-        speed = 40 * Math.pow(1 - p, 2) * dt; 
+        speed = 58 * Math.pow(1 - p, 2) * dt; 
         
         // Z-axis jump offset for extreme smoothness
         this.player.anchor.y = 0.875 + Math.sin(p * Math.PI) * 0.35;
@@ -2122,7 +2099,8 @@ export class GameManager {
         this.rollCooldownTimer = 48; // 0.8s cooldown
         this.rollDirection = { x: dx, y: dy };
         this.isInvulnerable = true;
-        speed = 36 * dt; // Initial burst speed
+        this.invulnerableTimer = 24;
+        speed = 45 * dt; // Initial burst speed
         this.keys['KeyQ'] = false;
         this.keys['KeyC'] = false; 
       } else {
@@ -2258,9 +2236,9 @@ export class GameManager {
       }
     }
 
-    // Cursor-based targeting
-    const worldMouseX = this.mouseX - this.worldContainer.x;
-    const worldMouseY = this.mouseY - this.worldContainer.y;
+    // Cursor-based targeting (accounting for 1.5x zoom scale)
+    const worldMouseX = (this.mouseX - this.worldContainer.x) / 1.5;
+    const worldMouseY = (this.mouseY - this.worldContainer.y) / 1.5;
     const targetAngle = Math.atan2(worldMouseY - this.gunSprite.y, worldMouseX - this.gunSprite.x);
 
     // Use items or shoot Ã¢â‚¬â€ always read activeSlot fresh, never cache the object
@@ -2426,7 +2404,6 @@ export class GameManager {
     // Sprite flipping & bouncy physics
     const flipSign = Math.abs(targetAngle) > Math.PI / 2 ? -4 : 4;
     
-    if (this.gameMode === 'dungeon') {
         const isMoving = dx !== 0 || dy !== 0;
         if (isMoving && !this.isRolling) {
             this.player.scale.y = 4 + Math.sin(performance.now() / 60) * 0.3;
@@ -2438,9 +2415,6 @@ export class GameManager {
             this.player.scale.x = Math.sign(flipSign) * (Math.abs(this.player.scale.x) + (4 - Math.abs(this.player.scale.x)) * scaleBlend);
             this.player.rotation += (0 - this.player.rotation) * scaleBlend;
         }
-    } else {
-        this.player.scale.x = flipSign;
-    }
 
     // Apply Smooth Acceleration / Friction
     const targetVx = dx * speed;
@@ -2452,32 +2426,31 @@ export class GameManager {
     const nextX = this.player.x + this.playerVx * dt;
     const nextY = this.player.y + this.playerVy * dt;
 
-    if (this.gameMode === 'dungeon') {
-      // True Mesh-Based Sliding Collision (Circle vs Circle)
-      const playerRadius = 16;
-      
-      const checkGridCollision = (px: number, py: number) => {
-        const minCX = Math.floor((px - playerRadius) / TILE_PX);
-        const maxCX = Math.floor((px + playerRadius) / TILE_PX);
-        const minCY = Math.floor((py - playerRadius) / TILE_PX);
-        const maxCY = Math.floor((py + playerRadius) / TILE_PX);
+    // True Mesh-Based Sliding Collision (Circle vs Circle)
+    const playerRadius = 16;
+    
+    const checkGridCollision = (px: number, py: number) => {
+      const minCX = Math.floor((px - playerRadius) / TILE_PX);
+      const maxCX = Math.floor((px + playerRadius) / TILE_PX);
+      const minCY = Math.floor((py - playerRadius) / TILE_PX);
+      const maxCY = Math.floor((py + playerRadius) / TILE_PX);
 
-        for (let x = minCX; x <= maxCX; x++) {
-          for (let y = minCY; y <= maxCY; y++) {
-            if (this.waterCells.has(`${x},${y}`)) return true;
-          }
+      for (let x = minCX; x <= maxCX; x++) {
+        for (let y = minCY; y <= maxCY; y++) {
+          if (this.waterCells.has(`${x},${y}`)) return true;
         }
-        return false;
-      };
-
-      // 1. Hard Grid Boundaries (Water)
-      if (!checkGridCollision(nextX, this.player.y)) {
-        this.player.x = nextX;
-      } else {
-        this.playerVx = 0;
       }
-      
-      if (!checkGridCollision(this.player.x, nextY)) {
+      return false;
+    };
+
+    // 1. Hard Grid Boundaries (Water)
+    if (!checkGridCollision(nextX, this.player.y)) {
+      this.player.x = nextX;
+    } else {
+      this.playerVx = 0;
+    }
+    
+    if (!checkGridCollision(this.player.x, nextY)) {
         this.player.y = nextY;
       } else {
         this.playerVy = 0;
@@ -2491,6 +2464,7 @@ export class GameManager {
           const chunk = this.chunks.get(`${cx},${cy}`);
           if (chunk) {
             for (const prop of chunk.props) {
+              if (prop.destroyed) continue;
               const propRadius = prop.width * 0.25;
               const minDist = playerRadius + propRadius;
               const cdx = this.player.x - prop.x;
@@ -2518,16 +2492,7 @@ export class GameManager {
           }
         }
       }
-    } else {
-      this.player.x = nextX;
-      this.player.y = nextY;
-      const pDist = Math.hypot(this.player.x, this.player.y);
-      if (pDist > 1000 - 32) {
-        const pAngle = Math.atan2(this.player.y, this.player.x);
-        this.player.x = Math.cos(pAngle) * (1000 - 32);
-        this.player.y = Math.sin(pAngle) * (1000 - 32);
-      }
-    }
+
 
     // Process Coin Drops
     for (let i = this.coinDrops.length - 1; i >= 0; i--) {
@@ -2608,7 +2573,7 @@ export class GameManager {
         b.sprite.y += b.vy * dt;
 
         // Bullet Wall/Prop Collision
-        if (this.gameMode === 'dungeon') {
+        {
           // Check against meshes
           const pcx = Math.floor(b.sprite.x / CHUNK_PX);
           const pcy = Math.floor(b.sprite.y / CHUNK_PX);
@@ -2619,6 +2584,7 @@ export class GameManager {
               const chunk = this.chunks.get(`${cx},${cy}`);
               if (chunk && !collided) {
                 for (const prop of chunk.props) {
+                   if (prop.destroyed) continue;
                    // Bullet hits the "body" of the prop (center of visual width/height)
                    const propRadius = prop.width * 0.35;
                    const dx = b.sprite.x - prop.x;
@@ -2628,7 +2594,7 @@ export class GameManager {
                       collided = true;
                       
                       if (!b.isEnemy) {
-                         if (prop.texture === this.mapTextures.crate) {
+                         if ((prop as any).texture === this.mapTextures.crate) {
                             // Find and damage crate
                             for (let d = this.destructibles.length - 1; d >= 0; d--) {
                                const crate = this.destructibles[d];
@@ -2644,6 +2610,10 @@ export class GameManager {
                                      this.obstacleCells.delete(`${crate.x},${crate.y}`);
                                      this.worldContainer.removeChild(crate.sprite);
                                      crate.sprite.destroy();
+                                     if (crate.shadow) {
+                                        this.worldContainer.removeChild(crate.shadow);
+                                        crate.shadow.destroy();
+                                     }
                                      this.destructibles.splice(d, 1);
                                      
                                      const propIdx = chunk.props.indexOf(prop);
@@ -2682,7 +2652,7 @@ export class GameManager {
         // Enemy bullet hitting player (center of mass radius 24)
         if (Math.hypot(b.sprite.x - this.player.x, b.sprite.y - (this.player.y - 24)) < 24 && !this.isInvulnerable) {
           hit = true;
-          this.playerHP -= Math.floor(1 + this.wave * 0.5);
+          this.playerHP -= 2;
           this.isInvulnerable = true;
           this.invulnerableTimer = 60;
           if (this.playerHP <= 0) this.playSound('death');
@@ -2744,10 +2714,10 @@ export class GameManager {
               const isRanged = (monster as any).type === 'ranged';
               // Progression & Rewards
               const isTypedRanged = (monster as any).type === 'ranged';
-              const expGain = isTypedRanged ? 1.5 * Math.max(1, this.wave) : 1.0 * Math.max(1, this.wave);
+              const expGain = isTypedRanged ? 1.5 : 1.0;
               this.gainExp(expGain);
               this.enemiesAlive--;
-              if (this.gameMode === 'dungeon') {
+              {
                 this.openWorldKills++;
               }
               this.dispatchState();
@@ -2806,6 +2776,10 @@ export class GameManager {
         if ((b as any).isMelee) {
           for (let d = this.destructibles.length - 1; d >= 0; d--) {
             const crate = this.destructibles[d];
+            if (!crate.sprite || crate.sprite.destroyed) {
+              this.destructibles.splice(d, 1);
+              continue;
+            }
             const mDist = Math.hypot(this.player.x - crate.sprite.x, (this.player.y - 12) - (crate.sprite.y - crate.sprite.height * 0.4));
             if (mDist < 160) {
               const mAngle = Math.atan2((crate.sprite.y - crate.sprite.height * 0.4) - (this.player.y - 12), crate.sprite.x - this.player.x);
@@ -2828,6 +2802,10 @@ export class GameManager {
                    this.obstacleCells.delete(`${crate.x},${crate.y}`);
                    this.worldContainer.removeChild(crate.sprite);
                    crate.sprite.destroy();
+                   if (crate.shadow) {
+                      this.worldContainer.removeChild(crate.shadow);
+                      crate.shadow.destroy();
+                   }
                    this.destructibles.splice(d, 1);
                    
                    // also remove from chunk.props
@@ -2917,7 +2895,7 @@ export class GameManager {
       const homeY = (monster as any).homeY || monster.y;
 
       // Open-world AI state machine
-      if (this.gameMode === 'dungeon' && (monster as any).aiState) {
+      if ((monster as any).aiState) {
         const aiState = (monster as any).aiState;
 
         if (aiState === 'idle') {
@@ -3101,7 +3079,7 @@ export class GameManager {
       const mNextX = monster.x + moveDirX * monsterSpeed;
       const mNextY = monster.y + moveDirY * monsterSpeed * 0.75;
 
-      if (this.gameMode === 'dungeon') {
+
         const mRadius = 24;
         const checkMCollision = (px: number, py: number) => {
           // 1. Check Floor Bounds & Water
@@ -3124,6 +3102,7 @@ export class GameManager {
               const chunk = this.chunks.get(`${cx},${cy}`);
               if (chunk) {
                 for (const prop of chunk.props) {
+                  if (prop.destroyed) continue;
                   const propRadius = prop.width * 0.25;
                   const dx = px - prop.x;
                   const dy = py - prop.y; // prop.y is exactly at its base
@@ -3143,16 +3122,7 @@ export class GameManager {
         if (!checkMCollision(monster.x, mNextY)) {
           monster.y = mNextY;
         }
-      } else {
-        monster.x = mNextX;
-        monster.y = mNextY;
-        const mDist = Math.hypot(monster.x, monster.y);
-        if (mDist > 1000 - 32) {
-          const mAngle = Math.atan2(monster.y, monster.x);
-          monster.x = Math.cos(mAngle) * (1000 - 32);
-          monster.y = Math.sin(mAngle) * (1000 - 32);
-        }
-      }
+
 
       // Flip monster sprite based on true angle
       if (Math.cos(trueAngle) < 0) monster.scale.x = -4;
@@ -3161,7 +3131,7 @@ export class GameManager {
       // Collision detection with player
       // Tighten player hitbox to 24 pixels from center of body collision instead of feet
       if (Math.hypot(this.player.x - monster.x, (this.player.y - 24) - (monster.y - 24)) < 24 && !this.isInvulnerable) {
-        this.playerHP -= Math.floor(2 + this.wave);
+        this.playerHP -= 2;
         this.isInvulnerable = true;
         this.invulnerableTimer = 60; // Represents roughly 1 second at 60 FPS
         if (this.playerHP <= 0) this.playSound('death');
@@ -3198,38 +3168,63 @@ export class GameManager {
     this.gunSprite.zIndex = this.player.y + 1; // Locked strictly unconditionally above player
 
     // Update Explored Footprint (3x3 grid around player)
-    if (this.gameMode === 'dungeon') {
-      const px = Math.round(this.player.x / 64);
-      const py = Math.round(this.player.y / 64);
+
+      const epx = Math.round(this.player.x / 64);
+      const epy = Math.round(this.player.y / 64);
       for (let ox = -2; ox <= 2; ox++) {
         for (let oy = -2; oy <= 2; oy++) {
-          const key = `${px + ox},${py + oy}`;
+          const key = `${epx + ox},${epy + oy}`;
           if (this.floorCells.has(key)) {
             this.exploredCells.add(key);
           }
         }
       }
       this.updateMinimap();
-    }
+
 
     for (const monster of this.monsters) {
       monster.zIndex = monster.y;
     }
     // Also rank bullets
-    for (const b of this.bullets) b.sprite.zIndex = b.sprite.y + 10;    // Camera Tracking (Lerped with Look-ahead)
+    for (const b of this.bullets) b.sprite.zIndex = b.sprite.y + 10;
+
+    this.updateCamera(dt);
+  }
+
+  private updateCamera(dt: number) {
+    // Camera Tracking (Lerped with Look-ahead)
     const screenCenter = { x: this.app.screen.width / 2, y: this.app.screen.height / 2 };
-    const lookAheadX = (this.mouseX - screenCenter.x) * 0.2;
-    const lookAheadY = (this.mouseY - screenCenter.y) * 0.2;
+    
+    // Adjust camera to look less wide and more centered on the player
+    this.worldContainer.scale.set(1.5); // Zoom in
+    
+    // Smoothly transition the look-ahead amount to avoid stuttering teleports
+    const targetLookAheadAmount = this.isAiming ? 0.35 : 0.05;
+    if (!this.currentLookAheadAmount) this.currentLookAheadAmount = 0.05;
+    this.currentLookAheadAmount += (targetLookAheadAmount - this.currentLookAheadAmount) * (1 - Math.pow(0.85, dt));
+
+    // Convert the screen pixel offset into world units by dividing by the 1.5 scale
+    const lookAheadX = ((this.mouseX - screenCenter.x) / 1.5) * this.currentLookAheadAmount;
+    const lookAheadY = ((this.mouseY - screenCenter.y) / 1.5) * this.currentLookAheadAmount;
     
     const targetCamX = this.player.x + lookAheadX;
     const targetCamY = this.player.y - 24 + lookAheadY;
     
-    const camBlend = 1 - Math.pow(0.88, dt);
+    const camSpeed = this.isAiming ? 0.82 : 0.88; // slightly slower when aiming for cinematic feel
+    const camBlend = 1 - Math.pow(camSpeed, dt);
     this.cameraX += (targetCamX - this.cameraX) * camBlend;
     this.cameraY += (targetCamY - this.cameraY) * camBlend;
 
-    this.worldContainer.x = screenCenter.x - this.cameraX;
-    this.worldContainer.y = screenCenter.y - this.cameraY;
+    this.worldContainer.x = screenCenter.x - (this.cameraX * 1.5);
+    this.worldContainer.y = screenCenter.y - (this.cameraY * 1.5);
+
+    // Update Vignette
+    if (this.vignette) {
+      this.vignette.width = this.app.screen.width;
+      this.vignette.height = this.app.screen.height;
+      const targetVignetteAlpha = this.isAiming ? 1.0 : 0.0;
+      this.vignette.alpha += (targetVignetteAlpha - this.vignette.alpha) * 0.1 * dt;
+    }
 
     // Update Minimap UI Position in case screen resized
     if (this.minimapContainer) {
@@ -3301,6 +3296,7 @@ export class GameManager {
   public destroy() {
     this.destroyed = true;
     if (GameManager.activeInstance === this) GameManager.activeInstance = null;
+    window.removeEventListener('contextmenu', this.handleContextMenu);
     window.removeEventListener('keydown', this.handleKeyDown);
     window.removeEventListener('keyup', this.handleKeyUp);
     window.removeEventListener('mousemove', this.handleMouseMove);

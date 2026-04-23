@@ -1,29 +1,18 @@
-<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
-  <rect x="5" y="11" width="1" height="1" fill="#0000CD" />
-  <rect x="7" y="11" width="1" height="1" fill="#0000CD" />
-  <rect x="8" y="11" width="1" height="1" fill="#0000CD" />
-  <rect x="4" y="12" width="1" height="1" fill="#0000CD" />
-  <rect x="5" y="12" width="1" height="1" fill="#0000CD" />
-  <rect x="6" y="12" width="1" height="1" fill="#DC143C" />
-  <rect x="7" y="12" width="1" height="1" fill="#0000CD" />
-  <rect x="8" y="12" width="1" height="1" fill="#0000CD" />
-  <rect x="9" y="12" width="1" height="1" fill="#DC143C" />
-  <rect x="3" y="13" width="1" height="1" fill="#DC143C" />
-  <rect x="4" y="13" width="1" height="1" fill="#DC143C" />
-  <rect x="5" y="13" width="1" height="1" fill="#DC143C" />
-  <rect x="6" y="13" width="1" height="1" fill="#DC143C" />
-  <rect x="7" y="13" width="1" height="1" fill="#DC143C" />
-  <rect x="8" y="13" width="1" height="1" fill="#DC143C" />
-  <rect x="9" y="13" width="1" height="1" fill="#DC143C" />
-  <rect x="10" y="13" width="1" height="1" fill="#DC143C" />
-  <rect x="2" y="14" width="1" height="1" fill="#DC143C" />
-  <rect x="3" y="14" width="1" height="1" fill="#FFD700" />
-  <rect x="4" y="14" width="1" height="1" fill="#FFD700" />
-  <rect x="5" y="14" width="1" height="1" fill="#FFD700" />
-  <rect x="6" y="14" width="1" height="1" fill="#000000" />
-  <rect x="7" y="14" width="1" height="1" fill="#000000" />
-  <rect x="8" y="14" width="1" height="1" fill="#FFD700" />
-  <rect x="9" y="14" width="1" height="1" fill="#FFD700" />
-  <rect x="10" y="14" width="1" height="1" fill="#FFD700" />
-  <rect x="11" y="14" width="1" height="1" fill="#DC143C" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <ellipse cx="32" cy="56" rx="28" ry="12" fill="rgba(13, 71, 161, 0.7)" /> <!-- Big blue blood pool -->
+  <g transform="translate(0, 30) rotate(-90 32 32)">
+    <path d="M 40 32 C 48 30, 52 36, 46 42" fill="#1565C0" stroke="#0D47A1" stroke-width="2" />
+    <path d="M 28 46 L 16 48 L 20 52 L 30 48 Z" fill="#1565C0" stroke="#0D47A1" stroke-width="2" />
+    <path d="M 36 46 L 48 48 L 44 52 L 34 48 Z" fill="#1565C0" stroke="#0D47A1" stroke-width="2" />
+    <path d="M 26 28 Q 32 34 38 28 L 36 46 Q 32 48 28 46 Z" fill="#211261" stroke="#1A237E" stroke-width="2"/>
+    <path d="M 24 32 C 16 36, 18 46, 26 42" fill="#1565C0" stroke="#0D47A1" stroke-width="2" />
+
+    <g transform="translate(-10, -10) rotate(-45 32 22)">
+      <ellipse cx="32" cy="22" rx="12" ry="10" fill="#1565C0" stroke="#0D47A1" stroke-width="2" />
+      <path d="M 20 22 Q 10 18 12 26 Z" fill="#1565C0" stroke="#0D47A1" stroke-width="2"/>
+      <path d="M 44 22 Q 54 18 52 26 Z" fill="#1565C0" stroke="#0D47A1" stroke-width="2"/>
+      <path d="M 25 18 L 29 22 M 29 18 L 25 22" stroke="#0D47A1" stroke-width="2" stroke-linecap="round"/>
+      <path d="M 35 18 L 39 22 M 39 18 L 35 22" stroke="#0D47A1" stroke-width="2" stroke-linecap="round"/>
+    </g>
+  </g>
 </svg>

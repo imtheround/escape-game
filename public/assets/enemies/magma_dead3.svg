@@ -1,26 +1,3 @@
-<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
-  <rect x="5" y="10" width="1" height="1" fill="#FF6600" />
-  <rect x="7" y="10" width="1" height="1" fill="#FF6600" />
-  <rect x="8" y="10" width="1" height="1" fill="#FF6600" />
-  <rect x="4" y="11" width="1" height="1" fill="#FF6600" />
-  <rect x="5" y="11" width="1" height="1" fill="#FF6600" />
-  <rect x="6" y="11" width="1" height="1" fill="#CC3300" />
-  <rect x="7" y="11" width="1" height="1" fill="#FF6600" />
-  <rect x="8" y="11" width="1" height="1" fill="#FF6600" />
-  <rect x="3" y="12" width="1" height="1" fill="#FF6600" />
-  <rect x="4" y="12" width="1" height="1" fill="#FF9900" />
-  <rect x="5" y="12" width="1" height="1" fill="#FF9900" />
-  <rect x="6" y="12" width="1" height="1" fill="#FF9900" />
-  <rect x="7" y="12" width="1" height="1" fill="#FF9900" />
-  <rect x="8" y="12" width="1" height="1" fill="#FF9900" />
-  <rect x="9" y="12" width="1" height="1" fill="#FF6600" />
-  <rect x="2" y="13" width="1" height="1" fill="#FF6600" />
-  <rect x="3" y="13" width="1" height="1" fill="#CC3300" />
-  <rect x="4" y="13" width="1" height="1" fill="#CC3300" />
-  <rect x="5" y="13" width="1" height="1" fill="#CC3300" />
-  <rect x="6" y="13" width="1" height="1" fill="#CC3300" />
-  <rect x="7" y="13" width="1" height="1" fill="#CC3300" />
-  <rect x="8" y="13" width="1" height="1" fill="#CC3300" />
-  <rect x="9" y="13" width="1" height="1" fill="#CC3300" />
-  <rect x="10" y="13" width="1" height="1" fill="#FF6600" />
+<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+<ellipse cx="16" cy="28" rx="14" ry="5" fill="#370617" /><path d="M 10 28 L 12 24 M 18 28 L 22 26" stroke="#6a040f" stroke-width="2" />
 </svg>
