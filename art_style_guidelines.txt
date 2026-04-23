@@ -1,0 +1,30 @@
+ESCAPE GAME - ART STYLE GUIDELINES
+Reference: Soul Knight Aesthetic (e.g., Knight, Wizard)
+
+1. RESOLUTION & GRID
+- All characters, mobs, and weapons should fit snugly within a strict 16x16 pixel grid.
+- The art must be "chunky" and distinctly retro. Avoid using high-resolution curves or sub-pixels.
+
+2. PROPORTIONS (CHIBI / STUBBY)
+- Heads/Helmets/Hoods should be massive, taking up roughly 60% to 70% of the entire character sprite.
+- Legs should be extremely short and stubby (usually 1 or 2 pixels high).
+- Arms are typically not drawn by default unless the character is actively holding a weapon. The body is effectively just a head sitting on tiny feet.
+
+3. OUTLINES (CRITICAL)
+- Every single character, enemy, and weapon MUST have a solid, 1-pixel thick, pure black (#000000) outline tracing its entire outer silhouette. 
+- The black outline separates the sprite from the chaotic open-world background and gives it that signature punchy, pop-art look.
+
+4. COLOR PALETTE
+- Extremely bright, vibrant, and highly saturated colors. 
+- Avoid muddy or washed-out tones. If it's red, it should be a striking, bright red.
+- High contrast is key.
+
+5. SHADING & HIGHLIGHTS
+- Minimalist, 3-tone cell shading per material (Highlight, Base, Shadow).
+- No soft gradients.
+- Example: Silver armor should have a solid light silver highlight on the top edge, a base medium grey for the center, and a dark grey shadow near the bottom.
+
+6. FACIAL FEATURES
+- Keep faces minimal and heavily stylized.
+- Often, characters have their faces obscured by helmets, hoods, or masks.
+- Use bright, glowing single-pixel or two-pixel dots for eyes peering out from dark visor slits or shadowy hoods (e.g., glowing red eyes in the dark).

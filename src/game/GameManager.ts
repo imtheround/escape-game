@@ -19,7 +19,7 @@ export interface WeaponStats {
 export const WeaponRegistry: Record<string, WeaponStats> = {
   gun: { id: 'gun', type: 'ranged', damage: 30, fireRate: 250, spread: 0.05, projectilesPerShot: 1, movementPenalty: 1.0, firingMovementPenalty: 0.9, spriteName: 'gun', projectileSpriteName: 'bullet', sfx: 'shoot', maxAmmo: 12, reloadTime: 1200 },
   sword: { id: 'sword', type: 'melee', damage: 45, fireRate: 700, spread: 0, projectilesPerShot: 1, movementPenalty: 1.1, firingMovementPenalty: 1.0, spriteName: 'sword', projectileSpriteName: 'sword', sfx: 'sword_swing' },
-  machine_gun: { id: 'machine_gun', type: 'ranged', damage: 35, fireRate: 100, spread: 0.3, projectilesPerShot: 1, movementPenalty: 0.85, firingMovementPenalty: 0.4, spriteName: 'machine_gun', projectileSpriteName: 'mg_bullet', sfx: 'mg_shoot', maxAmmo: 50, reloadTime: 2500 },
+  machine_gun: { id: 'machine_gun', type: 'ranged', damage: 35, fireRate: 100, spread: 0.6, projectilesPerShot: 1, movementPenalty: 0.85, firingMovementPenalty: 0.4, spriteName: 'machine_gun', projectileSpriteName: 'mg_bullet', sfx: 'mg_shoot', maxAmmo: 50, reloadTime: 2500 },
   shotgun: { id: 'shotgun', type: 'ranged', damage: 15, fireRate: 800, spread: 0.8, projectilesPerShot: 5, movementPenalty: 0.95, firingMovementPenalty: 0.6, spriteName: 'shotgun', projectileSpriteName: 'shotgun_pellet', sfx: 'shotgun_blast', maxAmmo: 9, reloadTime: 600 }
 };
 
@@ -288,6 +288,7 @@ export class GameManager {
   private ambientContainer!: Container;
 
   private spawnParticles(x: number, y: number, color: number, count: number, isDash: boolean = false) {
+    if (this.particles.length >= 100) return; // Hard cap to prevent GPU overload
     for (let i = 0; i < count; i++) {
       const radius = isDash ? 3 : 2 + Math.random() * 3;
       const p = new Graphics().circle(0, 0, radius).fill(color);
@@ -329,9 +330,30 @@ export class GameManager {
     pool[0].play().catch(() => { });
   }
 
+  private lastDispatchTime = 0;
+  private dispatchPending = false;
+
   // Custom Events Dispatcher Helper
   // CRITICAL: Deep-clone every slot so React sees new object references
-  private dispatchState() {
+  private dispatchState(force: boolean = false) {
+    const now = performance.now();
+    if (force || now - this.lastDispatchTime > 66) {
+        this.actuallyDispatchState();
+        this.lastDispatchTime = performance.now();
+        this.dispatchPending = false;
+    } else if (!this.dispatchPending) {
+        this.dispatchPending = true;
+        setTimeout(() => {
+            if (!this.destroyed) {
+                this.actuallyDispatchState();
+                this.lastDispatchTime = performance.now();
+                this.dispatchPending = false;
+            }
+        }, 66 - (now - this.lastDispatchTime));
+    }
+  }
+
+  private actuallyDispatchState() {
     const clonedInv = this.inventory.map(s => ({ id: s.id, count: s.count }));
     window.dispatchEvent(new CustomEvent('inventory-change', {
       detail: {
@@ -360,7 +382,10 @@ export class GameManager {
   constructor() {
     this.app = new Application();
     this.worldContainer = new Container();
-    this.worldContainer.sortableChildren = true;
+    // sortableChildren DISABLED for performance — zIndex sorting of thousands
+    // of children every frame was the #1 bottleneck. We manually call
+    // sortChildren() only when the child list actually changes (spawn/despawn).
+    this.worldContainer.sortableChildren = false;
   }
 
   public async init(container: HTMLElement) {
@@ -375,7 +400,7 @@ export class GameManager {
       resizeTo: container,
       backgroundColor: 0x111118,
       antialias: false,
-      resolution: window.devicePixelRatio || 1,
+      resolution: 1, // Capped at 1 for performance on low-end hardware
       autoDensity: true,
     });
 
@@ -774,44 +799,7 @@ export class GameManager {
   }
 
   private updateAmbiance(dt: number) {
-     
-     
-     // Spawn ambient particles randomly around player
-     if (Math.random() < 0.25) {
-        const p = new Graphics();
-        // Vary color based on biome: 0=plains(pollen), 1=magma(embers), 2=void(dust)
-        const biome = this.getBiomeAt(this.player.x, this.player.y);
-        const color = biome === 0 ? 0xd0f0c0 : biome === 1 ? 0xffaa00 : 0xaa88ff;
-        
-        p.circle(0, 0, 1.5 + Math.random() * 2).fill({color, alpha: 0.5});
-        // Spawn far off-screen so they drift in naturally
-        p.x = this.player.x + (Math.random() - 0.5) * 2500;
-        p.y = this.player.y + (Math.random() - 0.5) * 2000;
-        p.zIndex = 999999; // Float above everything
-        
-        // Wind drift
-        const vx = 15 + Math.random() * 25; // Drift right
-        const vy = -10 + (Math.random() - 0.5) * 15; // Drift slightly up
-        
-        this.worldContainer.addChild(p);
-        this.ambientParticles.push({
-           sprite: p, vx, vy, life: 800, maxLife: 800, rotSpeed: (Math.random() - 0.5) * 0.1
-        });
-     }
-
-     for (let i = this.ambientParticles.length - 1; i >= 0; i--) {
-        const p = this.ambientParticles[i];
-        p.life -= dt;
-        p.sprite.x += p.vx * dt;
-        p.sprite.y += (p.vy + Math.sin(p.life / 20) * 10) * dt; // Sine wave bobbing
-        p.sprite.alpha = (p.life / p.maxLife) * 0.5;
-        p.sprite.rotation += p.rotSpeed * dt;
-        if (p.life <= 0) {
-           this.worldContainer.removeChild(p.sprite);
-           p.sprite.destroy();
-           this.ambientParticles.splice(i, 1);
-        }
-     }
+      // Deprecated: ambient particle logic is now handled in the main update loop.
   }
 
   private initOpenWorld() {
@@ -1585,7 +1573,7 @@ export class GameManager {
       // Melee uses physical sword rotation with wide arc
       const swing = new Sprite(this.weaponTextures.sword || this.weaponTextures.gun);
       swing.anchor.set(0.5, 0.95);
-      swing.scale.set(6);
+      swing.scale.set(1.5);
       swing.x = this.player.x;
       swing.y = this.player.y - 12;
       swing.visible = false; // We just mathematically track the swing
@@ -1635,7 +1623,7 @@ export class GameManager {
         bullet.x = this.player.x;
         bullet.y = this.player.y - 12; // Shoot from barrel level
 
-        const spreadModifier = this.isAiming ? 0.02 : 1.0;
+        const spreadModifier = this.isAiming ? 0.5 : 1.0;
         const baseSpread = stats.projectilesPerShot > 1 ? (Math.random() - 0.5) * stats.spread : (Math.random() - 0.5) * stats.spread;
         const spreadParams = baseSpread * spreadModifier;
         const finalAngle = baseAngle + spreadParams;
@@ -1677,8 +1665,8 @@ export class GameManager {
     const isMagma = this.getBiomeAt(px, py) === 1;
     const isVoid = this.getBiomeAt(px, py) === 2;
     
-    // Spawn new ambient particle around camera
-    if (Math.random() < 0.4) { 
+    // Spawn new ambient particle around camera (throttled for perf)
+    if (Math.random() < 0.08 && this.ambientParticles.length < 30) { 
        const p = new Graphics();
        let color = 0xffffff;
        if (isMagma) color = 0xff5500;
@@ -1687,7 +1675,7 @@ export class GameManager {
        
        const size = 1 + Math.random() * 2;
        p.circle(0, 0, size).fill({color, alpha: 0.3 + Math.random()*0.3});
-       p.blendMode = 'add';
+       // blendMode removed for performance (forces separate draw calls)
        
        const sx = (Math.random() - 0.5) * this.app.screen.width * 1.5;
        const sy = (Math.random() - 0.5) * this.app.screen.height * 1.5;
@@ -1743,7 +1731,6 @@ export class GameManager {
          this.generateChunk(q.cx, q.cy);
       }
       this.updateSpawns();
-      this.updateAmbiance(dt);
 
       // Update fire trails
       for (let i = this.fireTrails.length - 1; i >= 0; i--) {
@@ -1916,7 +1903,7 @@ export class GameManager {
         this.spawnOpenWorldEnemy(sp);
         if (sp.currentMonster) {
              (sp.currentMonster as any).isGatekeeper = true;
-             sp.currentMonster.scale.set(8); // Make it huge (4 is normal, 8 is 2x)
+             sp.currentMonster.scale.set(2); // Make it huge (1 is normal, 2 is 2x)
              (sp.currentMonster as any).maxHp *= 3;
              (sp.currentMonster as any).hp = (sp.currentMonster as any).maxHp;
              (sp.currentMonster as any).damage *= 2;
@@ -2055,7 +2042,7 @@ export class GameManager {
     }
 
     // Base Speed processing
-    let speed = 8 * dt;
+    let speed = 8;
     let dx = 0;
     let dy = 0;
 
@@ -2083,7 +2070,7 @@ export class GameManager {
       } else {
         // Wacky smooth math: Quadratic ease-out speed + Sine wave jumping
         const p = 1 - (this.rollTimer / 24); // 0.0 to 1.0 progress
-        speed = 58 * Math.pow(1 - p, 2) * dt; 
+        speed = 58 * Math.pow(1 - p, 2); 
         
         // Z-axis jump offset for extreme smoothness
         this.player.anchor.y = 0.875 + Math.sin(p * Math.PI) * 0.35;
@@ -2100,7 +2087,7 @@ export class GameManager {
         this.rollDirection = { x: dx, y: dy };
         this.isInvulnerable = true;
         this.invulnerableTimer = 24;
-        speed = 45 * dt; // Initial burst speed
+        speed = 45; // Initial burst speed
         this.keys['KeyQ'] = false;
         this.keys['KeyC'] = false; 
       } else {
@@ -2127,12 +2114,17 @@ export class GameManager {
     this.staminaGroup.y += (targetY - this.staminaGroup.y) * Math.min(1, 0.15 * dt);
     
     // Floating Circle Arc logic
-    this.staminaBarFill.clear();
+    // Only redraw stamina arc when the visual value actually changes
     const progress = Math.max(0, this.stamina / this.maxStamina);
-    if (progress > 0) {
-      this.staminaBarFill.arc(0, 0, 10, -Math.PI / 2, -Math.PI / 2 + (Math.PI * 2 * progress));
-      const barColor = (this.stamina < 50 || this.rollCooldownTimer > 0) ? 0xFFA500 : 0x00FF00;
-      this.staminaBarFill.stroke({ width: 8, color: barColor, cap: 'round' });
+    const staminaKey = Math.round(progress * 50); // 50 visual steps is plenty smooth
+    if ((this as any)._lastStaminaKey !== staminaKey) {
+      (this as any)._lastStaminaKey = staminaKey;
+      this.staminaBarFill.clear();
+      if (progress > 0) {
+        this.staminaBarFill.arc(0, 0, 10, -Math.PI / 2, -Math.PI / 2 + (Math.PI * 2 * progress));
+        const barColor = (this.stamina < 50 || this.rollCooldownTimer > 0) ? 0xFFA500 : 0x00FF00;
+        this.staminaBarFill.stroke({ width: 8, color: barColor, cap: 'round' });
+      }
     }
     // Auto-hide stamina bar when full and not on cooldown
     if (this.stamina >= this.maxStamina && this.rollCooldownTimer <= 0) {
@@ -2236,9 +2228,9 @@ export class GameManager {
       }
     }
 
-    // Cursor-based targeting (accounting for 1.5x zoom scale)
-    const worldMouseX = (this.mouseX - this.worldContainer.x) / 1.5;
-    const worldMouseY = (this.mouseY - this.worldContainer.y) / 1.5;
+    // Cursor-based targeting (accounting for zoom scale)
+    const worldMouseX = (this.mouseX - this.worldContainer.x) / 1.0;
+    const worldMouseY = (this.mouseY - this.worldContainer.y) / 1.0;
     const targetAngle = Math.atan2(worldMouseY - this.gunSprite.y, worldMouseX - this.gunSprite.x);
 
     // Use items or shoot Ã¢â‚¬â€ always read activeSlot fresh, never cache the object
@@ -2372,7 +2364,7 @@ export class GameManager {
     // targetAngle is calculated above based on cursor
 
     const isMeleeEquipped = WeaponRegistry[slotId] && WeaponRegistry[slotId].type === 'melee';
-    const defaultScale = isMeleeEquipped ? 6 : 3;
+    const defaultScale = isMeleeEquipped ? 3 : 1.5;
 
     if (isSwinging && isMeleeEquipped && meleeBullet) {
        this.gunSprite.scale.set(defaultScale);
@@ -2736,7 +2728,7 @@ export class GameManager {
               const textures = (monster as any).enemyTypeId ? this.getEnemyTexturesForType((monster as any).enemyTypeId) : (isRanged ? this.goblinBlueTextures : this.goblinTextures);
               const corpse = new Sprite(textures.dead1 ? textures.dead1[0] : textures.run[0]);
               corpse.anchor.set(0.5, 0.8125);
-              corpse.scale.set(4);
+              corpse.scale.set(1);
               corpse.scale.x = monster.scale.x;
               corpse.x = monster.x;
               corpse.y = monster.y;
@@ -2861,12 +2853,12 @@ export class GameManager {
         const bounce = Math.sin(prog * Math.PI) * 0.5 + prog; // Exaggerated wobble curve
 
         monster.alpha = Math.min(1, prog * 2);
-        monster.scale.set(bounce * 4);
+        monster.scale.set(bounce * 1);
         (monster as any).shadow.scale.set(Math.min(1, prog));
 
         if ((monster as any).spawnTimer <= 0) {
           (monster as any).isSpawning = false;
-          monster.scale.set(4);
+          monster.scale.set(1);
           monster.alpha = 1;
           (monster as any).shadow.scale.set(1);
         }
@@ -3125,8 +3117,9 @@ export class GameManager {
 
 
       // Flip monster sprite based on true angle
-      if (Math.cos(trueAngle) < 0) monster.scale.x = -4;
-      else monster.scale.x = 4;
+      const baseScale = (monster as any).isGatekeeper ? 2 : 1;
+      if (Math.cos(trueAngle) < 0) monster.scale.x = -baseScale;
+      else monster.scale.x = baseScale;
 
       // Collision detection with player
       // Tighten player hitbox to 24 pixels from center of body collision instead of feet
@@ -3139,14 +3132,21 @@ export class GameManager {
       }
 
       // Update Enemy HP Bar
+      // Only redraw HP bar when HP actually changes or position moves significantly
       const hpBar = (monster as any).hpBar as Graphics;
       if ((monster as any).hp < (monster as any).maxHp && (monster as any).hp > 0) {
-        hpBar.visible = true;
-        hpBar.clear();
-        const width = 40;
-        const height = 4;
-        hpBar.rect(monster.x - width / 2, monster.y - 60, width, height).fill(0x330000);
-        hpBar.rect(monster.x - width / 2, monster.y - 60, width * ((monster as any).hp / (monster as any).maxHp), height).fill(0x00ff00);
+        const hpKey = Math.round(((monster as any).hp / (monster as any).maxHp) * 20);
+        const posKey = Math.round(monster.x / 8) * 10000 + Math.round(monster.y / 8);
+        if ((monster as any)._lastHpKey !== hpKey || (monster as any)._lastPosKey !== posKey) {
+          (monster as any)._lastHpKey = hpKey;
+          (monster as any)._lastPosKey = posKey;
+          hpBar.visible = true;
+          hpBar.clear();
+          const width = 40;
+          const height = 4;
+          hpBar.rect(monster.x - width / 2, monster.y - 60, width, height).fill(0x330000);
+          hpBar.rect(monster.x - width / 2, monster.y - 60, width * ((monster as any).hp / (monster as any).maxHp), height).fill(0x00ff00);
+        }
       } else {
         hpBar.visible = false;
       }
@@ -3179,7 +3179,8 @@ export class GameManager {
           }
         }
       }
-      this.updateMinimap();
+      // Throttle minimap to every 10 frames — it's expensive (hundreds of Graphics.rect calls)
+      if (this.frameCount % 10 === 0) this.updateMinimap();
 
 
     for (const monster of this.monsters) {
@@ -3196,16 +3197,16 @@ export class GameManager {
     const screenCenter = { x: this.app.screen.width / 2, y: this.app.screen.height / 2 };
     
     // Adjust camera to look less wide and more centered on the player
-    this.worldContainer.scale.set(1.5); // Zoom in
+    this.worldContainer.scale.set(1.0); // Zoom out to increase camera view
     
     // Smoothly transition the look-ahead amount to avoid stuttering teleports
     const targetLookAheadAmount = this.isAiming ? 0.35 : 0.05;
     if (!this.currentLookAheadAmount) this.currentLookAheadAmount = 0.05;
     this.currentLookAheadAmount += (targetLookAheadAmount - this.currentLookAheadAmount) * (1 - Math.pow(0.85, dt));
 
-    // Convert the screen pixel offset into world units by dividing by the 1.5 scale
-    const lookAheadX = ((this.mouseX - screenCenter.x) / 1.5) * this.currentLookAheadAmount;
-    const lookAheadY = ((this.mouseY - screenCenter.y) / 1.5) * this.currentLookAheadAmount;
+    // Convert the screen pixel offset into world units by dividing by the 1.0 scale
+    const lookAheadX = ((this.mouseX - screenCenter.x) / 1.0) * this.currentLookAheadAmount;
+    const lookAheadY = ((this.mouseY - screenCenter.y) / 1.0) * this.currentLookAheadAmount;
     
     const targetCamX = this.player.x + lookAheadX;
     const targetCamY = this.player.y - 24 + lookAheadY;
@@ -3215,8 +3216,8 @@ export class GameManager {
     this.cameraX += (targetCamX - this.cameraX) * camBlend;
     this.cameraY += (targetCamY - this.cameraY) * camBlend;
 
-    this.worldContainer.x = screenCenter.x - (this.cameraX * 1.5);
-    this.worldContainer.y = screenCenter.y - (this.cameraY * 1.5);
+    this.worldContainer.x = screenCenter.x - (this.cameraX * 1.0);
+    this.worldContainer.y = screenCenter.y - (this.cameraY * 1.0);
 
     // Update Vignette
     if (this.vignette) {
