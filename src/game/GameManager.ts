@@ -281,7 +281,7 @@ export class GameManager {
   private playerShadow!: Graphics;
   private minimapGraphics!: Graphics;
   private minimapContainer!: Container;
-  private particles: { sprite: Sprite, vx: number, vy: number, life: number, maxLife: number }[] = [];
+  private particles: { sprite: Sprite, vx: number, vy: number, vz: number, z: number, life: number, maxLife: number }[] = [];
   private crosshair!: Graphics;
 
   private vignette!: Sprite;
@@ -290,14 +290,18 @@ export class GameManager {
   private spawnParticles(x: number, y: number, color: number, count: number, isDash: boolean = false) {
     if (this.particles.length >= 100) return; // Hard cap to prevent GPU overload
     for (let i = 0; i < count; i++) {
-      const radius = isDash ? 3 : 2 + Math.random() * 3;
-      const p = new Graphics().circle(0, 0, radius).fill(color);
+      // Use discrete pixel sizes for chunky retro look
+      const size = isDash ? 4 : Math.floor(3 + Math.random() * 5); 
+      const p = new Graphics().rect(-size, -size, size * 2, size * 2).fill(color);
       p.x = x; p.y = y; p.zIndex = y + 10;
+      // Add slight random rotation restricted to 90 degree increments for strict pixel alignment
+      p.rotation = Math.floor(Math.random() * 4) * (Math.PI / 2);
       this.worldContainer.addChild(p);
       const angle = Math.random() * Math.PI * 2;
-      const speed = isDash ? Math.random() * 2 : Math.random() * 8 + 2;
-      const life = isDash ? 10 + Math.random()*10 : 20 + Math.random()*20;
-      this.particles.push({ sprite: p as any, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: life, maxLife: life });
+      const speed = isDash ? Math.random() * 2 : Math.random() * 8 + 4;
+      const life = isDash ? 10 + Math.random()*10 : 30 + Math.random()*30;
+      const vz = isDash ? 0 : -3 - Math.random() * 5; // Jump up initially
+      this.particles.push({ sprite: p as any, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, vz: vz, z: 0, life: life, maxLife: life });
     }
   }
 
@@ -1673,8 +1677,8 @@ export class GameManager {
        else if (isVoid) color = 0xaa00ff;
        else color = 0xaaddff; // plains gets pollen/fireflies
        
-       const size = 1 + Math.random() * 2;
-       p.circle(0, 0, size).fill({color, alpha: 0.3 + Math.random()*0.3});
+       const size = Math.floor(2 + Math.random() * 3); // 2 to 4 pixels chunky style
+       p.rect(-size, -size, size * 2, size * 2).fill({color, alpha: 0.3 + Math.random()*0.3});
        // blendMode removed for performance (forces separate draw calls)
        
        const sx = (Math.random() - 0.5) * this.app.screen.width * 1.5;
@@ -2151,9 +2155,34 @@ export class GameManager {
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
       p.life -= dt;
-      p.sprite.x += p.vx * dt;
-      p.sprite.y += p.vy * dt;
-      p.sprite.alpha = p.life / p.maxLife;
+      
+      // Top-down fake 3D physics
+      if (p.z < 0 || p.vz < 0) { // In the air
+         p.vz += 0.5 * dt; // Gravity
+         p.z += p.vz * dt;
+         p.sprite.y += p.vz * dt; // visually move up/down
+         
+         // Move in x/y while in air
+         p.sprite.x += p.vx * dt;
+         p.sprite.y += p.vy * dt; // base y movement
+         
+         // Ground collision bounce
+         if (p.z >= 0 && p.vz > 0) {
+            p.z = 0;
+            p.vz *= -0.5; // lose vertical bounce energy
+            p.vx *= 0.6; // friction on bounce
+            p.vy *= 0.6;
+            if (Math.abs(p.vz) < 1) p.vz = 0; // come to rest
+         }
+      } else {
+         // Sliding on ground friction
+         p.vx *= Math.pow(0.8, dt);
+         p.vy *= Math.pow(0.8, dt);
+         p.sprite.x += p.vx * dt;
+         p.sprite.y += p.vy * dt;
+      }
+      
+      p.sprite.alpha = Math.min(1, p.life / (p.maxLife * 0.5)); // Fade out slower
       if (p.life <= 0) {
         this.worldContainer.removeChild(p.sprite);
         p.sprite.destroy();
