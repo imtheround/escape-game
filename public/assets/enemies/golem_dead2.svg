@@ -1,19 +1,52 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80">
-  <ellipse cx="40" cy="72" rx="30" ry="12" fill="rgba(0,0,0,0.5)" />
-  
-  <g transform="translate(0, 20)">
-    <!-- Scattered rocks -->
-    <path d="M 70 56 L 80 60 L 76 72 L 66 68 Z" fill="#757575" stroke="#424242" stroke-width="2" stroke-linejoin="round" />
-    <path d="M 10 56 L 0 60 L 4 72 L 14 68 Z" fill="#757575" stroke="#424242" stroke-width="2" stroke-linejoin="round" />
-
-    <path d="M 20 72 L 16 80 L 26 84 L 28 76 Z" fill="#757575" stroke="#424242" stroke-width="2" stroke-linejoin="round" />
-    <path d="M 60 72 L 64 80 L 54 84 L 52 76 Z" fill="#757575" stroke="#424242" stroke-width="2" stroke-linejoin="round" />
-
-    <!-- Body Core broken in half -->
-    <path d="M 26 56 L 40 44 L 40 76 L 32 76 Z" fill="#9E9E9E" stroke="#424242" stroke-width="2" stroke-linejoin="round"/>
-    <path d="M 54 56 L 40 44 L 40 76 L 48 76 Z" fill="#808080" stroke="#424242" stroke-width="2" stroke-linejoin="round" transform="translate(6, 4) rotate(15 40 60)"/>
-    
-    <!-- Head fallen -->
-    <path d="M 30 40 L 40 32 L 50 40 L 40 48 Z" fill="#BDBDBD" stroke="#424242" stroke-width="2" stroke-linejoin="round" transform="translate(-10, 10) rotate(-45 40 40)"/>
-  </g>
+<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
+  <rect x="6" y="6" width="1" height="1" fill="#555555" />
+  <rect x="7" y="6" width="1" height="1" fill="#555555" />
+  <rect x="5" y="7" width="1" height="1" fill="#555555" />
+  <rect x="6" y="7" width="1" height="1" fill="#777777" />
+  <rect x="7" y="7" width="1" height="1" fill="#777777" />
+  <rect x="8" y="7" width="1" height="1" fill="#555555" />
+  <rect x="4" y="8" width="1" height="1" fill="#555555" />
+  <rect x="5" y="8" width="1" height="1" fill="#777777" />
+  <rect x="6" y="8" width="1" height="1" fill="#777777" />
+  <rect x="7" y="8" width="1" height="1" fill="#777777" />
+  <rect x="8" y="8" width="1" height="1" fill="#777777" />
+  <rect x="9" y="8" width="1" height="1" fill="#555555" />
+  <rect x="3" y="9" width="1" height="1" fill="#555555" />
+  <rect x="4" y="9" width="1" height="1" fill="#777777" />
+  <rect x="5" y="9" width="1" height="1" fill="#777777" />
+  <rect x="6" y="9" width="1" height="1" fill="#777777" />
+  <rect x="7" y="9" width="1" height="1" fill="#777777" />
+  <rect x="8" y="9" width="1" height="1" fill="#777777" />
+  <rect x="9" y="9" width="1" height="1" fill="#777777" />
+  <rect x="10" y="9" width="1" height="1" fill="#555555" />
+  <rect x="2" y="10" width="1" height="1" fill="#555555" />
+  <rect x="3" y="10" width="1" height="1" fill="#777777" />
+  <rect x="4" y="10" width="1" height="1" fill="#777777" />
+  <rect x="5" y="10" width="1" height="1" fill="#777777" />
+  <rect x="6" y="10" width="1" height="1" fill="#777777" />
+  <rect x="7" y="10" width="1" height="1" fill="#777777" />
+  <rect x="8" y="10" width="1" height="1" fill="#777777" />
+  <rect x="9" y="10" width="1" height="1" fill="#777777" />
+  <rect x="10" y="10" width="1" height="1" fill="#777777" />
+  <rect x="11" y="10" width="1" height="1" fill="#555555" />
+  <rect x="2" y="11" width="1" height="1" fill="#555555" />
+  <rect x="3" y="11" width="1" height="1" fill="#999999" />
+  <rect x="4" y="11" width="1" height="1" fill="#999999" />
+  <rect x="5" y="11" width="1" height="1" fill="#999999" />
+  <rect x="6" y="11" width="1" height="1" fill="#999999" />
+  <rect x="7" y="11" width="1" height="1" fill="#999999" />
+  <rect x="8" y="11" width="1" height="1" fill="#999999" />
+  <rect x="9" y="11" width="1" height="1" fill="#999999" />
+  <rect x="10" y="11" width="1" height="1" fill="#999999" />
+  <rect x="11" y="11" width="1" height="1" fill="#555555" />
+  <rect x="2" y="12" width="1" height="1" fill="#555555" />
+  <rect x="3" y="12" width="1" height="1" fill="#555555" />
+  <rect x="4" y="12" width="1" height="1" fill="#555555" />
+  <rect x="5" y="12" width="1" height="1" fill="#555555" />
+  <rect x="6" y="12" width="1" height="1" fill="#555555" />
+  <rect x="7" y="12" width="1" height="1" fill="#555555" />
+  <rect x="8" y="12" width="1" height="1" fill="#555555" />
+  <rect x="9" y="12" width="1" height="1" fill="#555555" />
+  <rect x="10" y="12" width="1" height="1" fill="#555555" />
+  <rect x="11" y="12" width="1" height="1" fill="#555555" />
 </svg>

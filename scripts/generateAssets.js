@@ -44,13 +44,25 @@ const colorMap = {
   'E': '#0f0a20', // Void Wall stone
   'R': '#9d00ff', // Void Wall highlight glow
   'T': '#04020a', // Void Wall shadow
+  // Desert 3-Tone
+  'A': '#F2D588', // Highlight Sand
+  'B': '#E3C16F', // Base Sand
+  'C': '#C4A45D', // Shadow Sand
+  // Ashen City 3-Tone
+  'F': '#333333', // Base Obsidian
+  'G': '#111111', // Shadow Obsidian
+  'H': '#FF4400', // Highlight Magma
 };
 
 function createSVG(grid) {
-  let svg = '<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">\n';
-  for (let y = 0; y < 16; y++) {
-    for (let x = 0; x < 16; x++) {
+  const height = grid.length;
+  const width = grid[0].length;
+  let svg = `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">\n`;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
       const char = grid[y]?.[x] || '.';
+      // CRITICAL: Skip empty pixels to massively reduce SVG file size and parsing time
+      if (char === '.') continue; 
       const color = colorMap[char];
       if (color) {
         svg += `  <rect x="${x}" y="${y}" width="1" height="1" fill="${color}" />\n`;
@@ -261,10 +273,10 @@ const ebulletFrame = [
   "................",
   "................",
   "................",
-  ".......aa.......",
-  "......aaaa......",
-  "......aaaa......",
-  ".......aa.......",
+  ".......ww.......",
+  "......wwww......",
+  "......wwww......",
+  ".......ww.......",
   "................",
   "................",
   "................",
@@ -277,12 +289,12 @@ const gun1 = [
   "................",
   "................",
   "................",
-  "................",
-  "................",
-  ".......ssss.....",
-  "......ssbbbb....",
-  "......ssbbbb....",
-  "......bb........",
+  ".......ssbss....",
+  "......ssssbbbw..",
+  "......ssbbbw....",
+  "......hb........",
+  "......hb........",
+  "......hb........",
   "................",
   "................",
   "................",
@@ -293,33 +305,33 @@ const gun1 = [
 ];
 
 const longKnife = [
-  "..............ss",
-  ".............sss",
-  "............sss.",
-  "...........sss..",
-  "..........sss...",
-  ".........sss....",
-  "........sss.....",
-  ".......sss......",
-  "......sss.......",
-  ".....sss........",
-  "....hy..........",
-  "...hhy..........",
-  "..hhy...........",
+  "...............w",
+  "..............ws",
+  ".............wss",
+  "............wss.",
+  "...........wss..",
+  "..........wss...",
+  ".........wss....",
+  "........wss.....",
+  ".......wss......",
+  "......wss.......",
+  ".....wss........",
+  "....ybs.........",
+  "...hyy..........",
+  "..hby...........",
   ".hhy............",
-  "hh..............",
-  "................"
+  "hh.............."
 ];
 
 const machineGun = [
   "................",
   "................",
   "................",
-  "...ssssssssss...",
-  "...sbbsssssssc..",
-  "....bb...s......",
-  "....b...........",
-  "................",
+  "....ssssssbss...",
+  "...ssbbssssssbc.",
+  "....bb..bs......",
+  "....bb..b.......",
+  "....hh..........",
   "................",
   "................",
   "................",
@@ -334,10 +346,10 @@ const shotgun = [
   "................",
   "................",
   "................",
-  "...sssssss......",
-  "...sbbsshs......",
-  "....bb..........",
-  "....b...........",
+  "....ssssss......",
+  "...shhbbsss.....",
+  "....hh..h.......",
+  "....h...........",
   "................",
   "................",
   "................",
@@ -584,32 +596,32 @@ const mapDir = path.join(publicDir, 'map');
 if (!fs.existsSync(mapDir)) fs.mkdirSync(mapDir, { recursive: true });
 
 const floorGrid = [
-  "1111111111111111",
-  "1211111111111211",
-  "1111111112111111",
-  "1111211111111111",
-  "1111111111111112",
-  "1111111211111111",
-  "1121111111111111",
-  "1111111111112111",
-  "1111111111111111",
-  "1211111211111111",
-  "1111111111111111",
-  "1111111111121111",
-  "1111211111111111",
-  "1111111111111111",
-  "1111111211111121",
-  "1111111111111111"
+  "bbbbbbbbbbbbbbbb",
+  "b22222222222222b",
+  "b21111111111111b",
+  "b21111111111111b",
+  "b211bb111111111b",
+  "b2111b111111111b",
+  "b21111b11111111b",
+  "b211111bb111111b",
+  "b21111111111111b",
+  "b21111111111111b",
+  "b21111111111111b",
+  "b21111111111111b",
+  "b21111111111111b",
+  "b21111111111111b",
+  "b21111111111111b",
+  "bbbbbbbbbbbbbbbb"
 ];
 
 const wall_h = [
-  "................",
-  "................",
-  "................",
-  "3333333333333333",
   "4444444444444444",
   "4444444444444444",
   "3333333333333333",
+  "3333333333333333",
+  "5555555555555555",
+  "5555555555555555",
+  "5555555555555555",
   "5555555555555555",
   "5555555555555555",
   "5555555555555555",
@@ -622,47 +634,83 @@ const wall_h = [
 ];
 
 const wall_v = [
-  "...34435551.....",
-  "...34435551.....",
-  "...34435551.....",
-  "...34435551.....",
-  "...34435551.....",
-  "...34435551.....",
-  "...34435551.....",
-  "...34435551.....",
-  "...34435551.....",
-  "...34435551.....",
-  "...34435551.....",
-  "...34435551.....",
-  "...34435551.....",
-  "...34435551.....",
-  "...34435551.....",
-  "...34435551....."
+  "44335555551.....",
+  "44335555551.....",
+  "44335555551.....",
+  "44335555551.....",
+  "44335555551.....",
+  "44335555551.....",
+  "44335555551.....",
+  "44335555551.....",
+  "44335555551.....",
+  "44335555551.....",
+  "44335555551.....",
+  "44335555551.....",
+  "44335555551.....",
+  "44335555551.....",
+  "44335555551.....",
+  "44335555551....."
 ];
 
 const fenceGrid = [
   "................",
   "................",
-  "..hh.hh..hh.hh..",
-  "..hh.hh..hh.hh..",
-  "hhhhhhhhhhhhhhhh",
-  "hhhhhhhhhhhhhhhh",
-  "..ss.ss..ss.ss..",
-  "..hh.hh..hh.hh..",
-  "..hh.hh..hh.hh..",
-  "hhhhhhhhhhhhhhhh",
-  "hhhhhhhhhhhhhhhh",
-  "..ss.ss..ss.ss..",
-  "..hh.hh..hh.hh..",
-  "..hh.hh..hh.hh..",
+  "bbbbbbbbbbbbbbbb",
+  "bwwwwwwwwwwwwwwb",
+  "bssssssssssssssb",
+  "bwsb..bwsb..bwsb",
+  "bwsb..bwsb..bwsb",
+  "bbbbbbbbbbbbbbbb",
+  "bwwwwwwwwwwwwwwb",
+  "bssssssssssssssb",
+  "bwsb..bwsb..bwsb",
+  "bwsb..bwsb..bwsb",
+  "bbbbbbbbbbbbbbbb",
+  "bwwwwwwwwwwwwwwb",
+  "bssssssssssssssb",
+  "bbbbbbbbbbbbbbbb"
+];
+
+const chestGrid = [
+  "................",
+  "....bbbbbbbb....",
+  "...byyyyyyyyb...",
+  "..byhhhhhhhhhby.",
+  ".byhbbbbbbbbbhby",
+  ".byhysssssssyhby",
+  ".byhysssssssyhby",
+  ".bbhbbwbbwbbhbbb",
+  ".byhssssssssyhby",
+  ".byhsshhhhhssyby",
+  "..byhhhhhhhhyb..",
+  "...bbbbbbbbbb...",
+  "................",
+  "................",
   "................",
   "................"
 ];
 
-fs.writeFileSync(path.join(mapDir, 'floor.svg'), createSVG(floorGrid));
-fs.writeFileSync(path.join(mapDir, 'wall_h.svg'), createSVG(wall_h));
-fs.writeFileSync(path.join(mapDir, 'wall_v.svg'), createSVG(wall_v));
-fs.writeFileSync(path.join(mapDir, 'fence.svg'), createSVG(fenceGrid));
+const chestOpenGrid = [
+  "................",
+  "....bbbbbbbb....",
+  "...byyyyyyyyb...",
+  "..byhhhhhhhhhby.",
+  ".byhbbbbbbbbbhby",
+  ".bbbbbbbbbbbbbbb",
+  "................",
+  ".bbhbbbbbbbbhbbb",
+  ".byhssssssssyhby",
+  ".byhsshhhhhssyby",
+  "..byhhhhhhhhyb..",
+  "...bbbbbbbbbb...",
+  "................",
+  "................",
+  "................",
+  "................"
+];
+
+// Procedural floor, wall_h, wall_v, fence, chest, chest_open are generated in the engine
+
 
 const rockGrid = [
   "   444444   ",
@@ -695,14 +743,8 @@ const wall_h_void = wall_h.map(r => r.replace(/3/g, 'E').replace(/4/g, 'R').repl
 const wall_v_void = wall_v.map(r => r.replace(/3/g, 'E').replace(/4/g, 'R').replace(/5/g, 'T'));
 const rockGrid_void = rockGrid.map(r => r.replace(/4/g, 'R').replace(/3/g, 'E').replace(/2/g, 'W').replace(/1/g, 'Q'));
 
-fs.writeFileSync(path.join(mapDir, 'floor_magma.svg'), createSVG(floorGrid_magma));
-fs.writeFileSync(path.join(mapDir, 'wall_h_magma.svg'), createSVG(wall_h_magma));
-fs.writeFileSync(path.join(mapDir, 'wall_v_magma.svg'), createSVG(wall_v_magma));
+// Procedural floor_magma, wall_h_magma, wall_v_magma, floor_void, wall_h_void, wall_v_void generated in engine
 fs.writeFileSync(path.join(mapDir, 'rock_magma.svg'), createSVG(rockGrid_magma));
-
-fs.writeFileSync(path.join(mapDir, 'floor_void.svg'), createSVG(floorGrid_void));
-fs.writeFileSync(path.join(mapDir, 'wall_h_void.svg'), createSVG(wall_h_void));
-fs.writeFileSync(path.join(mapDir, 'wall_v_void.svg'), createSVG(wall_v_void));
 fs.writeFileSync(path.join(mapDir, 'rock_void.svg'), createSVG(rockGrid_void));
 
 // Dungeon Decor & Props
@@ -1238,8 +1280,7 @@ const merchantTentGrid = [
 fs.writeFileSync(path.join(mapDir, 'relic_plains.svg'), createSVG(relicPlainsGrid));
 fs.writeFileSync(path.join(mapDir, 'relic_magma.svg'), createSVG(relicMagmaGrid));
 fs.writeFileSync(path.join(mapDir, 'relic_void.svg'), createSVG(relicVoidGrid));
-fs.writeFileSync(path.join(mapDir, 'shrine_floor.svg'), createSVG(shrineFloorGrid));
-fs.writeFileSync(path.join(mapDir, 'shrine_pillar.svg'), createSVG(shrinePillarGrid));
+// Procedural shrine_floor, shrine_pillar generated in engine
 fs.writeFileSync(path.join(mapDir, 'merchant_tent.svg'), createSVG(merchantTentGrid));
 fs.writeFileSync(path.join(mapDir, 'compass_arrow.svg'), createSVG(compassArrowGrid));
 
@@ -1481,3 +1522,237 @@ function genSound(type) {
 });
 
 console.log("All audio WAV files generated successfully in public/assets/audio.");
+
+// =============================================
+// DESERT BIOME (Scorched Desert)
+// =============================================
+const desertFloorGrid = [
+  "BBBBBBBBBBBBBBBB",
+  "BABBBBBBBBBBBBAB",
+  "BBBBBBBBBBABBBBB",
+  "BBBBABBBBBBBBBBB",
+  "BBBBBBBBBBBBBBBB",
+  "BBBBBBBABBBBBBBB",
+  "BBABBBBBBBBBBBBB",
+  "BBBBBBBBBBBBABBB",
+  "BBBBBBBBBBBBBBBB",
+  "BABBBBBABBBBBBBB",
+  "BBBBBBBBBBBBBBBB",
+  "BBBBBBBBBBBABBBB",
+  "BBBBABBBBBBBBBBB",
+  "BBBBBBBBBBBBBBBB",
+  "BBBBBBBABBBBBBAB",
+  "BBBBBBBBBBBBBBBB"
+];
+
+const desertRockGrid = [
+  "   AAAAAA   ",
+  "  AABBBBAA  ",
+  " AABBCCCCBA ",
+  " ABCCCCCCCA ",
+  " BBBBBBBBBB ",
+  "BCCCCCCCCCCB",
+  "BCCCCCCCCCCB",
+  "BCCCCCCCCCCB",
+  " BBCCCCCCBB ",
+  "  BBBBBBBB  ",
+  "            ",
+  "            ",
+  "            ",
+  "            ",
+  "            ",
+  "            "
+];
+
+// Ashen City (Obsidian and Magma)
+const ashenFloorGrid = [
+  "FFFFFFFFFFFFFFFF",
+  "FGFHFFFFHFFFFFGF",
+  "FFFFFFFFFGFHFFFF",
+  "FHFFGFFFFFFFFFHF",
+  "FFFFFFFFGFFFFFFF",
+  "FGFHFFFFFFFFFFFF",
+  "FFFFFFFFFFFFFFFF",
+  "FFFFFHFFFFFFFFGF",
+  "GFFFFFFFFFFFFFFF",
+  "FFFFFFFFHFFFFFFF",
+  "FFFFFFFFFFFFFFGF",
+  "FFHFFFFFFFFFFFFF",
+  "FFFFFFFFGFFFFFFF",
+  "FFFFFFFFFFFFFFFF",
+  "FFFFFGFHFFFFFFFF",
+  "FFFFFFFFFFFFFFFF"
+];
+
+const ashenRockGrid = [
+  "   HHHHHH   ",
+  "  HHFFFFHH  ",
+  " HHFFGGGGHH ",
+  " HFGGGGGGGF ",
+  " FFFFFFFFFF ",
+  "FGGGGGGGGGGF",
+  "FGGGGHGGGGFG",
+  "FGHGGGGGGGGG",
+  " FFGGGGGGFF ",
+  "  FFFFFFFF  ",
+  "            ",
+  "            ",
+  "            ",
+  "            ",
+  "            ",
+  "            "
+];
+
+// Procedural floor_desert, floor_ashen generated in engine
+fs.writeFileSync(path.join(mapDir, 'rock_desert.svg'), createSVG(desertRockGrid));
+fs.writeFileSync(path.join(mapDir, 'rock_ashen.svg'), createSVG(ashenRockGrid));
+
+// =============================================
+// ANIMAL / BEAST ASSETS
+// =============================================
+
+// --- CHARGING BULL ---
+const bullColorMap = { 'B': '#3e2723', 'H': '#8d6e63', 'E': '#ff0000', 'W': '#ffffff', 'D': '#1a1110', 'N': '#f5f5dc' };
+Object.assign(colorMap, bullColorMap);
+
+const bull_idle = [
+  "................",
+  "................",
+  "................",
+  "...NN......NN...",
+  "..NDN......NDN..",
+  "..NBN......NBN..",
+  "..BBBBBBBBBBBB..",
+  ".BBBEBBBBBBEEBB.",
+  ".BBBWBBBBBBWWBB.",
+  ".BBBBBBBBBBBBBB.",
+  ".DBBBBDDDBBBBDB.",
+  ".DBBBBDDDBBBBDB.",
+  ".HBBBBHHHHBBBBH.",
+  ".HBBBBHHHHBBBBH.",
+  "..HH........HH..",
+  "................"
+];
+
+const bull_run1 = [
+  "................",
+  "................",
+  "...NN......NN...",
+  "..NDN......NDN..",
+  "..NBN......NBN..",
+  "..BBBBBBBBBBBB..",
+  ".BBBEBBBBBBEEBB.",
+  ".BBBWBBBBBBWWBB.",
+  ".BBBBBBBBBBBBBB.",
+  ".DBBBBDDDBBBBDB.",
+  ".DBBBBDDDBBBBDB.",
+  "..HBBBBHHBBBBH..",
+  "...HBBBBHHBBBH..",
+  "....HH....HH....",
+  "................",
+  "................"
+];
+
+const bull_dead = [
+  "................",
+  "................",
+  "................",
+  "................",
+  "................",
+  "................",
+  "................",
+  "................",
+  "....NN....NN....",
+  "...NDNBBBBNDN...",
+  "..NBBBEEBBWBBBN.",
+  "..HBBBWBBBEBBBH.",
+  "..HBBBBBBBBBBBH.",
+  "...HHBBBBBBHH...",
+  ".....HHHHHH.....",
+  "................"
+];
+
+// --- EXPLODING SPIDER ---
+const spiderColorMap = { 'S': '#111111', 'G': '#33ff33', 'D': '#0a0a0a', 'L': '#222222' };
+Object.assign(colorMap, spiderColorMap);
+
+const spider_idle = [
+  "................",
+  "................",
+  "L..............L",
+  "LL............LL",
+  ".LL..........LL.",
+  "..L..SSSSSS..L..",
+  "...LSSDDDDSSL...",
+  "..LSDDGGGGDDSL..",
+  "L.LSSDDDDDDSSL.L",
+  "LL.L.SSSSSS.L.LL",
+  "..L..SSSSSS..L..",
+  "......L..L......",
+  ".....L....L.....",
+  "....LL....LL....",
+  "...LL......LL...",
+  "................"
+];
+
+const spider_run1 = [
+  "................",
+  "..L..........L..",
+  "...L........L...",
+  "L..LLSSSSSSLL..L",
+  "LL..SSDDDDSS..LL",
+  ".LLSDDGGGGDDSLL.",
+  "..LSSDDDDDDSSL..",
+  "L...SSSSSSSS...L",
+  "LL...SSSSSS...LL",
+  ".L....L..L....L.",
+  "..L...L..L...L..",
+  "...LL......LL...",
+  "....L......L....",
+  "................",
+  "................",
+  "................"
+];
+
+const spider_dead = [
+  "................",
+  "................",
+  "................",
+  "................",
+  "................",
+  "................",
+  "................",
+  "................",
+  "....L......L....",
+  "...LL......LL...",
+  "..L.L......L.L..",
+  ".L..LSSSSSSL..L.",
+  "L..LSSDDDDSSL..L",
+  "..LLSSDSSSDDSLL.",
+  ".LL..SSSSSS..LL.",
+  "L.....L..L.....L"
+];
+
+const animsToGenBeasts = {
+  'bull_idle': bull_idle,
+  'bull_run1': bull_run1,
+  'bull_run2': bull_idle,
+  'bull_run3': bull_run1,
+  'bull_run4': bull_idle,
+  'bull_dead1': bull_dead,
+  'bull_dead2': bull_dead,
+  'bull_dead3': bull_dead,
+  
+  'spider_idle': spider_idle,
+  'spider_run1': spider_run1,
+  'spider_run2': spider_idle,
+  'spider_run3': spider_run1,
+  'spider_run4': spider_idle,
+  'spider_dead1': spider_dead,
+  'spider_dead2': spider_dead,
+  'spider_dead3': spider_dead,
+};
+
+for (const [name, grid] of Object.entries(animsToGenBeasts)) {
+  fs.writeFileSync(path.join(enemiesDir, `${name}.svg`), createSVG(grid));
+}

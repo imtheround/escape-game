@@ -1,38 +1,48 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <defs>
-    <filter id="shadow">
-      <feDropShadow dx="0" dy="4" stdDeviation="2" flood-opacity="0.3" />
-    </filter>
-  </defs>
-  <ellipse cx="32" cy="56" rx="14" ry="6" fill="rgba(0,0,0,0.4)" />
-  
-  <g filter="url(#shadow)">
-    <!-- Right Arm (Swinging forward) -->
-    <path d="M 40 32 C 48 36, 46 46, 38 42" fill="#7CB342" stroke="#33691E" stroke-width="2" stroke-linecap="round" />
-    <path d="M 36 40 L 48 48 L 46 50 L 34 42 Z" fill="#9E9E9E" stroke="#424242" stroke-width="2" stroke-linejoin="round"/>
-
-    <!-- Left Leg (Back) -->
-    <path d="M 28 46 L 22 52 L 26 54 L 30 48 Z" fill="#7CB342" stroke="#33691E" stroke-width="2" stroke-linejoin="round" />
-    <!-- Right Leg (Forward) -->
-    <path d="M 36 46 L 42 54 L 38 56 L 34 48 Z" fill="#7CB342" stroke="#33691E" stroke-width="2" stroke-linejoin="round" />
-
-    <!-- Body -->
-    <path d="M 26 28 Q 32 34 38 28 L 36 46 Q 32 48 28 46 Z" fill="#5D4037" stroke="#3E2723" stroke-width="2" stroke-linejoin="round"/>
-    <path d="M 27 40 Q 32 42 37 40" fill="none" stroke="#212121" stroke-width="3" stroke-linecap="round"/>
-    
-    <!-- Left Arm (Swinging back) -->
-    <path d="M 24 32 C 16 30, 12 36, 18 42" fill="#7CB342" stroke="#33691E" stroke-width="2" stroke-linecap="round" />
-
-    <!-- Head -->
-    <g transform="translate(0, 2)">
-      <ellipse cx="32" cy="22" rx="12" ry="10" fill="#7CB342" stroke="#33691E" stroke-width="2" />
-      <path d="M 20 22 Q 10 18 12 26 Z" fill="#7CB342" stroke="#33691E" stroke-width="2" stroke-linejoin="round"/>
-      <path d="M 44 22 Q 54 18 52 26 Z" fill="#7CB342" stroke="#33691E" stroke-width="2" stroke-linejoin="round"/>
-      <circle cx="28" cy="20" r="2" fill="#FFEE58" />
-      <circle cx="36" cy="20" r="2" fill="#FFEE58" />
-      <path d="M 24 16 L 30 18" stroke="#1B5E20" stroke-width="2" stroke-linecap="round"/>
-      <path d="M 40 16 L 34 18" stroke="#1B5E20" stroke-width="2" stroke-linecap="round"/>
-      <path d="M 30 26 Q 32 28 34 26" fill="none" stroke="#1B5E20" stroke-width="2" stroke-linecap="round"/>
-    </g>
-  </g>
+<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
+  <rect x="6" y="4" width="1" height="1" fill="#228B22" />
+  <rect x="7" y="4" width="1" height="1" fill="#228B22" />
+  <rect x="5" y="5" width="1" height="1" fill="#228B22" />
+  <rect x="6" y="5" width="1" height="1" fill="#228B22" />
+  <rect x="7" y="5" width="1" height="1" fill="#228B22" />
+  <rect x="8" y="5" width="1" height="1" fill="#228B22" />
+  <rect x="4" y="6" width="1" height="1" fill="#DC143C" />
+  <rect x="5" y="6" width="1" height="1" fill="#DC143C" />
+  <rect x="6" y="6" width="1" height="1" fill="#DC143C" />
+  <rect x="7" y="6" width="1" height="1" fill="#DC143C" />
+  <rect x="8" y="6" width="1" height="1" fill="#DC143C" />
+  <rect x="9" y="6" width="1" height="1" fill="#DC143C" />
+  <rect x="3" y="7" width="1" height="1" fill="#DC143C" />
+  <rect x="4" y="7" width="1" height="1" fill="#DC143C" />
+  <rect x="5" y="7" width="1" height="1" fill="#DC143C" />
+  <rect x="6" y="7" width="1" height="1" fill="#DC143C" />
+  <rect x="7" y="7" width="1" height="1" fill="#DC143C" />
+  <rect x="8" y="7" width="1" height="1" fill="#DC143C" />
+  <rect x="9" y="7" width="1" height="1" fill="#DC143C" />
+  <rect x="10" y="7" width="1" height="1" fill="#DC143C" />
+  <rect x="3" y="8" width="1" height="1" fill="#DC143C" />
+  <rect x="4" y="8" width="1" height="1" fill="#FFFFFF" />
+  <rect x="5" y="8" width="1" height="1" fill="#DC143C" />
+  <rect x="6" y="8" width="1" height="1" fill="#000000" />
+  <rect x="7" y="8" width="1" height="1" fill="#DC143C" />
+  <rect x="8" y="8" width="1" height="1" fill="#FFFFFF" />
+  <rect x="9" y="8" width="1" height="1" fill="#DC143C" />
+  <rect x="10" y="8" width="1" height="1" fill="#DC143C" />
+  <rect x="3" y="9" width="1" height="1" fill="#DC143C" />
+  <rect x="4" y="9" width="1" height="1" fill="#DC143C" />
+  <rect x="5" y="9" width="1" height="1" fill="#DC143C" />
+  <rect x="6" y="9" width="1" height="1" fill="#DC143C" />
+  <rect x="7" y="9" width="1" height="1" fill="#DC143C" />
+  <rect x="8" y="9" width="1" height="1" fill="#DC143C" />
+  <rect x="9" y="9" width="1" height="1" fill="#DC143C" />
+  <rect x="10" y="9" width="1" height="1" fill="#DC143C" />
+  <rect x="4" y="10" width="1" height="1" fill="#8B0000" />
+  <rect x="5" y="10" width="1" height="1" fill="#8B0000" />
+  <rect x="6" y="10" width="1" height="1" fill="#8B0000" />
+  <rect x="7" y="10" width="1" height="1" fill="#8B0000" />
+  <rect x="8" y="10" width="1" height="1" fill="#8B0000" />
+  <rect x="9" y="10" width="1" height="1" fill="#8B0000" />
+  <rect x="5" y="11" width="1" height="1" fill="#8B0000" />
+  <rect x="6" y="11" width="1" height="1" fill="#8B0000" />
+  <rect x="7" y="11" width="1" height="1" fill="#8B0000" />
+  <rect x="8" y="11" width="1" height="1" fill="#8B0000" />
 </svg>

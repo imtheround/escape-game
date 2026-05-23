@@ -12,7 +12,7 @@ function Heart({ type }: { type: "full" | "half" | "empty" }) {
     <svg width="24" height="24" viewBox="0 0 9 9" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ imageRendering: "pixelated" }}>
       {/* Black Outline */}
       <path d="M1 2h2v1H1zM3 1h1v1H3zM5 1h1v1H5zM6 2h2v1H6zM8 3h1v2H8zM0 3h1v2H0zM1 5h1v1H1zM2 6h1v1H2zM3 7h1v1H3zM4 8h1v1H4zM5 7h1v1H5zM6 6h1v1H6zM7 5h1v1H7z" fill="#000" />
-      
+
       {/* Base Background (Empty state) */}
       <path d="M1 3h7v2H1z" fill="#4a0000" />
       <path d="M2 5h5v1H2z" fill="#4a0000" />
@@ -47,7 +47,7 @@ function Heart({ type }: { type: "full" | "half" | "empty" }) {
 export default function Home() {
   const [gameState, setGameState] = useState<'start' | 'playing' | 'gameover'>('start');
   const [hp, setHp] = useState(10);
-  const [inventory, setInventory] = useState<{id: string, count: number}[]>(
+  const [inventory, setInventory] = useState<{ id: string, count: number }[]>(
     Array(12).fill(null).map((_, i) => i === 0 ? { id: 'gun', count: 1 } : { id: '', count: 0 })
   );
   const [activeSlot, setActiveSlot] = useState(0);
@@ -55,10 +55,10 @@ export default function Home() {
   const [ammo, setAmmo] = useState(30);
   const [maxAmmo, setMaxAmmo] = useState(30);
   const [isReloading, setIsReloading] = useState(false);
-  
+
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [volume, setVolume] = useState({ master: 1.0, bgm: 0.1, sfx: 0.5 });
-  
+
   // Wave & Economy States
   const [waveState, setWaveState] = useState({ wave: 1, gameState: 'playing', enemiesAlive: 0, enemiesToSpawn: 0, merchantTimer: 0, world: 1, stage: 1 });
   const [expState, setExpState] = useState({ exp: 0, maxExp: 10, level: 1, maxHP: 10 });
@@ -67,20 +67,29 @@ export default function Home() {
   const [drinkingProgress, setDrinkingProgress] = useState<number | null>(null);
   const [isLoadingAssets, setIsLoadingAssets] = useState(false);
   const [fps, setFps] = useState(0);
-  
+  const [tutorialStep, setTutorialStep] = useState(0);
+  const [tutorialProgress, setTutorialProgress] = useState(0);
+  const [tutorialCompleted, setTutorialCompleted] = useState(false);
+
   // Instructions
   const [showItemInstruction, setShowItemInstruction] = useState(true);
   const [hasPickedUpPotion, setHasPickedUpPotion] = useState(false);
   const [interactHover, setInteractHover] = useState<'merchant' | 'portal' | null>(null);
 
   useEffect(() => {
+    const handleTutorialStep = (e: any) => {
+      setTutorialStep(e.detail.step);
+      setTutorialCompleted(e.detail.completed);
+    };
+    window.addEventListener('tutorial-step', handleTutorialStep);
+
     const handleHpChange = (e: any) => {
       setHp(e.detail);
       if (e.detail <= 0) {
         setGameState('gameover');
       }
     };
-    
+
     const handleInventoryChange = (e: any) => {
       const inv = e.detail.inventory;
       // Deep clone every slot object so React sees completely fresh references
@@ -88,7 +97,7 @@ export default function Home() {
       setActiveSlot(e.detail.activeSlot);
       setIsInventoryOpen(e.detail.isInventoryOpen);
       setDrinkingProgress(e.detail.drinkingProgress !== undefined ? e.detail.drinkingProgress : null);
-      
+
       const hasPotion = inv.some((slot: any) => slot.id === 'potion');
       if (hasPotion && !hasPickedUpPotion) {
         setHasPickedUpPotion(true);
@@ -96,21 +105,21 @@ export default function Home() {
         setTimeout(() => setShowItemInstruction(false), 6000);
       }
     };
-    
+
     const handleAmmoChange = (e: any) => {
       setAmmo(e.detail.ammo);
       setMaxAmmo(e.detail.maxAmmo);
       setIsReloading(e.detail.isReloading);
     };
-    
+
     const handleWaveChange = (e: any) => {
-       setWaveState(e.detail);
-       if (e.detail.gameState !== 'merchant') setShowShop(false);
+      setWaveState(e.detail);
+      if (e.detail.gameState !== 'merchant') setShowShop(false);
     };
     const handleExpChange = (e: any) => setExpState(e.detail);
     const handleCoinChange = (e: any) => setCoins(e.detail.coins);
     const handleFpsChange = (e: any) => setFps(e.detail);
-    
+
     const handleShopOpen = () => setShowShop(true);
     const handleHover = (e: any) => setInteractHover(e.detail);
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -133,8 +142,9 @@ export default function Home() {
     window.addEventListener("settings-toggle", handleSettingsToggle);
 
     return () => {
-      window.removeEventListener("hp-change", handleHpChange);
-      window.removeEventListener("inventory-change", handleInventoryChange);
+      window.removeEventListener('tutorial-step', handleTutorialStep);
+      window.removeEventListener('hp-change', handleHpChange);
+      window.removeEventListener('inventory-change', handleInventoryChange);
       window.removeEventListener("ammo-change", handleAmmoChange);
       window.removeEventListener("wave-change", handleWaveChange);
       window.removeEventListener("exp-change", handleExpChange);
@@ -173,360 +183,386 @@ export default function Home() {
   };
 
   return (
-    <main className="relative w-screen h-screen bg-black overflow-hidden m-0 p-0 text-white font-sans select-none">
-      {/* Settings Modal */}
-      {isSettingsOpen && (
-        <div className="absolute inset-0 z-[60] bg-black/90 backdrop-blur-md flex items-center justify-center pointer-events-auto">
-          <div className="relative bg-[#1a1a1a] border-4 border-[#555] p-10 shadow-[0_16px_48px_rgba(0,0,0,1)] flex flex-col min-w-[500px]">
-            
-            {/* Close Button */}
-            <button 
-              onClick={() => window.dispatchEvent(new CustomEvent('settings-toggle'))}
-              className="absolute top-4 right-6 text-gray-400 hover:text-red-500 font-black text-4xl transition-colors"
-            >
-              &times;
-            </button>
-            
-            <h2 className="text-yellow-500 text-center font-black text-4xl mb-10 tracking-widest uppercase drop-shadow-[0_2px_2px_rgba(0,0,0,1)]">Settings</h2>
-            
-            <div className="flex flex-col gap-8 w-full px-8">
-              {/* Master Volume */}
-              <div className="flex flex-col gap-2">
-                <div className="flex justify-between items-end">
-                   <label className="text-white font-mono font-bold text-xl uppercase tracking-widest">Master Volume</label>
-                   <span className="text-gray-400 font-mono">{Math.round(volume.master * 100)}%</span>
+    <>
+      <style>{`
+        @keyframes popIn {
+          0% { transform: scale(0.5); opacity: 0; }
+          70% { transform: scale(1.3); opacity: 1; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+      `}</style>
+      <main className="relative w-screen h-screen bg-black overflow-hidden m-0 p-0 text-white font-sans select-none">
+        {/* Settings Modal */}
+        {isSettingsOpen && (
+          <div className="absolute inset-0 z-[60] bg-black/90 backdrop-blur-md flex items-center justify-center pointer-events-auto">
+            <div className="relative bg-[#1a1a1a] border-4 border-[#555] p-10 shadow-[0_16px_48px_rgba(0,0,0,1)] flex flex-col min-w-[500px]">
+
+              {/* Close Button */}
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent('settings-toggle'))}
+                className="absolute top-4 right-6 text-gray-400 hover:text-red-500 font-black text-4xl transition-colors"
+              >
+                &times;
+              </button>
+
+              <h2 className="text-yellow-500 text-center font-black text-4xl mb-10 tracking-widest uppercase drop-shadow-[0_2px_2px_rgba(0,0,0,1)]">Settings</h2>
+
+              <div className="flex flex-col gap-8 w-full px-8">
+                {/* Master Volume */}
+                <div className="flex flex-col gap-2">
+                  <div className="flex justify-between items-end">
+                    <label className="text-white font-mono font-bold text-xl uppercase tracking-widest">Master Volume</label>
+                    <span className="text-gray-400 font-mono">{Math.round(volume.master * 100)}%</span>
+                  </div>
+                  <input
+                    type="range" min="0" max="1" step="0.01"
+                    value={volume.master}
+                    onChange={(e) => handleVolumeChange('master', parseFloat(e.target.value))}
+                    className="w-full accent-yellow-500 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                  />
                 </div>
-                <input 
-                  type="range" min="0" max="1" step="0.01" 
-                  value={volume.master} 
-                  onChange={(e) => handleVolumeChange('master', parseFloat(e.target.value))}
-                  className="w-full accent-yellow-500 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-                />
+
+                {/* BGM Volume */}
+                <div className="flex flex-col gap-2">
+                  <div className="flex justify-between items-end">
+                    <label className="text-indigo-400 font-mono font-bold text-xl uppercase tracking-widest">Music (BGM)</label>
+                    <span className="text-gray-400 font-mono">{Math.round(volume.bgm * 100)}%</span>
+                  </div>
+                  <input
+                    type="range" min="0" max="1" step="0.01"
+                    value={volume.bgm}
+                    onChange={(e) => handleVolumeChange('bgm', parseFloat(e.target.value))}
+                    className="w-full accent-indigo-500 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                  />
+                </div>
+
+                {/* SFX Volume */}
+                <div className="flex flex-col gap-2">
+                  <div className="flex justify-between items-end">
+                    <label className="text-red-400 font-mono font-bold text-xl uppercase tracking-widest">Effects (SFX)</label>
+                    <span className="text-gray-400 font-mono">{Math.round(volume.sfx * 100)}%</span>
+                  </div>
+                  <input
+                    type="range" min="0" max="1" step="0.01"
+                    value={volume.sfx}
+                    onChange={(e) => handleVolumeChange('sfx', parseFloat(e.target.value))}
+                    className="w-full accent-red-500 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                  />
+                </div>
               </div>
 
-              {/* BGM Volume */}
-              <div className="flex flex-col gap-2">
-                <div className="flex justify-between items-end">
-                   <label className="text-indigo-400 font-mono font-bold text-xl uppercase tracking-widest">Music (BGM)</label>
-                   <span className="text-gray-400 font-mono">{Math.round(volume.bgm * 100)}%</span>
-                </div>
-                <input 
-                  type="range" min="0" max="1" step="0.01" 
-                  value={volume.bgm} 
-                  onChange={(e) => handleVolumeChange('bgm', parseFloat(e.target.value))}
-                  className="w-full accent-indigo-500 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-                />
-              </div>
 
-              {/* SFX Volume */}
-              <div className="flex flex-col gap-2">
-                <div className="flex justify-between items-end">
-                   <label className="text-red-400 font-mono font-bold text-xl uppercase tracking-widest">Effects (SFX)</label>
-                   <span className="text-gray-400 font-mono">{Math.round(volume.sfx * 100)}%</span>
-                </div>
-                <input 
-                  type="range" min="0" max="1" step="0.01" 
-                  value={volume.sfx} 
-                  onChange={(e) => handleVolumeChange('sfx', parseFloat(e.target.value))}
-                  className="w-full accent-red-500 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-                />
-              </div>
             </div>
-            
-            <div className="mt-12 text-center text-gray-500 font-mono text-sm">
-               Drop audio files in public/assets/bgm/ to play them randomly!
+          </div>
+        )}
+
+        {isLoadingAssets && (
+          <div className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-black gap-4">
+            <h1 className="text-4xl text-white font-mono tracking-widest drop-shadow-[0_2px_2px_rgba(255,255,255,0.5)]">LOADING ASSETS...</h1>
+            <div className="w-96 h-6 border-4 border-gray-700 bg-gray-900 p-1 shadow-2xl">
+              <div className="h-full bg-indigo-500 animate-pulse w-full"></div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {isLoadingAssets && (
-        <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black">
-          <h1 className="text-4xl text-white font-mono animate-pulse tracking-widest drop-shadow-[0_2px_2px_rgba(255,255,255,0.5)]">LOADING ASSETS...</h1>
-        </div>
-      )}
+        {(gameState === 'playing' || gameState === 'gameover') && <GameCanvas />}
 
-      {(gameState === 'playing' || gameState === 'gameover') && <GameCanvas />}
-      
-      {gameState === 'start' && (
-        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm">
-          <h1 className="text-6xl font-black text-red-600 mb-8 tracking-widest drop-shadow-[0_4px_4px_rgba(255,0,0,0.5)]">ESCAPE</h1>
-          <div className="flex flex-col items-center gap-4">
-            <button 
-              onClick={() => { setGameState('playing'); setIsLoadingAssets(true); }}
-              className="px-12 py-6 bg-indigo-900 border-4 border-indigo-400 text-4xl font-bold hover:bg-indigo-400 hover:text-black transition-colors shadow-[0_0_20px_rgba(129,140,248,0.5)]"
+        {/* Fullscreen Atmospheric Vignette & Noise (Beneath Inventory) */}
+
+
+
+        {gameState === 'start' && (
+          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm">
+            <h1 className="text-6xl font-black text-red-600 mb-8 tracking-widest drop-shadow-[0_4px_4px_rgba(255,0,0,0.5)]">ESCAPE</h1>
+            <div className="flex flex-col items-center gap-4">
+              <button
+                onClick={() => { setGameState('playing'); setIsLoadingAssets(true); }}
+                className="px-12 py-6 bg-indigo-900 border-4 border-indigo-400 text-4xl font-bold hover:bg-indigo-400 hover:text-black transition-colors shadow-[0_0_20px_rgba(129,140,248,0.5)]"
+              >
+                START DUNGEON
+              </button>
+            </div>
+          </div>
+        )}
+
+        {gameState === 'gameover' && (
+          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm">
+            <h1 className="text-7xl font-black text-red-600 mb-8 tracking-widest animate-bounce">DIED</h1>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-8 py-4 bg-[#333] border-4 border-white text-2xl font-bold hover:bg-white hover:text-black transition-colors"
             >
-              START DUNGEON
+              RESPAWN
             </button>
           </div>
-        </div>
-      )}
+        )}
 
-      {gameState === 'gameover' && (
-        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm">
-          <h1 className="text-7xl font-black text-red-600 mb-8 tracking-widest animate-bounce">DIED</h1>
-          <button 
-            onClick={() => window.location.reload()}
-            className="px-8 py-4 bg-[#333] border-4 border-white text-2xl font-bold hover:bg-white hover:text-black transition-colors"
-          >
-            RESPAWN
-          </button>
-        </div>
-      )}
-
-      {(gameState === 'playing' || gameState === 'gameover') && (
-        <>
-          {/* Top Center Analytics: Waves and EXP */}
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 flex flex-col items-center z-20 pointer-events-none">
-
-             {/* EXP Bar */}
-             <div className="w-96 bg-black/80 border-2 border-[#555] p-1 flex items-center relative h-6 shadow-[0_4px_8px_rgba(0,0,0,0.8)]">
-                <div className="absolute left-0 top-0 h-full bg-blue-600 transition-all duration-300" style={{ width: `${Math.min(100, (expState.exp / expState.maxExp) * 100)}%` }}></div>
-                <span className="relative z-10 w-full text-center text-[10px] font-mono font-bold text-white drop-shadow-md tracking-wider">
-                  LVL {expState.level} ({Math.floor(expState.exp)}/{expState.maxExp} EXP)
-                </span>
-             </div>
-          </div>
-          
-          {/* Top Right Analytics: Coins & FPS */}
-          <div className="absolute top-4 right-4 flex flex-col items-end gap-2 z-20 pointer-events-none">
-             <div className="bg-black/90 border-4 border-[#D4AF37] px-4 py-2 flex items-center gap-2 shadow-lg">
-                <div className="w-6 h-6 bg-yellow-400 rounded-full border-2 border-yellow-200 shadow-inner"></div>
-                <span className="text-2xl font-mono font-bold text-yellow-400 drop-shadow-[2px_2px_0_rgba(0,0,0,1)]">{coins}</span>
-             </div>
-             <div className="bg-black/80 px-2 py-1 border-2 border-gray-600 shadow-md">
+        {(gameState === 'playing' || gameState === 'gameover') && (
+          <>
+            {/* Top Right Analytics: FPS Only */}
+            <div className="absolute top-4 left-4 flex flex-col items-start gap-2 z-50 pointer-events-none">
+              <div className="bg-black/80 px-2 py-1 border-2 border-gray-600 shadow-md">
                 <span className={`text-sm font-mono font-bold ${fps >= 50 ? 'text-green-400' : fps >= 30 ? 'text-yellow-400' : 'text-red-500'}`}>
-                   {Math.round(fps)} FPS
+                  {Math.round(fps)} FPS
                 </span>
-             </div>
-          </div>
-
-          {/* UI Overlay (HP Bar) */}
-          <div className="absolute top-6 left-6 pointer-events-none z-10">
-            <div className="flex gap-1 items-center drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)]">
-              {hearts.map((type, i) => (
-                <Heart key={i} type={type as "full" | "half" | "empty"} />
-              ))}
-            </div>
-          </div>
-
-          {/* Instructions Overlay */}
-          {showItemInstruction && (
-            <div className="absolute top-6 right-6 pointer-events-none transition-opacity duration-500 z-10">
-              <div className="bg-black/80 border-4 border-[#333] p-4 font-mono shadow-[0_8px_16px_rgba(0,0,0,0.8)] max-w-[280px]">
-                <h3 className="text-yellow-400 font-bold mb-2 uppercase tracking-wide">
-                  {hasPickedUpPotion ? "New Item!" : "Controls"}
-                </h3>
-                <ul className="text-sm space-y-2 text-gray-300">
-                  {hasPickedUpPotion ? (
-                    <>
-                      <li>Select potion slot using <strong className="text-white">1-3</strong> quick-tags</li>
-                      <li>Hold <strong className="text-white">F</strong> to consume and heal.</li>
-                    </>
-                  ) : (
-                    <>
-                      <li><strong className="text-white">WASD</strong> to Move</li>
-                      <li><strong className="text-white">SPACE</strong> to Shoot</li>
-                      <li><strong className="text-white">R</strong> to Reload</li>
-                      <li><strong className="text-white">E</strong> to open Inventory</li>
-                    </>
-                  )}
-                </ul>
               </div>
             </div>
-          )}
-          
-          {/* Main Inventory Menu */}
-          {isInventoryOpen && (
-            <div className="absolute inset-0 z-40 bg-black/80 backdrop-blur-md flex items-center justify-center pointer-events-auto animate-fade-in">
-              <div className="relative bg-[#1a1a1a] border-4 border-[#555] p-10 shadow-[0_16px_48px_rgba(0,0,0,1)] flex flex-col items-center min-w-[600px] animate-pop-in">
-                
-                {/* Close Button */}
-                <button 
-                  onClick={() => window.dispatchEvent(new CustomEvent('inventory-close'))}
-                  className="absolute top-4 right-6 text-gray-400 hover:text-red-500 font-black text-4xl transition-colors"
-                >
-                  &times;
-                </button>
-                
-                <h2 className="text-yellow-500 font-black text-4xl mb-8 tracking-widest uppercase drop-shadow-[0_2px_2px_rgba(0,0,0,1)]">Inventory</h2>
-                
-                <div className="grid grid-cols-4 gap-4">
-                  {inventory.map((slot, i) => (
-                    <div 
-                      key={i} 
-                      onClick={() => {
-                        if (i !== activeSlot) {
-                          window.dispatchEvent(new CustomEvent('inventory-swap', { detail: { from: i, to: activeSlot } }));
-                        }
-                      }}
-                      draggable={slot.id !== ''}
-                      onDragStart={(e) => { 
-                        e.dataTransfer.setData('text/plain', i.toString()); 
-                        // Drag only the item image
-                        const img = e.currentTarget.querySelector('img');
-                        if (img) {
-                          e.dataTransfer.setDragImage(img, 32, 32); // rough center offset
-                        }
-                      }}
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        const from = parseInt(e.dataTransfer.getData('text/plain'));
-                        if (!isNaN(from) && from !== i) {
-                          window.dispatchEvent(new CustomEvent('inventory-swap', { detail: { from, to: i } }));
-                        }
-                      }}
-                      className={`relative w-24 h-24 border-4 flex items-center justify-center transition-transform hover:bg-[#333] hover:scale-105
+
+            {/* Action Objectives - Top Right */}
+            <div className="absolute top-[250px] right-8 z-30 flex flex-col items-end pointer-events-none w-full max-w-xl gap-2">
+              {tutorialStep % 2 !== 0 && tutorialStep < 15 && (
+                <div className={`bg-black/80 border-r-4 ${tutorialCompleted ? 'border-green-500' : 'border-cyan-500'} pr-4 py-3 pl-6 shadow-xl mb-4 transition-colors duration-500`}>
+                  <p className={`text-sm font-mono ${tutorialCompleted ? 'text-green-400 animate-pulse' : 'text-cyan-300'} uppercase tracking-widest mb-2 opacity-80 text-right transition-opacity duration-300`}>
+                    {tutorialCompleted ? "Task Completed" : "Current Objective"}
+                  </p>
+                  <div className={`flex items-center justify-end gap-3 transition-opacity duration-500 ${tutorialCompleted ? 'opacity-80' : 'opacity-100'}`}>
+                    <span className="relative font-mono text-xl text-white inline-block">
+                      <span className={`absolute top-1/2 left-0 h-[3px] bg-green-500 transition-all duration-500 ease-out z-10 ${tutorialCompleted ? 'w-full' : 'w-0'}`}></span>
+                      <span className={`transition-colors duration-500 relative z-0 ${tutorialCompleted ? 'text-green-400/80' : 'text-white'}`}>
+                        {tutorialStep === 1 && "Move around"}
+                        {tutorialStep === 3 && "Hold Right Click to Aim"}
+                        {tutorialStep === 5 && "Left Click to Fire"}
+                        {tutorialStep === 7 && "Dodge Roll"}
+                        {tutorialStep === 9 && "Hold Shift to Sprint"}
+                        {tutorialStep === 11 && "Press E to Open Backpack"}
+                        {tutorialStep === 13 && "Press M to Open Map"}
+                      </span>
+                    </span>
+                    {tutorialCompleted && (
+                      <span className="text-green-400 text-3xl drop-shadow-[0_0_8px_rgba(0,255,0,0.8)] ml-2" style={{ animation: 'popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards' }}>✓</span>
+                    )}
+                    {!tutorialCompleted && tutorialStep === 1 && (
+                      <div className="flex -space-x-1">
+                        <span className="inline-block w-8 h-8 bg-[url('/assets/ui/tilemap_packed.png')] bg-[length:1088px_768px] bg-[-576px_-64px]" style={{ imageRendering: 'pixelated' }}></span>
+                        <span className="inline-block w-8 h-8 bg-[url('/assets/ui/tilemap_packed.png')] bg-[length:1088px_768px] bg-[-576px_-96px]" style={{ imageRendering: 'pixelated' }}></span>
+                        <span className="inline-block w-8 h-8 bg-[url('/assets/ui/tilemap_packed.png')] bg-[length:1088px_768px] bg-[-608px_-96px]" style={{ imageRendering: 'pixelated' }}></span>
+                        <span className="inline-block w-8 h-8 bg-[url('/assets/ui/tilemap_packed.png')] bg-[length:1088px_768px] bg-[-640px_-96px]" style={{ imageRendering: 'pixelated' }}></span>
+                      </div>
+                    )}
+                    {!tutorialCompleted && tutorialStep === 3 && (
+                      <span className="inline-block w-8 h-8 bg-[url('/assets/ui/tilemap_packed.png')] bg-[length:1088px_768px] bg-[-288px_-704px]" style={{ imageRendering: 'pixelated' }}></span>
+                    )}
+                    {!tutorialCompleted && tutorialStep === 5 && (
+                      <span className="inline-block w-8 h-8 bg-[url('/assets/ui/tilemap_packed.png')] bg-[length:1088px_768px] bg-[-256px_-704px]" style={{ imageRendering: 'pixelated' }}></span>
+                    )}
+                    {!tutorialCompleted && tutorialStep === 7 && (
+                      <div className="flex gap-1 items-center">
+                        <span className="inline-block w-8 h-8 bg-[url('/assets/ui/tilemap_packed.png')] bg-[length:1088px_768px] bg-[-544px_-64px]" style={{ imageRendering: 'pixelated' }}></span>
+                        <span className="text-gray-400 font-mono text-sm">or</span>
+                        <span className="inline-block w-8 h-8 bg-[url('/assets/ui/tilemap_packed.png')] bg-[length:1088px_768px] bg-[-64px_-160px]" style={{ imageRendering: 'pixelated' }}></span>
+                      </div>
+                    )}
+                    {!tutorialCompleted && tutorialStep === 9 && (
+                      <span className="inline-block w-16 h-8 bg-[url('/assets/ui/tilemap_packed.png')] bg-[length:1088px_768px] bg-[-256px_-128px]" style={{ imageRendering: 'pixelated' }}></span>
+                    )}
+                    {!tutorialCompleted && tutorialStep === 11 && (
+                      <span className="inline-block w-8 h-8 bg-[url('/assets/ui/tilemap_packed.png')] bg-[length:1088px_768px] bg-[-704px_-32px]" style={{ imageRendering: 'pixelated' }}></span>
+                    )}
+                    {!tutorialCompleted && tutorialStep === 13 && (
+                      <span className="inline-block w-8 h-8 bg-[url('/assets/ui/tilemap_packed.png')] bg-[length:1088px_768px] bg-[-128px_-64px]" style={{ imageRendering: 'pixelated' }}></span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Free play objective */}
+              {tutorialStep >= 15 && (
+                <div className="bg-black/80 border-r-4 border-yellow-500 pr-4 py-2 pl-6 shadow-xl mb-4 animate-fade-in transition-all duration-500">
+                  <p className="text-sm font-mono text-yellow-500 uppercase tracking-widest opacity-80 text-right">Objective</p>
+                  <span className="text-white font-mono text-lg">Explore the dungeon and find the exit</span>
+                </div>
+              )}
+            </div>
+
+            {/* Conversational Tutorial UI - Bottom Center */}
+            <div className="absolute bottom-1/4 left-1/2 -translate-x-1/2 z-30 flex flex-col pointer-events-none w-full max-w-4xl transition-all duration-500">
+              {/* Conversation Boxes */}
+              {tutorialStep % 2 === 0 && tutorialStep <= 14 && (
+                <div className="w-full bg-[#111118]/95 border-4 border-indigo-900 shadow-2xl p-6 relative animate-fade-in flex gap-6 items-center">
+                  {/* Slime Avatar */}
+                  <div className="w-32 h-32 bg-black/80 border-2 border-indigo-500 rounded-lg flex items-center justify-center shrink-0 overflow-hidden">
+                    <img src="/assets/character/slime_idle1.svg" className="w-[200%] h-[200%] object-cover object-top mt-12" style={{ imageRendering: "pixelated" }} />
+                  </div>
+
+                  {/* Text Area */}
+                  <div className="flex flex-col flex-grow">
+                    <div className="bg-indigo-900 inline-block px-3 py-1 text-sm font-mono font-bold text-indigo-200 tracking-wider mb-2 self-start">SLIME</div>
+
+                    <p className="text-white font-mono leading-relaxed text-2xl">
+                      {tutorialStep === 0 && "My head... The facility has collapsed. I need to prove my stability to survive. I should try moving."}
+                      {tutorialStep === 2 && "It's completely dark in here. I need to calibrate my optical tracking and look around."}
+                      {tutorialStep === 4 && "Pathways are blocked by debris. I must engage my weapon systems to shatter them."}
+                      {tutorialStep === 6 && "Hostile entities detected nearby. I need to practice evasive maneuvers."}
+                      {tutorialStep === 8 && "I feel sluggish. I need to exert more energy to move faster."}
+                      {tutorialStep === 10 && "I should check my supplies. What did I bring?"}
+                      {tutorialStep === 12 && "Navigational data is required to escape this sector. I must access the cartography module."}
+                      {tutorialStep === 14 && "Calibration complete. I need to find the portal."}
+                    </p>
+
+                    <p className="text-indigo-400 mt-4 text-lg font-mono animate-pulse">Press [ANY KEY] to continue...</p>
+                  </div>
+                </div>
+              )}
+            </div>
+            {/* UI Overlay (HP Bar) */}
+            <div className="absolute bottom-6 right-[calc(50%+190px)] pointer-events-none z-40 w-48 transition-all duration-300">
+              <div className="text-xs font-mono text-red-400 mb-1 drop-shadow-md font-bold tracking-widest">INTEGRITY</div>
+              <div className="bg-[#1a1a1a] border-4 border-[#333] h-6 w-full shadow-lg p-0.5 relative">
+                <div
+                  className="h-full bg-red-600 transition-all duration-300 ease-out"
+                  style={{ width: `${Math.max(0, Math.min(100, (hp / expState.maxHP) * 100))}%` }}
+                ></div>
+                <span className="absolute inset-0 flex items-center justify-center text-[11px] font-mono font-bold text-white drop-shadow-[1px_1px_0_rgba(0,0,0,1)]">
+                  {hp} / {expState.maxHP}
+                </span>
+              </div>
+            </div>
+
+            {/* Main Inventory Menu */}
+            {isInventoryOpen && (
+              <div className="absolute inset-0 z-40 bg-black/80 backdrop-blur-md flex items-center justify-center pointer-events-auto animate-fade-in">
+                <div className="relative bg-[#1a1a1a] border-4 border-[#555] p-10 shadow-[0_16px_48px_rgba(0,0,0,1)] flex flex-col items-center min-w-[600px] animate-pop-in">
+
+                  {/* Close Button */}
+                  <button
+                    onClick={() => window.dispatchEvent(new CustomEvent('inventory-close'))}
+                    className="absolute top-4 right-6 text-gray-400 hover:text-red-500 font-black text-4xl transition-colors"
+                  >
+                    &times;
+                  </button>
+
+                  <h2 className="text-yellow-500 font-black text-4xl mb-8 tracking-widest uppercase drop-shadow-[0_2px_2px_rgba(0,0,0,1)]">Inventory</h2>
+
+                  <div className="grid grid-cols-4 gap-4">
+                    {inventory.map((slot, i) => (
+                      <div
+                        key={i}
+                        onClick={() => {
+                          if (i !== activeSlot) {
+                            window.dispatchEvent(new CustomEvent('inventory-swap', { detail: { from: i, to: activeSlot } }));
+                          }
+                        }}
+                        draggable={slot.id !== ''}
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('text/plain', i.toString());
+                          // Drag only the item image
+                          const img = e.currentTarget.querySelector('img');
+                          if (img) {
+                            e.dataTransfer.setDragImage(img, 32, 32); // rough center offset
+                          }
+                        }}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const from = parseInt(e.dataTransfer.getData('text/plain'));
+                          if (!isNaN(from) && from !== i) {
+                            window.dispatchEvent(new CustomEvent('inventory-swap', { detail: { from, to: i } }));
+                          }
+                        }}
+                        className={`relative w-24 h-24 border-4 flex items-center justify-center transition-transform hover:bg-[#333] hover:scale-105
                         ${slot.id !== '' ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}
                         ${i === activeSlot && i <= 2 ? 'border-white bg-[#444]' : i <= 2 ? 'border-[#777] bg-[#333]' : 'border-[#444] bg-[#222]'}
                       `}
-                    >
-                      {/* Slot Number */}
-                      <div className="absolute top-2 left-2 text-xs text-gray-500 font-mono font-bold" style={{ textShadow: "1px 1px 0 #000" }}>{i + 1}</div>
-                      
-                      {/* Item SVGs */}
-                      {slot.id !== '' && (
-                        <img 
-                          src={`/assets/character/${slot.id === 'potion' ? '../items/potion' : (slot.id === 'gun' ? 'gun1' : slot.id)}.svg?v=2`} 
-                          alt={slot.id} 
-                          className={`${slot.id === 'potion' ? 'w-12 h-12' : 'w-16 h-16'} object-contain drop-shadow-[2px_2px_0_rgba(0,0,0,1)] pointer-events-none`} 
-                          style={{ imageRendering: "pixelated" }} 
-                        />
-                      )}
-                      
-                      {/* Count Indicator */}
-                      {slot.count > 1 && (
-                        <div className="absolute bottom-1 right-2 text-lg text-white font-mono font-bold drop-shadow-[2px_2px_0_rgba(0,0,0,1)] pointer-events-none">
-                          {slot.count}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                      >
+                        {/* Slot Number */}
+                        <div className="absolute top-2 left-2 text-xs text-gray-500 font-mono font-bold" style={{ textShadow: "1px 1px 0 #000" }}>{i + 1}</div>
+
+                        {/* Item SVGs */}
+                        {slot.id !== '' && (
+                          <img
+                            src={`/assets/character/${slot.id === 'potion' ? '../items/potion' : (slot.id === 'gun' ? 'gun1' : slot.id)}.svg?v=2`}
+                            alt={slot.id}
+                            className={`${slot.id === 'potion' ? 'w-12 h-12' : 'w-16 h-16'} object-contain drop-shadow-[2px_2px_0_rgba(0,0,0,1)] pointer-events-none`}
+                            style={{ imageRendering: "pixelated" }}
+                          />
+                        )}
+
+                        {/* Count Indicator */}
+                        {slot.count > 1 && (
+                          <div className="absolute bottom-1 right-2 text-lg text-white font-mono font-bold drop-shadow-[2px_2px_0_rgba(0,0,0,1)] pointer-events-none">
+                            {slot.count}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Merchant Overlay Buttons */}
-          {waveState.gameState === 'merchant' && (
-            <div className="absolute top-24 right-4 flex flex-col gap-4 z-40 pointer-events-auto">
-               <button 
-                 onClick={() => window.dispatchEvent(new CustomEvent('shop-open'))}
-                 className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-mono font-bold text-xl border-4 border-indigo-400 shadow-xl transition-transform active:scale-95 drop-shadow-[2px_2px_0_rgba(0,0,0,1)]">
-                  OPEN SHOP (F)
-               </button>
-               <button 
-                 onClick={() => window.dispatchEvent(new CustomEvent('skip-wave'))}
-                 className="px-6 py-3 bg-green-600 hover:bg-green-500 text-white font-mono font-bold text-xl border-4 border-green-400 shadow-xl transition-transform active:scale-95 drop-shadow-[2px_2px_0_rgba(0,0,0,1)]">
-                  SKIP WAVE (G - {Math.ceil(waveState.merchantTimer / 60)}s)
-               </button>
-            </div>
-          )}
-          
-          {/* Merchant Shop Modal */}
-          {showShop && (gameState === 'playing') && (
-             <div className="absolute inset-0 bg-black/80 z-[100] flex items-center justify-center backdrop-blur-sm pointer-events-auto">
-                <div className="bg-[#111] border-8 border-indigo-600 p-8 min-w-[600px] flex flex-col shadow-2xl">
-                   <div className="flex justify-between items-center mb-8 border-b-4 border-indigo-900 pb-4">
-                      <h2 className="text-4xl text-indigo-400 font-mono font-bold tracking-widest">MERCHANT</h2>
-                      <button onClick={() => setShowShop(false)} className="text-red-500 text-4xl font-bold hover:text-red-400 hover:scale-110 transition-transform">X</button>
-                   </div>
-                   <div className="grid grid-cols-3 gap-6 mb-8">
-                      {/* Empty slots for now */}
-                      <div className="h-48 bg-[#222] border-4 border-[#333] flex items-center justify-center text-gray-500 font-mono text-center px-4 hover:border-indigo-500 transition-colors">OUT OF STOCK</div>
-                      <div className="h-48 bg-[#222] border-4 border-[#333] flex items-center justify-center text-gray-500 font-mono text-center px-4 hover:border-indigo-500 transition-colors">OUT OF STOCK</div>
-                      <div className="h-48 bg-[#222] border-4 border-[#333] flex items-center justify-center text-gray-500 font-mono text-center px-4 hover:border-indigo-500 transition-colors">OUT OF STOCK</div>
-                   </div>
-                   <div className="flex justify-between items-center bg-[#222] p-4 border-4 border-[#333]">
-                      <span className="text-gray-400 font-mono">Shop upgrades coming soon...</span>
-                      <div className="flex items-center gap-2">
-                         <div className="w-4 h-4 bg-yellow-400 rounded-full border border-yellow-200"></div>
-                         <span className="text-yellow-400 font-mono font-bold text-2xl drop-shadow-md">{coins}</span>
-                       </div>
-                   </div>
-                </div>
-             </div>
-          )}
-
-          {/* Interaction Prompts */}
-          {interactHover === 'merchant' && !showShop && (
-             <div className="absolute bottom-32 left-1/2 -translate-x-1/2 bg-black/80 px-6 py-2 border-4 border-indigo-600 z-50 pointer-events-none">
-                <span className="text-2xl font-mono font-bold text-white tracking-widest drop-shadow-[2px_2px_0_rgba(0,0,0,1)]">PRESS [F] TO OPEN SHOP</span>
-             </div>
-          )}
-          {interactHover === 'portal' && (
-             <div className="absolute bottom-32 left-1/2 -translate-x-1/2 bg-black/80 px-6 py-2 border-4 border-cyan-400 z-50 pointer-events-none transition-opacity duration-300">
+            {/* Interaction Prompts */}
+            {interactHover === 'portal' && (
+              <div className="absolute bottom-32 left-1/2 -translate-x-1/2 bg-black/80 px-6 py-2 border-4 border-cyan-400 z-50 pointer-events-none transition-opacity duration-300">
                 <span className="text-2xl font-mono font-bold text-cyan-400 tracking-widest drop-shadow-[2px_2px_0_rgba(0,0,0,1)] animate-pulse">PRESS [SPACE] TO ENTER PORTAL</span>
-             </div>
-          )}
+              </div>
+            )}
+            {/* Quickbar 3-Slot Overlay */}
+            {!isInventoryOpen && (
+              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-none z-30">
 
-          {/* Quickbar 3-Slot Overlay */}
-          {!isInventoryOpen && (
-            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-none z-30">
-              
-              {/* Centered Reloading Text above everything */}
-              {isReloading && (
+                {/* Centered Reloading Text above everything */}
+                {isReloading && (
                   <div className="text-red-500 font-bold animate-pulse text-2xl tracking-widest drop-shadow-[0_2px_2px_rgba(0,0,0,1)] whitespace-nowrap mb-4">
                     RELOADING...
                   </div>
-              )}
+                )}
 
-              <div className="flex items-end gap-2 pointer-events-none">
-                <div className="flex bg-black/80 border-4 border-[#333] p-1 gap-1 shadow-[0_8px_16px_rgba(0,0,0,0.8)] pointer-events-auto">
-                {inventory.slice(0, 3).map((slot, i) => (
-                  <div 
-                    key={i} 
-                    onClick={() => window.dispatchEvent(new CustomEvent('slot-change', { detail: i }))}
-                    className={`relative w-14 h-14 border-4 flex items-center justify-center text-xl font-bold transition-all cursor-pointer hover:bg-[#555]
+                <div className="flex items-end gap-2 pointer-events-none">
+                  <div className="flex bg-black/80 border-4 border-[#333] p-1 gap-1 shadow-[0_8px_16px_rgba(0,0,0,0.8)] pointer-events-auto">
+                    {inventory.slice(0, 3).map((slot, i) => (
+                      <div
+                        key={i}
+                        onClick={() => window.dispatchEvent(new CustomEvent('slot-change', { detail: i }))}
+                        className={`relative w-14 h-14 border-4 flex items-center justify-center text-xl font-bold transition-all cursor-pointer hover:bg-[#555]
                       ${i === activeSlot ? 'border-white bg-[#555]' : 'border-[#222] bg-[#333]'}
                     `}
-                  >
-                    <div className="absolute top-0 left-1 text-[10px] text-gray-400 font-mono" style={{ textShadow: "1px 1px 0 #000" }}>
-                      {i + 1}
-                    </div>
-                    
-                    {/* Item SVGs */}
-                    {slot.id !== '' && (
-                      <img 
-                        src={`/assets/character/${slot.id === 'potion' ? '../items/potion' : (slot.id === 'gun' ? 'gun1' : slot.id)}.svg?v=2`} 
-                        alt={slot.id} 
-                        className={`${slot.id === 'potion' ? 'w-8 h-8' : 'w-10 h-10'} object-contain drop-shadow-[2px_2px_0_rgba(0,0,0,1)] pointer-events-none`} 
-                        style={{ imageRendering: "pixelated" }} 
-                      />
-                    )}
-                    
-                    {/* Count Indicator */}
-                    {slot.count > 1 && (
-                      <div className="absolute bottom-0 right-1 text-sm text-white font-mono drop-shadow-[1px_1px_0_rgba(0,0,0,1)]">
-                        {slot.count}
+                      >
+                        <div className="absolute top-0 left-1 text-[10px] text-gray-400 font-mono" style={{ textShadow: "1px 1px 0 #000" }}>
+                          {i + 1}
+                        </div>
+
+                        {/* Item SVGs */}
+                        {slot.id !== '' && (
+                          <img
+                            src={`/assets/character/${slot.id === 'potion' ? '../items/potion' : (slot.id === 'gun' ? 'gun1' : slot.id)}.svg?v=2`}
+                            alt={slot.id}
+                            className={`${slot.id === 'potion' ? 'w-8 h-8' : 'w-10 h-10'} object-contain drop-shadow-[2px_2px_0_rgba(0,0,0,1)] pointer-events-none`}
+                            style={{ imageRendering: "pixelated" }}
+                          />
+                        )}
+
+                        {/* Count Indicator */}
+                        {slot.count > 1 && (
+                          <div className="absolute bottom-0 right-1 text-sm text-white font-mono drop-shadow-[1px_1px_0_rgba(0,0,0,1)]">
+                            {slot.count}
+                          </div>
+                        )}
                       </div>
-                    )}
+                    ))}
                   </div>
-                ))}
-              </div>
-              
-              {/* Ammo Display */}
-              {['gun', 'machine_gun', 'shotgun'].includes(inventory[activeSlot]?.id) && (
-                <div className="relative flex flex-col items-center justify-center h-14 px-4 bg-black/80 border-4 border-[#333] shadow-[0_8px_16px_rgba(0,0,0,0.8)] font-bold font-mono min-w-[120px]">
-                  <span className="text-2xl text-yellow-500 drop-shadow-[2px_2px_0_rgba(0,0,0,1)]">
-                    {ammo} <span className="text-gray-500 text-xl">/ {maxAmmo || '∞'}</span>
-                  </span>
+
+                  {/* Ammo Display */}
+                  {['gun', 'machine_gun', 'shotgun'].includes(inventory[activeSlot]?.id) && (
+                    <div className="relative flex flex-col items-center justify-center h-14 px-4 bg-black/80 border-4 border-[#333] shadow-[0_8px_16px_rgba(0,0,0,0.8)] font-bold font-mono min-w-[120px]">
+                      <span className="text-2xl text-yellow-500 drop-shadow-[2px_2px_0_rgba(0,0,0,1)]">
+                        {ammo} <span className="text-gray-500 text-xl">/ {maxAmmo || '∞'}</span>
+                      </span>
+                    </div>
+                  )}
+                  {/* Potion Prompt */}
+                  {inventory[activeSlot]?.id === 'potion' && (
+                    <div className="flex flex-col items-center justify-center h-14 px-4 bg-black/80 border-4 border-[#333] border-l-0 shadow-[0_8px_16px_rgba(0,0,0,0.8)] font-bold font-mono min-w-[120px]">
+                      <span className="text-lg text-green-400 drop-shadow-[2px_2px_0_rgba(0,0,0,1)] animate-pulse">
+                        Press <span className="text-white text-xl">F</span>
+                      </span>
+                    </div>
+                  )}
                 </div>
-              )}
-              {/* Potion Prompt */}
-              {inventory[activeSlot]?.id === 'potion' && (
-                <div className="flex flex-col items-center justify-center h-14 px-4 bg-black/80 border-4 border-[#333] border-l-0 shadow-[0_8px_16px_rgba(0,0,0,0.8)] font-bold font-mono min-w-[120px]">
-                  <span className="text-lg text-green-400 drop-shadow-[2px_2px_0_rgba(0,0,0,1)] animate-pulse">
-                    Press <span className="text-white text-xl">F</span>
-                  </span>
-                </div>
-              )}
               </div>
-            </div>
-          )}
-        </>
-      )}
-    </main>
+            )}
+          </>
+        )}
+      </main>
+    </>
   );
 }
