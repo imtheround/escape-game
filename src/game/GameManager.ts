@@ -2225,6 +2225,31 @@ export class GameManager {
               const room = this.dungeonRooms.find(r => r.id === this.activeRoomId);
               if (room && !room.cleared) {
                   room.cleared = true;
+                  
+                  // Spawn Portal if this is the final room of the stage
+                  if (room.isEndRoom && !this.portalSpawned) {
+                      this.portalSpawned = true;
+                      const portalX = room.tx * 64 + 32;
+                      const portalY = room.ty * 64 + 32;
+
+                      this.portalSprite = new Sprite(this.mapTextures.portal);
+                      this.portalSprite.anchor.set(0.5, 0.5);
+                      this.portalSprite.scale.set(4);
+                      this.portalSprite.x = portalX;
+                      this.portalSprite.y = portalY;
+                      this.portalSprite.alpha = 1.0;
+                      this.portalSprite.zIndex = portalY;
+                      this.worldContainer.addChild(this.portalSprite);
+
+                      const style = new TextStyle({ fontFamily: '"CustomFont", Arial', fontSize: 36, fill: '#aa00ff', stroke: { color: '#000000', width: 5 }, fontWeight: 'bold' });
+                      const clearText = new Text({ text: 'AETHER RIFT OPENED!', style });
+                      clearText.anchor.set(0.5, 0.5);
+                      clearText.x = this.player.x;
+                      clearText.y = this.player.y - 100;
+                      clearText.zIndex = 999999;
+                      this.worldContainer.addChild(clearText);
+                      this.damagePopups.push({ sprite: clearText, life: 180 });
+                  }
               }
           }
       }
@@ -2783,9 +2808,14 @@ export class GameManager {
                     for (let attempts = 0; attempts < 15; attempts++) {
                         rx = activePlayerRoom.tx * 64 + Math.floor(Math.random() * (activePlayerRoom.tw * 64 - 128)) - Math.floor((activePlayerRoom.tw * 64)/2) + 64;
                         ry = activePlayerRoom.ty * 64 + Math.floor(Math.random() * (activePlayerRoom.th * 64 - 128)) - Math.floor((activePlayerRoom.th * 64)/2) + 64;
-                        const tx = Math.floor(rx / 64);
-                        const ty = Math.floor(ry / 64);
-                        if (!this.obstacleCells.has(`${tx},${ty}`)) {
+                        const tx1 = Math.floor((rx - 32) / 64);
+                        const tx2 = Math.floor((rx + 32) / 64);
+                        const ty1 = Math.floor((ry - 32) / 64);
+                        const ty2 = Math.floor((ry + 32) / 64);
+                        if (!this.obstacleCells.has(`${tx1},${ty1}`) &&
+                            !this.obstacleCells.has(`${tx2},${ty1}`) &&
+                            !this.obstacleCells.has(`${tx1},${ty2}`) &&
+                            !this.obstacleCells.has(`${tx2},${ty2}`)) {
                             validSpawn = true;
                             break;
                         }

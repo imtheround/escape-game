@@ -82,7 +82,7 @@ export class DungeonGenerator {
 
     private static generateOvergrownForest(dungeonTiles: Record<string, string>, dungeonRooms: DungeonRoom[], stage: number) {
       const rng = new RNG(stage * 9999);
-      const numRooms = 10 + Math.floor(stage);
+      const numRooms = 7 + Math.floor(stage * 0.7);
       
       const roomCoords = [{x: 0, y: 0}]; // Origin is the spawn room
       let cx = 0;
@@ -104,7 +104,7 @@ export class DungeonGenerator {
           
           if (i === 0) {
               // The Spawn Room: A large, protective organic clearing
-              tw = 22; th = 22;
+              tw = 18; th = 18;
               const bubbles = [
                   { dx: 0, dy: 0, r: 10 },
                   { dx: 4, dy: 3, r: 6 },
@@ -122,7 +122,7 @@ export class DungeonGenerator {
               }
           } else if (i === roomCoords.length - 1) {
               // The Boss/End Room: Massive irregular sprawl
-              tw = 28; th = 28;
+              tw = 22; th = 22;
               const bubbles = [
                   { dx: 0, dy: 0, r: 12 },
                   { dx: 6, dy: 5, r: 8 },
@@ -141,7 +141,7 @@ export class DungeonGenerator {
               }
           } else {
               // Normal combat clearings: completely unorganized overlapping circles
-              tw = 20; th = 20;
+              tw = 16; th = 16;
               const numBubbles = 3 + Math.floor(rng.next() * 3);
               for (let b = 0; b < numBubbles; b++) {
                   const bdx = Math.floor((rng.next() - 0.5) * 12);
@@ -246,12 +246,14 @@ export class DungeonGenerator {
 
     for (let i = 0; i < roomCoords.length; i++) {
         const rc = roomCoords[i];
+        const isBossRoom = stage === 5 && i === roomCoords.length - 1;
+        
         const r: DungeonRoom = {
             id: i,
             tx: rc.x * ROOM_SPACING,
             ty: rc.y * ROOM_SPACING,
-            tw: ROOM_SIZE,
-            th: ROOM_SIZE,
+            tw: isBossRoom ? 28 : ROOM_SIZE,
+            th: isBossRoom ? 28 : ROOM_SIZE,
             cleared: i === 0, // Start room is naturally cleared
             active: false,
             isEndRoom: i === roomCoords.length - 1, // Last room generated is the end
@@ -267,7 +269,7 @@ export class DungeonGenerator {
                 
                 // Environmental Hazards (Phase 3)
                 // Spawn hazards randomly inside the room, but keep edges clear
-                if (i !== 0 && tx > startX + 2 && tx < startX + r.tw - 2 && ty > startY + 2 && ty < startY + r.th - 2) {
+                if (i !== 0 && !isBossRoom && tx > startX + 2 && tx < startX + r.tw - 2 && ty > startY + 2 && ty < startY + r.th - 2) {
                     if (Math.random() < 0.08) {
                         dungeonTiles[`${tx},${ty}`] = Math.random() < 0.5 ? 'MAGMA' : 'STEAM_VENT';
                     }
