@@ -76,13 +76,16 @@ export class DungeonGenerator {
   }
 
   public static generateProceduralLayout(dungeonTiles: Record<string, string>, dungeonRooms: DungeonRoom[], stage: number, biome: number) {
-      // Use organic bubble generation for all 3 biomes now
-      this.generateOvergrownForest(dungeonTiles, dungeonRooms, stage);
+      if (biome === 1) {
+          this.generateOvergrownForest(dungeonTiles, dungeonRooms, stage);
+      } else {
+          this.generateStandardLayout(dungeonTiles, dungeonRooms, stage, biome);
+      }
   }
 
     private static generateOvergrownForest(dungeonTiles: Record<string, string>, dungeonRooms: DungeonRoom[], stage: number) {
       const rng = new RNG(stage * 9999);
-      const numRooms = 7 + Math.floor(stage * 0.7);
+      const numRooms = 5 + Math.floor(stage * 0.5);
       
       const roomCoords = [{x: 0, y: 0}]; // Origin is the spawn room
       let cx = 0;
@@ -195,17 +198,15 @@ export class DungeonGenerator {
       // Step 4: Scatter elements (Props / Hazards) in clearings only, not paths
       for (const r of dungeonRooms) {
           if (r.id !== 0) {
-              const numObstacles = 4 + Math.floor(rng.next() * 5);
+              const numObstacles = 2 + Math.floor(rng.next() * 3);
               for (let i = 0; i < numObstacles; i++) {
                   const rx = r.tx + Math.floor(rng.next() * (r.tw - 6)) - Math.floor(r.tw/2) + 3;
                   const ry = r.ty + Math.floor(rng.next() * (r.th - 6)) - Math.floor(r.th/2) + 3;
                   const key = `${rx},${ry}`;
                   if (dungeonTiles[key] === 'FLOOR') { 
                       // 10% chance for puddle, 90% for rock/obstacle
-                      if (rng.next() < 0.1) {
-                          dungeonTiles[key] = 'IRRADIATED_WATER';
-                      } else {
-                          dungeonTiles[key] = 'OBSTACLE';
+                      if (false) { } else {
+                          dungeonTiles[key] = rng.next() < 0.25 ? 'OBSTACLE' : 'TREE';
                       }
                   }
               }
@@ -214,7 +215,7 @@ export class DungeonGenerator {
   }
 
   private static generateStandardLayout(dungeonTiles: Record<string, string>, dungeonRooms: DungeonRoom[], stage: number, biome: number) {
-    const numRooms = 8 + Math.floor(stage); // Double rooms based on stage
+    const numRooms = 6 + Math.floor(stage * 0.7); // Reduced rooms based on stage
     
     let cx = 0;
     let cy = 0;
@@ -343,7 +344,7 @@ export class DungeonGenerator {
                 const key = `${rx},${ry}`;
                 // Avoid placing on top of hazards or blocking paths
                 if (dungeonTiles[key] === 'FLOOR') { 
-                    dungeonTiles[key] = 'OBSTACLE';
+                    dungeonTiles[key] = Math.random() < 0.25 ? 'OBSTACLE' : 'TREE';
                 }
             }
         }

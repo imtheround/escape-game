@@ -2814,8 +2814,8 @@ export class GameManager {
             if (this.currentDungeonStage === 10) {
                activePlayerRoom.cleared = true; 
             } else {
-               let numEnemies = (3 + Math.floor(Math.random() * 3)) + this.currentDungeonStage;
-               if (this.currentDungeonStage === 5 && activePlayerRoom.isEndRoom) numEnemies = 1;
+               let numEnemies = (3 + Math.floor(Math.random() * 3)) + (this.currentDungeonStage % 10);
+               if ((this.currentDungeonStage % 10) === 5 && activePlayerRoom.isEndRoom) numEnemies = 1;
 
                this.activeRoomEnemies = numEnemies;
                
@@ -2825,10 +2825,10 @@ export class GameManager {
                     for (let attempts = 0; attempts < 15; attempts++) {
                         rx = activePlayerRoom.tx * 64 + Math.floor(Math.random() * (activePlayerRoom.tw * 64 - 128)) - Math.floor((activePlayerRoom.tw * 64)/2) + 64;
                         ry = activePlayerRoom.ty * 64 + Math.floor(Math.random() * (activePlayerRoom.th * 64 - 128)) - Math.floor((activePlayerRoom.th * 64)/2) + 64;
-                        const tx1 = Math.floor((rx - 32) / 64);
-                        const tx2 = Math.floor((rx + 32) / 64);
-                        const ty1 = Math.floor((ry - 32) / 64);
-                        const ty2 = Math.floor((ry + 32) / 64);
+                        const tx1 = Math.floor((rx - 64) / 64);
+                        const tx2 = Math.floor((rx + 64) / 64);
+                        const ty1 = Math.floor((ry - 64) / 64);
+                        const ty2 = Math.floor((ry + 64) / 64);
                         if (!this.obstacleCells.has(`${tx1},${ty1}`) &&
                             !this.obstacleCells.has(`${tx2},${ty1}`) &&
                             !this.obstacleCells.has(`${tx1},${ty2}`) &&
@@ -4778,8 +4778,8 @@ export class GameManager {
      if (this.tutorialStep === 0) {
         speaker = 'Slime';
         text = "Where am I? My energy is low. I need to test movement first: walk with WASD, shift to sprint, and press Q or C to roll.";
-     } else if (this.tutorialStep === 2) {
-        text = "Diagnostics complete. Door 1 is now open. Go through the hallway to the armory.";
+      } else if (this.tutorialStep === 2) {
+        text = "Diagnostics complete. Door 1 is now open. Go through the hallway to the armory. (Press M to open the map.)";
         this.carveHallway(6, 34);
         this.setDoorStatus(6, true);
      } else if (this.tutorialStep === 4) {
