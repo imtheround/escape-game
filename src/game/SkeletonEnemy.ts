@@ -10,7 +10,7 @@ export class SkeletonEnemy extends Container {
     public vy: number = 0;
     public speed: number = 2;
     public state: 'idle' | 'run' | 'attack' | 'dead' = 'idle';
-    public aiState: string = 'chase';
+    public aiState: string = 'idle';
     public stateTimer: number = 0;
     public customData: any = {};
     
