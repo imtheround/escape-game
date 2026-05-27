@@ -663,6 +663,28 @@ export class GameManager {
     SoundManager.getInstance().playSound('close_inventory');
   };
 
+  private handleSkipToBiome1 = async () => {
+    this.currentDungeonStage = 11;
+    this.currentDungeonWorld = 2; // Biome 1 (Magma)
+    this.playerHP = this.playerMaxHP;
+    await this.initOpenWorld();
+    this.player.x = 0;
+    this.player.y = 0;
+    this.dispatchState();
+    SoundManager.getInstance().playSound('close_inventory');
+  };
+
+  private handleSkipToBiome2 = async () => {
+    this.currentDungeonStage = 21;
+    this.currentDungeonWorld = 3; // Biome 2 (Void)
+    this.playerHP = this.playerMaxHP;
+    await this.initOpenWorld();
+    this.player.x = 0;
+    this.player.y = 0;
+    this.dispatchState();
+    SoundManager.getInstance().playSound('close_inventory');
+  };
+
   private handleSettingsToggle = () => {
     this.isSettingsOpen = !this.isSettingsOpen;
     if (this.isSettingsOpen) SoundManager.getInstance().playSound('open_inventory');
@@ -1831,6 +1853,12 @@ export class GameManager {
         if (biome === 2) floorBaseCol = 0x10051f; // Void dark purple
 
         if (type === 'FLOOR' || type === 'DOOR' || type === 'OBSTACLE' || type === 'TREE') {
+          if (this.currentDungeonStage === 1 && this.currentDungeonWorld === 1) {
+              // Tutorial stone floors (Bricks)
+              this.floorGraphics.rect(bx, by, TILE_PX, TILE_PX).fill(cols.floorLight);
+              this.floorGraphics.rect(bx + 2, by + 2, TILE_PX - 4, TILE_PX - 4).fill(cols.floorDark);
+          } else {
+              // Normal Biomes
               this.floorGraphics.rect(bx, by, TILE_PX, TILE_PX).fill(floorBaseCol); 
               
               if (activeFloorSpriteCount >= this.pooledFloorSprites.length) {
@@ -1866,6 +1894,7 @@ export class GameManager {
               const flipX = rng() > 0.5 ? 1 : -1;
               const flipY = rng() > 0.5 ? 1 : -1;
               fspr.scale.set(flipX, flipY);
+          }
         }
 
         if (type === 'TREE') {
@@ -2413,6 +2442,8 @@ export class GameManager {
     window.addEventListener('volume-change', this.handleVolumeChange);
     window.addEventListener('settings-toggle', this.handleSettingsToggle);
     window.addEventListener('skip-tutorial', this.handleSkipTutorial);
+    window.addEventListener('skip-to-biome-1', this.handleSkipToBiome1);
+    window.addEventListener('skip-to-biome-2', this.handleSkipToBiome2);
     window.addEventListener('dialogue-advance', this.handleDialogueAdvance);
     window.addEventListener('shop-buy', this.handleShopBuy);
   }
