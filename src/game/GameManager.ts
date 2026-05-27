@@ -764,7 +764,7 @@ export class GameManager {
     };
 
     [this.potionTexture, this.coinTexture, this.merchantTexture, 
-     ...this.mapTextures.floor, ...this.mapTextures.customFloor, ...this.mapTextures.wall_h, ...this.mapTextures.wall_v, ...this.mapTextures.rock, 
+     ...this.mapTextures.floor, ...this.mapTextures.customFloor0, ...this.mapTextures.customFloor1, ...this.mapTextures.customFloor2, ...this.mapTextures.wall_h, ...this.mapTextures.wall_v, ...this.mapTextures.rock, 
      this.mapTextures.fence, this.mapTextures.portal, this.mapTextures.crate, this.mapTextures.bones, this.mapTextures.web,
      this.mapTextures.tree1, this.mapTextures.tree2, this.mapTextures.water, this.mapTextures.lava, this.mapTextures.fire_trail, this.mapTextures.telegraph,
      this.mapTextures.relic_plains, this.mapTextures.relic_magma, this.mapTextures.relic_void,
