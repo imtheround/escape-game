@@ -124,6 +124,13 @@ export const translations = {
   }
 };
 
+const ALL_BUFFS = [
+  { id: 'maxhp', name: 'Titanium Plating', desc: '+3 Max HP', icon: '❤️' },
+  { id: 'dmg', name: 'High Caliber', desc: '+5 Damage', icon: '⚔️' },
+  { id: 'speed', name: 'Adrenaline', desc: '+1.0 Speed', icon: '⚡' },
+  { id: 'firerate', name: 'Fast Hands', desc: '+20% Fire Rate', icon: '🔥' }
+];
+
 export default function Home() {
   const [language, setLanguage] = useState<'en' | 'fr'>('en');
   const t = translations[language];
@@ -137,6 +144,8 @@ export default function Home() {
   const [ammo, setAmmo] = useState(30);
   const [maxAmmo, setMaxAmmo] = useState(30);
   const [isReloading, setIsReloading] = useState(false);
+  const [levelUpData, setLevelUpData] = useState<{level: number, options: typeof ALL_BUFFS} | null>(null);
+  const [bossHp, setBossHp] = useState<{hp: number, maxHp: number} | null>(null);
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [volume, setVolume] = useState({ master: 1.0, bgm: 0.1, sfx: 0.5 });
@@ -218,6 +227,14 @@ export default function Home() {
         e.preventDefault();
         window.dispatchEvent(new CustomEvent('skip-tutorial'));
       }
+      if (e.code === 'F2') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('skip-to-biome-1'));
+      }
+      if (e.code === 'F3') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('skip-to-biome-2'));
+      }
     };
     const handleSettingsToggle = () => setIsSettingsOpen(prev => !prev);
     const handleSkipTutorial = () => setIsSettingsOpen(false);
@@ -242,9 +259,22 @@ export default function Home() {
     window.addEventListener("settings-toggle", handleSettingsToggle);
     window.addEventListener("skip-tutorial", handleSkipTutorial);
 
+    const handleLevelUp = (e: any) => {
+      const shuffled = [...ALL_BUFFS].sort(() => 0.5 - Math.random());
+      setLevelUpData({
+        level: e.detail.level,
+        options: shuffled.slice(0, 3)
+      });
+    };
+    window.addEventListener("level-up-trigger", handleLevelUp);
+
+    const handleBossHp = (e: any) => setBossHp(e.detail);
+    window.addEventListener("boss-hp-change", handleBossHp);
+
     return () => {
       window.removeEventListener('tutorial-step', handleTutorialStep);
       window.removeEventListener('hp-change', handleHpChange);
+      window.removeEventListener('boss-hp-change', handleBossHp);
       window.removeEventListener('inventory-change', handleInventoryChange);
       window.removeEventListener("ammo-change", handleAmmoChange);
       window.removeEventListener("wave-change", handleWaveChange);
@@ -256,10 +286,8 @@ export default function Home() {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("settings-toggle", handleSettingsToggle);
       window.removeEventListener("skip-tutorial", handleSkipTutorial);
-      window.removeEventListener("assets-loaded", handleAssetsLoaded);
-      window.removeEventListener("generation-start", handleGenerationStart);
-      window.removeEventListener("generation-end", handleGenerationEnd);
       window.removeEventListener('tutorial-dialogue-trigger', handleDialogueTrigger);
+      window.removeEventListener("level-up-trigger", handleLevelUp);
     };
   }, [hasPickedUpPotion]);
 
@@ -439,9 +467,15 @@ export default function Home() {
                 </span>
               </div>
               {tutorialStep < 15 && (
-                <div className="bg-black/80 px-3 py-1 border-2 border-gray-600 shadow-md mt-2 pointer-events-auto">
-                  <button onClick={() => window.dispatchEvent(new CustomEvent('skip-tutorial'))} className="text-sm font-mono font-bold text-gray-400 hover:text-white transition-colors">
+                <div className="bg-black/80 px-3 py-1 border-2 border-gray-600 shadow-md mt-2 pointer-events-auto flex flex-col gap-1">
+                  <button onClick={() => window.dispatchEvent(new CustomEvent('skip-tutorial'))} className="text-sm font-mono font-bold text-gray-400 hover:text-white transition-colors text-left">
                     [F1] Skip Tutorial
+                  </button>
+                  <button onClick={() => window.dispatchEvent(new CustomEvent('skip-to-biome-1'))} className="text-sm font-mono font-bold text-gray-400 hover:text-white transition-colors text-left">
+                    [F2] Skip to Biome 2 (Magma)
+                  </button>
+                  <button onClick={() => window.dispatchEvent(new CustomEvent('skip-to-biome-2'))} className="text-sm font-mono font-bold text-gray-400 hover:text-white transition-colors text-left">
+                    [F3] Skip to Biome 3 (Void)
                   </button>
                 </div>
               )}
@@ -536,6 +570,23 @@ export default function Home() {
                 </div>
               )}
             </div>
+            
+            {/* Boss HP Bar */}
+            {bossHp && bossHp.hp > 0 && (
+              <div className="absolute top-8 left-1/2 -translate-x-1/2 w-3/4 max-w-4xl pointer-events-none z-50 flex flex-col items-center">
+                <div className="text-xl font-mono text-red-500 mb-2 font-bold tracking-widest uppercase drop-shadow-[0_0_10px_rgba(255,0,0,0.8)]">Mutated Cyber-Behemoth</div>
+                <div className="bg-black/90 border-4 border-red-900/60 h-8 w-full shadow-[0_0_20px_rgba(255,0,0,0.3)] relative overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-red-800 via-red-600 to-red-500 transition-all duration-100 ease-out"
+                    style={{ width: `${Math.max(0, Math.min(100, (bossHp.hp / bossHp.maxHp) * 100))}%` }}
+                  ></div>
+                  <span className="absolute inset-0 flex items-center justify-center text-sm font-mono font-bold text-white drop-shadow-[1px_1px_2px_rgba(0,0,0,1)]">
+                    {Math.floor(bossHp.hp)} / {bossHp.maxHp}
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* UI Overlay (HP Bar) */}
             <div className="absolute bottom-6 right-[calc(50%+190px)] pointer-events-none z-40 w-48 transition-all duration-300">
               <div className="text-xs font-mono text-red-400 mb-1 drop-shadow-md font-bold tracking-widest">{t.integrity}</div>
@@ -721,6 +772,41 @@ export default function Home() {
                       </span>
                     </div>
                   )}
+                </div>
+              </div>
+            )}
+
+            {/* Level Up Overlay */}
+            {levelUpData && (
+              <div className="absolute inset-0 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center z-[1000]">
+                <h1 className="text-5xl font-black text-cyan-400 drop-shadow-[0_4px_4px_rgba(0,0,0,1)] tracking-widest mb-2 animate-bounce">
+                  LEVEL UP!
+                </h1>
+                <p className="text-xl text-gray-300 font-mono mb-12">You reached Level {levelUpData.level}</p>
+
+                <div className="flex gap-8">
+                  {levelUpData.options.map((buff) => (
+                    <button
+                      key={buff.id}
+                      onClick={() => {
+                        window.dispatchEvent(new CustomEvent('buff-selected', { detail: { buffId: buff.id } }));
+                        setLevelUpData(null);
+                      }}
+                      className="group relative flex flex-col items-center justify-center w-64 h-80 bg-[#1a1c23]/90 border-4 border-[#2d3748] rounded-2xl p-6 transition-all duration-300 hover:scale-105 hover:-translate-y-4 hover:border-cyan-400 hover:shadow-[0_0_30px_rgba(34,211,238,0.4)] overflow-hidden"
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                      
+                      <span className="text-6xl mb-6 drop-shadow-lg group-hover:scale-110 transition-transform">{buff.icon}</span>
+                      
+                      <h3 className="text-2xl font-black text-white text-center mb-4 uppercase tracking-wider">{buff.name}</h3>
+                      
+                      <div className="w-12 h-1 bg-cyan-500 mb-6 group-hover:w-full transition-all duration-300" />
+                      
+                      <p className="text-lg text-cyan-300 font-mono font-bold text-center mt-auto">
+                        {buff.desc}
+                      </p>
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
