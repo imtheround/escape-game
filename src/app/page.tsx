@@ -47,6 +47,7 @@ function Heart({ type }: { type: "full" | "half" | "empty" }) {
 // --- Translations ---
 export const translations = {
   en: {
+    title: "ESCAPE GAME",
     loading: "LOADING...",
     integrity: "HP",
     level: "LVL",
@@ -62,29 +63,40 @@ export const translations = {
     merchantTitle: "SHOP",
     outOfStock: "SOLD OUT",
     equipped: "EQUIPPED",
+    creditsLabel: "Available Credits:",
+    potionName: "Healing Potion",
+    machineGunName: "Heavy Machine Gun",
+    shotgunName: "Riot Shotgun",
     playAgain: "PLAY AGAIN",
     deathMessage: "YOU DIED",
+    startButton: "START",
+    respawnBtn: "RESPAWN",
+    skipTutorialBtn: "[F1] Skip Tutorial",
+    skipBiome2Btn: "[F2] Skip to Biome 2 (Magma)",
+    skipBiome3Btn: "[F3] Skip to Biome 3 (Void)",
+    inDevelopment: "Note: Game still in development, may experience bugs.",
     tutorial: {
       step0: { speaker: "Player", text: "Use WASD to move, Shift to sprint, and Q/C to roll." },
-      step1: { task: "Move, Sprint, and Roll." },
-      step2: { speaker: "System", text: "Door opened. Go to the armory." },
-      step3: { task: "Go to the armory." },
-      step4: { speaker: "System", text: "Pick up the weapons." },
+      step1: { task: "WASD to Move | Shift to Sprint | Q/C to Roll" },
+      step2: { speaker: "System", text: "Door opened. Go to the armory. (M: Open Map)" },
+      step3: { task: "Go to the armory. (M: Open Map)" },
+      step4: { speaker: "System", text: "Pick up the Pistol and Sword from the floor." },
       step5: { task: "Equip the Pistol and Sword." },
       step6: { speaker: "System", text: "Right-Click: Aim. Left-Click: Shoot. R: Reload." },
-      step7: { task: "Practice shooting and reloading." },
-      step8: { speaker: "System", text: "Enemies approaching. Defend yourself." },
-      step9: { task: "Enter the arena." },
-      step10: { speaker: "System", text: "Fight." },
-      step11: { task: "Survive the swarm." },
+      step7: { task: "Right-Click to Aim | Left-Click to Shoot | R to Reload" },
+      step8: { speaker: "System", text: "Enemies approaching. Enter the arena ahead." },
+      step9: { task: "Enter the arena ahead." },
+      step10: { speaker: "System", text: "Fight! Survive the arena." },
+      step11: { task: "Survive the swarm. Kill all 3 enemies." },
       step12: { speaker: "System", text: "Clear. Collect coins and buy a potion with [E]." },
-      step13: { task: "Buy a healing potion (Press E)." },
-      step14: { speaker: "System", text: "Door opened. Go to the portal." },
-      step15: { task: "Reach the escape portal." },
+      step13: { task: "Buy a healing potion (E: Open shop)." },
+      step14: { speaker: "System", text: "Door opened. Go to the portal in Room 3." },
+      step15: { task: "Reach the escape portal. (Space to enter)." },
       step16: { speaker: "System", text: "Enter the portal to escape." }
     }
   },
   fr: {
+    title: "JEU D'ÉVASION",
     loading: "CHARGEMENT...",
     integrity: "PV",
     level: "NIV",
@@ -100,25 +112,35 @@ export const translations = {
     merchantTitle: "BOUTIQUE",
     outOfStock: "ÉPUISÉ",
     equipped: "ÉQUIPÉ",
+    creditsLabel: "Crédits disponibles:",
+    potionName: "Potion de soin",
+    machineGunName: "Mitrailleuse lourde",
+    shotgunName: "Fusil à pompe",
     playAgain: "REJOUER",
     deathMessage: "VOUS ÊTES MORT",
+    startButton: "COMMENCER",
+    respawnBtn: "RÉAPPARAÎTRE",
+    skipTutorialBtn: "[F1] Passer le Tuto",
+    skipBiome2Btn: "[F2] Aller au Biome 2 (Magma)",
+    skipBiome3Btn: "[F3] Aller au Biome 3 (Néant)",
+    inDevelopment: "Note: Jeu en développement, peut contenir des bugs.",
     tutorial: {
       step0: { speaker: "Joueur", text: "WASD pour bouger, Maj pour courir, Q/C pour rouler." },
-      step1: { task: "Bouger, Courir, et Rouler." },
-      step2: { speaker: "Système", text: "Porte ouverte. Allez à l'armurerie." },
-      step3: { task: "Allez à l'armurerie." },
-      step4: { speaker: "Système", text: "Ramassez les armes." },
+      step1: { task: "WASD: Bouger | Maj: Courir | Q/C: Rouler" },
+      step2: { speaker: "Système", text: "Porte ouverte. Allez à l'armurerie. (M: Carte)" },
+      step3: { task: "Allez à l'armurerie. (M: Carte)" },
+      step4: { speaker: "Système", text: "Ramassez le Pistolet et l'Épée." },
       step5: { task: "Équipez le Pistolet et l'Épée." },
       step6: { speaker: "Système", text: "Clic-Droit: Viser. Clic-Gauche: Tirer. R: Recharger." },
-      step7: { task: "Pratiquez le tir et la recharge." },
-      step8: { speaker: "Système", text: "Ennemis en approche. Défendez-vous." },
+      step7: { task: "Clic-Droit: Viser | Clic-Gauche: Tirer | R: Recharger" },
+      step8: { speaker: "Système", text: "Ennemis en approche. Entrez dans l'arène." },
       step9: { task: "Entrez dans l'arène." },
-      step10: { speaker: "Système", text: "Battez-vous." },
-      step11: { task: "Survivez à l'essaim." },
+      step10: { speaker: "Système", text: "Combattez! Survivez à l'arène." },
+      step11: { task: "Survivez à l'essaim. Éliminez les 3 ennemis." },
       step12: { speaker: "Système", text: "Terminé. Prenez les pièces et achetez une potion avec [E]." },
-      step13: { task: "Achetez une potion (Appuyez sur E)." },
-      step14: { speaker: "Système", text: "Porte ouverte. Allez au portail." },
-      step15: { task: "Atteignez le portail de sortie." },
+      step13: { task: "Achetez une potion (E: Boutique)." },
+      step14: { speaker: "Système", text: "Porte ouverte. Dirigez-vous vers le portail." },
+      step15: { task: "Atteignez le portail. (Espace: Entrer)." },
       step16: { speaker: "Système", text: "Entrez dans le portail pour fuir." }
     }
   }
@@ -407,7 +429,7 @@ export default function Home() {
 
         {gameState === 'start' && (
           <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm">
-            <h1 className="text-6xl font-black text-red-600 mb-8 tracking-widest drop-shadow-[0_4px_4px_rgba(255,0,0,0.5)]">ESCAPE</h1>
+            <h1 className="text-6xl font-black text-red-600 mb-8 tracking-widest drop-shadow-[0_4px_4px_rgba(255,0,0,0.5)]">{t.title}</h1>
 <div className="mb-8 w-64">
 
                 {/* Language Selection */}
@@ -439,9 +461,10 @@ export default function Home() {
                 onClick={() => { setGameState('playing'); setIsLoadingAssets(true); }}
                 className="px-12 py-6 bg-indigo-900 border-4 border-indigo-400 text-4xl font-bold hover:bg-indigo-400 hover:text-black transition-colors shadow-[0_0_20px_rgba(129,140,248,0.5)]"
               >
-                START DUNGEON
+                {t.startButton}
               </button>
             </div>
+            <p className="absolute bottom-4 right-6 text-gray-500 text-xs font-mono italic">{t.inDevelopment}</p>
           </div>
         )}
 
@@ -529,46 +552,29 @@ export default function Home() {
 
             {/* Conversational Tutorial UI - Bottom Center */}
             <div className="absolute bottom-1/4 left-1/2 -translate-x-1/2 z-30 flex flex-col pointer-events-none w-full max-w-4xl transition-all duration-500">
-              {/* Conversation Boxes */}
-              {tutorialStep % 2 === 0 && tutorialStep <= 14 && dialogueSpeaker === 'Slime' && (
-                <div className="w-full bg-[#111118]/95 border-4 border-indigo-900 shadow-2xl p-6 relative animate-fade-in flex gap-6 items-center">
-                  {/* Slime Avatar */}
-                  <div className="w-32 h-32 bg-black/80 border-2 border-indigo-500 rounded-lg flex items-center justify-center shrink-0 overflow-hidden">
-                    <img src="/assets/character/slime_idle1.svg" className="w-[200%] h-[200%] object-cover object-top mt-12" style={{ imageRendering: "pixelated" }} />
+              {(() => {
+                if (tutorialStep % 2 !== 0 || tutorialStep > 14) return null;
+                const speaker = ((t as any).tutorial)?.['step' + tutorialStep]?.speaker;
+                const isPlayer = speaker === 'Player' || speaker === 'Joueur';
+                const label = speaker?.toUpperCase() || 'SYSTEM';
+                const text = ((t as any).tutorial)?.['step' + tutorialStep]?.text || dialogueText;
+                return (
+                  <div className={`w-full border-4 shadow-2xl p-6 relative animate-fade-in flex gap-6 items-center ${isPlayer ? 'bg-[#111118]/95 border-indigo-900' : 'bg-[#0a0a12]/95 border-red-900/60'} ${isPlayer ? '' : 'flex-row-reverse'}`}>
+                    <div className={`w-32 h-32 bg-black/80 border-2 rounded-lg flex items-center justify-center shrink-0 overflow-hidden ${isPlayer ? 'border-indigo-500' : 'border-red-800/60'}`}>
+                      {isPlayer ? (
+                        <img src="/assets/character/slime_idle1.svg" className="w-[200%] h-[200%] object-cover object-top mt-12" style={{ imageRendering: "pixelated" }} />
+                      ) : (
+                        <span className="text-red-500/80 font-black select-none" style={{ fontSize: '4rem', fontFamily: 'monospace', lineHeight: 1 }}>?</span>
+                      )}
+                    </div>
+                    <div className={`flex flex-col flex-grow ${isPlayer ? '' : 'items-end'}`}>
+                      <div className={`inline-block px-3 py-1 text-sm font-mono font-bold tracking-wider mb-2 ${isPlayer ? 'bg-indigo-900 text-indigo-200 self-start' : 'bg-red-900/50 text-red-300/80 self-end'}`}>{label}</div>
+                      <p className={`font-mono leading-relaxed text-2xl ${isPlayer ? 'text-white' : 'text-red-100/90'} ${isPlayer ? '' : 'text-right'}`}>{text}</p>
+                      <p className={`mt-4 text-lg font-mono animate-pulse ${isPlayer ? 'text-indigo-400' : 'text-red-400/60'} ${isPlayer ? '' : 'text-right'}`}>{t.pressSpace}</p>
+                    </div>
                   </div>
-
-                  {/* Text Area */}
-                  <div className="flex flex-col flex-grow">
-                    <div className="bg-indigo-900 inline-block px-3 py-1 text-sm font-mono font-bold text-indigo-200 tracking-wider mb-2 self-start">{((t as any).tutorial)?.['step' + tutorialStep]?.speaker?.toUpperCase() || 'PLAYER'}</div>
-
-                    <p className="text-white font-mono leading-relaxed text-2xl">
-                      {((t as any).tutorial)?.['step' + tutorialStep]?.text || dialogueText}
-                    </p>
-
-                    <p className="text-indigo-400 mt-4 text-lg font-mono animate-pulse">{t.pressSpace}</p>
-                  </div>
-                </div>
-              )}
-
-              {tutorialStep % 2 === 0 && tutorialStep <= 14 && dialogueSpeaker === '¿' && (
-                <div className="w-full bg-[#0a0a12]/95 border-4 border-red-900/60 shadow-2xl p-6 relative animate-fade-in flex gap-6 items-center flex-row-reverse">
-                  {/* ¿ Avatar */}
-                  <div className="w-32 h-32 bg-black/80 border-2 border-red-800/60 rounded-lg flex items-center justify-center shrink-0 overflow-hidden">
-                    <span className="text-red-500/80 font-black" style={{ fontSize: '4rem', fontFamily: 'monospace', lineHeight: 1, filter: 'blur(0.5px)' }}>{(((t as any).tutorial)?.['step' + tutorialStep]?.speaker || dialogueSpeaker).charAt(0)}</span>
-                  </div>
-
-                  {/* Text Area */}
-                  <div className="flex flex-col flex-grow items-end">
-                    <div className="bg-red-900/50 inline-block px-3 py-1 text-sm font-mono font-bold text-red-300/80 tracking-wider mb-2 self-end">{((t as any).tutorial)?.['step' + tutorialStep]?.speaker?.toUpperCase() || 'SYSTEM'}</div>
-
-                    <p className="text-red-100/90 font-mono leading-relaxed text-2xl text-right">
-                      {((t as any).tutorial)?.['step' + tutorialStep]?.text || dialogueText}
-                    </p>
-
-                    <p className="text-red-400/60 mt-4 text-lg font-mono animate-pulse text-right">{t.pressSpace}</p>
-                  </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
             
             {/* Boss HP Bar */}
@@ -673,12 +679,12 @@ export default function Home() {
                     <div className="flex flex-col items-center border-l-4 border-[#444] pl-16">
                       <h2 className="text-cyan-400 font-black text-4xl mb-8 tracking-widest uppercase drop-shadow-[0_2px_2px_rgba(0,0,0,1)]">{t.merchantTitle}</h2>
                       <div className="flex flex-col gap-4 w-full">
-                        <div className="text-yellow-400 text-xl font-mono mb-4 text-center">Available Credits: {coins} 🪙</div>
+                        <div className="text-yellow-400 text-xl font-mono mb-4 text-center">{t.creditsLabel} {coins} 🪙</div>
                         
                         <button onClick={() => window.dispatchEvent(new CustomEvent('shop-buy', { detail: 'potion' }))} className="bg-[#222] border-2 border-[#555] hover:border-green-500 hover:bg-[#333] p-4 flex items-center justify-between gap-8 transition-colors">
                           <div className="flex items-center gap-4">
                             <img src="/assets/items/potion.svg" className="w-12 h-12" style={{imageRendering: "pixelated"}} />
-                            <span className="text-white font-mono text-xl">Healing Potion</span>
+                            <span className="text-white font-mono text-xl">{t.potionName}</span>
                           </div>
                           <span className="text-yellow-400 font-bold text-xl">3 🪙</span>
                         </button>
@@ -686,7 +692,7 @@ export default function Home() {
                         <button onClick={() => window.dispatchEvent(new CustomEvent('shop-buy', { detail: 'machine_gun' }))} className="bg-[#222] border-2 border-[#555] hover:border-cyan-500 hover:bg-[#333] p-4 flex items-center justify-between gap-8 transition-colors">
                           <div className="flex items-center gap-4">
                             <img src="/assets/character/machine_gun.svg" className="w-12 h-12" style={{imageRendering: "pixelated"}} />
-                            <span className="text-white font-mono text-xl">Heavy Machine Gun</span>
+                            <span className="text-white font-mono text-xl">{t.machineGunName}</span>
                           </div>
                           <span className="text-yellow-400 font-bold text-xl">5 🪙</span>
                         </button>
@@ -694,7 +700,7 @@ export default function Home() {
                         <button onClick={() => window.dispatchEvent(new CustomEvent('shop-buy', { detail: 'shotgun' }))} className="bg-[#222] border-2 border-[#555] hover:border-red-500 hover:bg-[#333] p-4 flex items-center justify-between gap-8 transition-colors">
                           <div className="flex items-center gap-4">
                             <img src="/assets/character/shotgun.svg" className="w-12 h-12" style={{imageRendering: "pixelated"}} />
-                            <span className="text-white font-mono text-xl">Riot Shotgun</span>
+                            <span className="text-white font-mono text-xl">{t.shotgunName}</span>
                           </div>
                           <span className="text-yellow-400 font-bold text-xl">10 🪙</span>
                         </button>

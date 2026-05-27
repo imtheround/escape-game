@@ -1876,7 +1876,7 @@ export class GameManager {
         if (biome === 1) floorBaseCol = 0x2a110a; // Magma dark red
         if (biome === 2) floorBaseCol = 0x10051f; // Void dark purple
 
-        if (type === 'FLOOR' || type === 'DOOR' || type === 'OBSTACLE' || type === 'TREE') {
+        if (type === 'FLOOR' || type === 'DOOR' || type === 'OBSTACLE' || type === 'TREE' || type === 'IRRADIATED_WATER' || type === 'MAGMA' || type === 'STEAM_VENT') {
           if (this.currentDungeonStage === 1 && this.currentDungeonWorld === 1) {
               // Tutorial stone floors (Bricks)
               this.floorGraphics.rect(bx, by, TILE_PX, TILE_PX).fill(cols.floorLight);
@@ -1919,6 +1919,15 @@ export class GameManager {
               const flipY = rng() > 0.5 ? 1 : -1;
               fspr.scale.set(flipX, flipY);
           }
+        }
+
+        // Hazard overlay tint
+        if (type === 'IRRADIATED_WATER' || type === 'MAGMA' || type === 'STEAM_VENT') {
+          let hCol = 0x00ffff;
+          if (type === 'IRRADIATED_WATER') hCol = 0x22ff22;
+          if (type === 'MAGMA') hCol = 0xff4500;
+          if (type === 'STEAM_VENT') hCol = 0xaaaaaa;
+          this.floorGraphics.rect(bx + 4, by + 4, TILE_PX - 8, TILE_PX - 8).fill({ color: hCol, alpha: 0.35 });
         }
 
         if (type === 'TREE' || type === 'OBSTACLE') {
@@ -2806,7 +2815,21 @@ export class GameManager {
 
       if (activePlayerRoom && !activePlayerRoom.cleared && !activePlayerRoom.active) {
         activePlayerRoom.active = true;
-        activePlayerRoom.cleared = true;
+        
+        // Always spawn portal in end room immediately on entry
+        if (activePlayerRoom.isEndRoom && !this.portalSpawned) {
+            this.portalSpawned = true;
+            const portalX = activePlayerRoom.tx * 64 + 32;
+            const portalY = activePlayerRoom.ty * 64 + 32;
+            this.portalSprite = new Sprite(this.mapTextures.portal);
+            this.portalSprite.anchor.set(0.5, 0.5);
+            this.portalSprite.scale.set(4);
+            this.portalSprite.x = portalX;
+            this.portalSprite.y = portalY;
+            this.portalSprite.alpha = 1.0;
+            this.portalSprite.zIndex = portalY;
+            this.worldContainer.addChild(this.portalSprite);
+        }
         
         if (this.currentDungeonWorld > 1 || this.currentDungeonStage > 1) {
             this.activeRoomId = activePlayerRoom.id;
