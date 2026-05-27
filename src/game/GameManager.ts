@@ -7,7 +7,7 @@ import { DungeonGenerator, DungeonRoom } from './DungeonGenerator';
 import { SoundManager } from './SoundManager';
 
 // =============================================
-// SIMPLEX NOISE (2D) — Inline implementation
+// SIMPLEX NOISE (2D) ΓÇö Inline implementation
 // =============================================
 const GRAD2 = [[1,1],[-1,1],[1,-1],[-1,-1],[1,0],[-1,0],[0,1],[0,-1]];
 const PERM = new Uint8Array(512);
@@ -145,7 +145,7 @@ export class GameManager {
 
   // Player State
   // Player State
-  private _playerHP = 50;
+  private _playerHP = 30;
   public get playerHP(): number {
     return this._playerHP;
   }
@@ -213,7 +213,7 @@ export class GameManager {
   public playerLevel: number = 1;
   public coins: number = 0;
   public playerDmg: number = 30;
-  public playerMaxHP: number = 50;
+  public playerMaxHP: number = 30;
   public basePlayerSpeed: number = 8;
 
   public endgameTimer: number = -1;
@@ -1861,7 +1861,7 @@ export class GameManager {
         let type = this.dungeonTiles[key];
         const biome = this.getBiomeAt(tx, ty);
         
-        if ((!type || type === 'VOID') && biome === 0 && this.currentDungeonStage > 1) {
+        if ((!type || type === 'VOID') && this.currentDungeonStage > 1) {
             type = 'TREE';
         }
 
@@ -1921,7 +1921,7 @@ export class GameManager {
           }
         }
 
-        if (type === 'TREE') {
+        if (type === 'TREE' || type === 'OBSTACLE') {
           let treeSeed = (tx * 73856093) ^ (ty * 19349663) ^ this.currentDungeonStage;
           let seedState = treeSeed;
           const rng = () => {
@@ -1959,15 +1959,32 @@ export class GameManager {
               }
 
               const r = rng();
-              if (r < 0.2) sprite.texture = this.mapTextures.tree1;
-              else if (r < 0.4) sprite.texture = this.mapTextures.tree2;
-              else if (r < 0.6) sprite.texture = this.mapTextures.tree3;
-              else if (r < 0.8) sprite.texture = this.mapTextures.tree4;
-              else sprite.texture = this.mapTextures.tree5;
-
-              const scaleVariation = 0.5 + (rng() * 0.35);
+              if (biome === 1) {
+                  // Magma Rocks
+                  const r = Math.abs(rng());
+                  if (r < 0.33) sprite.texture = this.mapTextures.rock[0];
+                  else if (r < 0.66) sprite.texture = this.mapTextures.rock[1];
+                  else sprite.texture = this.mapTextures.rock[2];
+                  sprite.scale.set(1.5 + rng() * 0.5);
+              } else if (biome === 2) {
+                  // Void Crystals (Tinted rocks)
+                  sprite.texture = this.mapTextures.rock[2];
+                  sprite.tint = 0xaa00ff;
+                  sprite.scale.set(1.5 + rng() * 0.5);
+              } else {
+                  // Forest Trees
+                  sprite.tint = 0xffffff;
+                  const r = Math.abs(rng());
+                  if (r < 0.2) sprite.texture = this.mapTextures.tree1;
+                  else if (r < 0.4) sprite.texture = this.mapTextures.tree2;
+                  else if (r < 0.6) sprite.texture = this.mapTextures.tree3;
+                  else if (r < 0.8) sprite.texture = this.mapTextures.tree4;
+                  else sprite.texture = this.mapTextures.tree5;
+                  sprite.scale.set(0.7 + rng() * 0.3);
+              }
+              
               const flip = rng() > 0.5 ? 1 : -1;
-              sprite.scale.set(scaleVariation * flip, scaleVariation);
+              sprite.scale.x *= flip;
 
               const offsetX = Math.floor((rng() - 0.5) * 64);
               const offsetY = Math.floor((rng() - 0.5) * 64);
@@ -2797,7 +2814,7 @@ export class GameManager {
             if (this.currentDungeonStage === 10) {
                activePlayerRoom.cleared = true; 
             } else {
-               let numEnemies = (4 + Math.floor(Math.random() * 4)) + this.currentDungeonStage * 2;
+               let numEnemies = (3 + Math.floor(Math.random() * 3)) + this.currentDungeonStage;
                if (this.currentDungeonStage === 5 && activePlayerRoom.isEndRoom) numEnemies = 1;
 
                this.activeRoomEnemies = numEnemies;
@@ -2815,7 +2832,15 @@ export class GameManager {
                         if (!this.obstacleCells.has(`${tx1},${ty1}`) &&
                             !this.obstacleCells.has(`${tx2},${ty1}`) &&
                             !this.obstacleCells.has(`${tx1},${ty2}`) &&
-                            !this.obstacleCells.has(`${tx2},${ty2}`)) {
+                            !this.obstacleCells.has(`${tx2},${ty2}`) &&
+                            !this.waterCells.has(`${tx1},${ty1}`) &&
+                            !this.waterCells.has(`${tx2},${ty1}`) &&
+                            !this.waterCells.has(`${tx1},${ty2}`) &&
+                            !this.waterCells.has(`${tx2},${ty2}`) &&
+                            this.floorCells.has(`${tx1},${ty1}`) &&
+                            this.floorCells.has(`${tx2},${ty1}`) &&
+                            this.floorCells.has(`${tx1},${ty2}`) &&
+                            this.floorCells.has(`${tx2},${ty2}`)) {
                             validSpawn = true;
                             break;
                         }
@@ -2955,7 +2980,7 @@ export class GameManager {
         }
       }
 
-      // Update fire trails — damage player on contact
+      // Update fire trails ΓÇö damage player on contact
       for (const ft of this.fireTrails) {
         if (!this.isInvulnerable) {
           const fdist = Math.hypot(this.player.x - ft.sprite.x, this.player.y - ft.sprite.y);
@@ -4274,7 +4299,7 @@ export class GameManager {
           }
         }
       }
-      // Throttle minimap to every 10 frames — it's expensive (hundreds of Graphics.rect calls)
+      // Throttle minimap to every 10 frames ΓÇö it's expensive (hundreds of Graphics.rect calls)
       if (this.frameCount % 10 === 0) this.updateMinimap();
 
 
@@ -4676,7 +4701,7 @@ export class GameManager {
       this.minimapGraphics.rect(0, 0, size, size).fill({ color: 0x111118, alpha: 0.95 });
     }
 
-    // Draw explored cells — only scan the visible range instead of all explored cells
+    // Draw explored cells ΓÇö only scan the visible range instead of all explored cells
     const px = Math.floor(this.player.x / TILE_PX);
     const py = Math.floor(this.player.y / TILE_PX);
 
@@ -4747,7 +4772,7 @@ export class GameManager {
         this.dispatchState();
      }
 
-     let speaker = '¿';
+     let speaker = '┬┐';
      let text = '';
 
      if (this.tutorialStep === 0) {
