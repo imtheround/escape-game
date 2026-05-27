@@ -47,7 +47,6 @@ function Heart({ type }: { type: "full" | "half" | "empty" }) {
 // --- Translations ---
 export const translations = {
   en: {
-    title: "ESCAPE GAME",
     loading: "LOADING...",
     integrity: "HP",
     level: "LVL",
@@ -63,40 +62,29 @@ export const translations = {
     merchantTitle: "SHOP",
     outOfStock: "SOLD OUT",
     equipped: "EQUIPPED",
-    creditsLabel: "Available Credits:",
-    potionName: "Healing Potion",
-    machineGunName: "Heavy Machine Gun",
-    shotgunName: "Riot Shotgun",
     playAgain: "PLAY AGAIN",
     deathMessage: "YOU DIED",
-    startButton: "START",
-    respawnBtn: "RESPAWN",
-    skipTutorialBtn: "[F1] Skip Tutorial",
-    skipBiome2Btn: "[F2] Skip to Biome 2 (Magma)",
-    skipBiome3Btn: "[F3] Skip to Biome 3 (Void)",
-    skipBossBtn: "[F4] Skip to Boss",
     tutorial: {
       step0: { speaker: "Player", text: "Use WASD to move, Shift to sprint, and Q/C to roll." },
-      step1: { task: "WASD to Move | Shift to Sprint | Q/C to Roll" },
-      step2: { speaker: "System", text: "Door opened. Go to the armory. (M: Open Map)" },
-      step3: { task: "Go to the armory. (M: Open Map)" },
-      step4: { speaker: "System", text: "Pick up the Pistol and Sword from the floor." },
+      step1: { task: "Move, Sprint, and Roll." },
+      step2: { speaker: "System", text: "Door opened. Go to the armory." },
+      step3: { task: "Go to the armory." },
+      step4: { speaker: "System", text: "Pick up the weapons." },
       step5: { task: "Equip the Pistol and Sword." },
       step6: { speaker: "System", text: "Right-Click: Aim. Left-Click: Shoot. R: Reload." },
-      step7: { task: "Right-Click to Aim | Left-Click to Shoot | R to Reload" },
-      step8: { speaker: "System", text: "Enemies approaching. Enter the arena ahead." },
-      step9: { task: "Enter the arena ahead." },
-      step10: { speaker: "System", text: "Fight! Survive the arena." },
-      step11: { task: "Survive the swarm. Kill all 3 enemies." },
+      step7: { task: "Practice shooting and reloading." },
+      step8: { speaker: "System", text: "Enemies approaching. Defend yourself." },
+      step9: { task: "Enter the arena." },
+      step10: { speaker: "System", text: "Fight." },
+      step11: { task: "Survive the swarm." },
       step12: { speaker: "System", text: "Clear. Collect coins and buy a potion with [E]." },
-      step13: { task: "Buy a healing potion (E: Open shop)." },
-      step14: { speaker: "System", text: "Door opened. Go to the portal in Room 3." },
-      step15: { task: "Reach the escape portal. (Space to enter)." },
+      step13: { task: "Buy a healing potion (Press E)." },
+      step14: { speaker: "System", text: "Door opened. Go to the portal." },
+      step15: { task: "Reach the escape portal." },
       step16: { speaker: "System", text: "Enter the portal to escape." }
     }
   },
   fr: {
-    title: "JEU D'ÉVASION",
     loading: "CHARGEMENT...",
     integrity: "PV",
     level: "NIV",
@@ -112,35 +100,25 @@ export const translations = {
     merchantTitle: "BOUTIQUE",
     outOfStock: "ÉPUISÉ",
     equipped: "ÉQUIPÉ",
-    creditsLabel: "Crédits disponibles :",
-    potionName: "Potion de soin",
-    machineGunName: "Mitrailleuse lourde",
-    shotgunName: "Fusil à pompe",
     playAgain: "REJOUER",
     deathMessage: "VOUS ÊTES MORT",
-    startButton: "COMMENCER",
-    respawnBtn: "RÉAPPARAÎTRE",
-    skipTutorialBtn: "[F1] Passer le Tuto",
-    skipBiome2Btn: "[F2] Aller au Biome 2 (Magma)",
-    skipBiome3Btn: "[F3] Aller au Biome 3 (Néant)",
-    skipBossBtn: "[F4] Aller au Boss",
     tutorial: {
       step0: { speaker: "Joueur", text: "WASD pour bouger, Maj pour courir, Q/C pour rouler." },
-      step1: { task: "WASD: Bouger | Maj: Courir | Q/C: Rouler" },
-      step2: { speaker: "Système", text: "Porte ouverte. Allez à l'armurerie. (M: Carte)" },
-      step3: { task: "Allez à l'armurerie. (M: Carte)" },
-      step4: { speaker: "Système", text: "Ramassez le Pistolet et l'Épée." },
+      step1: { task: "Bouger, Courir, et Rouler." },
+      step2: { speaker: "Système", text: "Porte ouverte. Allez à l'armurerie." },
+      step3: { task: "Allez à l'armurerie." },
+      step4: { speaker: "Système", text: "Ramassez les armes." },
       step5: { task: "Équipez le Pistolet et l'Épée." },
       step6: { speaker: "Système", text: "Clic-Droit: Viser. Clic-Gauche: Tirer. R: Recharger." },
-      step7: { task: "Clic-Droit: Viser | Clic-Gauche: Tirer | R: Recharger" },
-      step8: { speaker: "Système", text: "Ennemis en approche. Entrez dans l'arène." },
+      step7: { task: "Pratiquez le tir et la recharge." },
+      step8: { speaker: "Système", text: "Ennemis en approche. Défendez-vous." },
       step9: { task: "Entrez dans l'arène." },
-      step10: { speaker: "Système", text: "Combattez! Survivez à l'arène." },
-      step11: { task: "Survivez à l'essaim. Éliminez les 3 ennemis." },
+      step10: { speaker: "Système", text: "Battez-vous." },
+      step11: { task: "Survivez à l'essaim." },
       step12: { speaker: "Système", text: "Terminé. Prenez les pièces et achetez une potion avec [E]." },
-      step13: { task: "Achetez une potion (E: Boutique)." },
-      step14: { speaker: "Système", text: "Porte ouverte. Dirigez-vous vers le portail." },
-      step15: { task: "Atteignez le portail. (Espace: Entrer)." },
+      step13: { task: "Achetez une potion (Appuyez sur E)." },
+      step14: { speaker: "Système", text: "Porte ouverte. Allez au portail." },
+      step15: { task: "Atteignez le portail de sortie." },
       step16: { speaker: "Système", text: "Entrez dans le portail pour fuir." }
     }
   }
@@ -257,10 +235,6 @@ export default function Home() {
         e.preventDefault();
         window.dispatchEvent(new CustomEvent('skip-to-biome-2'));
       }
-      if (e.code === 'F4') {
-        e.preventDefault();
-        window.dispatchEvent(new CustomEvent('teleport-boss'));
-      }
     };
     const handleSettingsToggle = () => setIsSettingsOpen(prev => !prev);
     const handleSkipTutorial = () => setIsSettingsOpen(false);
@@ -349,10 +323,6 @@ export default function Home() {
           70% { transform: scale(1.3); opacity: 1; }
           100% { transform: scale(1); opacity: 1; }
         }
-        @keyframes shimmer {
-          0% { transform: translateX(-100%) skewX(12deg); }
-          100% { transform: translateX(200%) skewX(12deg); }
-        }
       `}</style>
       <main className="relative w-screen h-screen bg-black overflow-hidden m-0 p-0 text-white font-sans select-none">
         {/* Settings Modal */}
@@ -368,7 +338,7 @@ export default function Home() {
                 &times;
               </button>
 
-              <h2 className="text-yellow-500 text-center font-black text-4xl mb-10 tracking-widest uppercase drop-shadow-[0_2px_2px_rgba(0,0,0,1)]">{t.settingsTitle}</h2>
+              <h2 className="text-yellow-500 text-center font-black text-4xl mb-10 tracking-widest uppercase drop-shadow-[0_2px_2px_rgba(0,0,0,1)]">Settings</h2>
 
               <div className="flex flex-col gap-8 w-full px-8">
                 
@@ -437,7 +407,7 @@ export default function Home() {
 
         {gameState === 'start' && (
           <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm">
-            <h1 className="text-6xl font-black text-red-600 mb-8 tracking-widest drop-shadow-[0_4px_4px_rgba(255,0,0,0.5)]">{t.title}</h1>
+            <h1 className="text-6xl font-black text-red-600 mb-8 tracking-widest drop-shadow-[0_4px_4px_rgba(255,0,0,0.5)]">ESCAPE</h1>
 <div className="mb-8 w-64">
 
                 {/* Language Selection */}
@@ -469,7 +439,7 @@ export default function Home() {
                 onClick={() => { setGameState('playing'); setIsLoadingAssets(true); }}
                 className="px-12 py-6 bg-indigo-900 border-4 border-indigo-400 text-4xl font-bold hover:bg-indigo-400 hover:text-black transition-colors shadow-[0_0_20px_rgba(129,140,248,0.5)]"
               >
-                {t.startButton}
+                START DUNGEON
               </button>
             </div>
           </div>
@@ -482,7 +452,7 @@ export default function Home() {
               onClick={() => window.location.reload()}
               className="px-8 py-4 bg-[#333] border-4 border-white text-2xl font-bold hover:bg-white hover:text-black transition-colors"
             >
-              {t.respawnBtn}
+              RESPAWN
             </button>
           </div>
         )}
@@ -499,13 +469,13 @@ export default function Home() {
               {tutorialStep < 15 && (
                 <div className="bg-black/80 px-3 py-1 border-2 border-gray-600 shadow-md mt-2 pointer-events-auto flex flex-col gap-1">
                   <button onClick={() => window.dispatchEvent(new CustomEvent('skip-tutorial'))} className="text-sm font-mono font-bold text-gray-400 hover:text-white transition-colors text-left">
-                    {t.skipTutorialBtn}
+                    [F1] Skip Tutorial
                   </button>
                   <button onClick={() => window.dispatchEvent(new CustomEvent('skip-to-biome-1'))} className="text-sm font-mono font-bold text-gray-400 hover:text-white transition-colors text-left">
-                    {t.skipBiome2Btn}
+                    [F2] Skip to Biome 2 (Magma)
                   </button>
                   <button onClick={() => window.dispatchEvent(new CustomEvent('skip-to-biome-2'))} className="text-sm font-mono font-bold text-gray-400 hover:text-white transition-colors text-left">
-                    {t.skipBiome3Btn}
+                    [F3] Skip to Biome 3 (Void)
                   </button>
                 </div>
               )}
@@ -559,38 +529,46 @@ export default function Home() {
 
             {/* Conversational Tutorial UI - Bottom Center */}
             <div className="absolute bottom-1/4 left-1/2 -translate-x-1/2 z-30 flex flex-col pointer-events-none w-full max-w-4xl transition-all duration-500">
-              {/* Unified Conversation Box */}
-              {(() => {
-                if (tutorialStep % 2 !== 0 || tutorialStep > 14) return null;
-                const speaker = ((t as any).tutorial)?.['step' + tutorialStep]?.speaker;
-                const isPlayer = speaker === 'Player' || speaker === 'Joueur';
-                const label = speaker?.toUpperCase() || 'SYSTEM';
-                const displayText = ((t as any).tutorial)?.['step' + tutorialStep]?.text || dialogueText;
-                return (
-                  <div className={`w-full border-2 shadow-2xl p-5 relative animate-fade-in flex gap-4 items-center ${isPlayer ? 'bg-[#0d0d1a]/95 border-indigo-800' : 'bg-[#0a0a12]/95 border-red-900/60'} ${isPlayer ? '' : 'flex-row-reverse'}`}>
-                    {/* Avatar */}
-                    <div className={`w-24 h-24 bg-black/80 border-2 rounded-lg flex items-center justify-center shrink-0 overflow-hidden ${isPlayer ? 'border-indigo-500' : 'border-red-800/60'}`}>
-                      {isPlayer ? (
-                        <img src="/assets/character/slime_idle1.svg" className="w-[180%] h-[180%] object-cover object-top mt-8" style={{ imageRendering: "pixelated" }} />
-                      ) : (
-                        <span className="text-red-500/80 font-mono font-black select-none" style={{ fontSize: '3.5rem', lineHeight: 1 }}>?</span>
-                      )}
-                    </div>
-                    {/* Text Area */}
-                    <div className={`flex flex-col flex-grow ${isPlayer ? '' : 'items-end'}`}>
-                      <div className={`inline-block px-3 py-0.5 text-xs font-mono font-bold tracking-widest mb-2 ${isPlayer ? 'bg-indigo-900 text-indigo-200 self-start' : 'bg-red-900/50 text-red-300/80 self-end'}`}>
-                        {label}
-                      </div>
-                      <p className={`font-mono leading-relaxed text-xl ${isPlayer ? 'text-white' : 'text-red-100/90'} ${isPlayer ? '' : 'text-right'}`}>
-                        {displayText}
-                      </p>
-                      <p className={`mt-4 text-base font-mono animate-pulse ${isPlayer ? 'text-indigo-400' : 'text-red-400/60'} ${isPlayer ? '' : 'text-right'}`}>
-                        {t.pressSpace}
-                      </p>
-                    </div>
+              {/* Conversation Boxes */}
+              {tutorialStep % 2 === 0 && tutorialStep <= 14 && dialogueSpeaker === 'Slime' && (
+                <div className="w-full bg-[#111118]/95 border-4 border-indigo-900 shadow-2xl p-6 relative animate-fade-in flex gap-6 items-center">
+                  {/* Slime Avatar */}
+                  <div className="w-32 h-32 bg-black/80 border-2 border-indigo-500 rounded-lg flex items-center justify-center shrink-0 overflow-hidden">
+                    <img src="/assets/character/slime_idle1.svg" className="w-[200%] h-[200%] object-cover object-top mt-12" style={{ imageRendering: "pixelated" }} />
                   </div>
-                );
-              })()}
+
+                  {/* Text Area */}
+                  <div className="flex flex-col flex-grow">
+                    <div className="bg-indigo-900 inline-block px-3 py-1 text-sm font-mono font-bold text-indigo-200 tracking-wider mb-2 self-start">{((t as any).tutorial)?.['step' + tutorialStep]?.speaker?.toUpperCase() || 'PLAYER'}</div>
+
+                    <p className="text-white font-mono leading-relaxed text-2xl">
+                      {((t as any).tutorial)?.['step' + tutorialStep]?.text || dialogueText}
+                    </p>
+
+                    <p className="text-indigo-400 mt-4 text-lg font-mono animate-pulse">{t.pressSpace}</p>
+                  </div>
+                </div>
+              )}
+
+              {tutorialStep % 2 === 0 && tutorialStep <= 14 && dialogueSpeaker === '¿' && (
+                <div className="w-full bg-[#0a0a12]/95 border-4 border-red-900/60 shadow-2xl p-6 relative animate-fade-in flex gap-6 items-center flex-row-reverse">
+                  {/* ¿ Avatar */}
+                  <div className="w-32 h-32 bg-black/80 border-2 border-red-800/60 rounded-lg flex items-center justify-center shrink-0 overflow-hidden">
+                    <span className="text-red-500/80 font-black" style={{ fontSize: '4rem', fontFamily: 'monospace', lineHeight: 1, filter: 'blur(0.5px)' }}>{(((t as any).tutorial)?.['step' + tutorialStep]?.speaker || dialogueSpeaker).charAt(0)}</span>
+                  </div>
+
+                  {/* Text Area */}
+                  <div className="flex flex-col flex-grow items-end">
+                    <div className="bg-red-900/50 inline-block px-3 py-1 text-sm font-mono font-bold text-red-300/80 tracking-wider mb-2 self-end">{((t as any).tutorial)?.['step' + tutorialStep]?.speaker?.toUpperCase() || 'SYSTEM'}</div>
+
+                    <p className="text-red-100/90 font-mono leading-relaxed text-2xl text-right">
+                      {((t as any).tutorial)?.['step' + tutorialStep]?.text || dialogueText}
+                    </p>
+
+                    <p className="text-red-400/60 mt-4 text-lg font-mono animate-pulse text-right">{t.pressSpace}</p>
+                  </div>
+                </div>
+              )}
             </div>
             
             {/* Boss HP Bar */}
@@ -695,12 +673,12 @@ export default function Home() {
                     <div className="flex flex-col items-center border-l-4 border-[#444] pl-16">
                       <h2 className="text-cyan-400 font-black text-4xl mb-8 tracking-widest uppercase drop-shadow-[0_2px_2px_rgba(0,0,0,1)]">{t.merchantTitle}</h2>
                       <div className="flex flex-col gap-4 w-full">
-                        <div className="text-yellow-400 text-xl font-mono mb-4 text-center">{t.creditsLabel} {coins} 🪙</div>
+                        <div className="text-yellow-400 text-xl font-mono mb-4 text-center">Available Credits: {coins} 🪙</div>
                         
                         <button onClick={() => window.dispatchEvent(new CustomEvent('shop-buy', { detail: 'potion' }))} className="bg-[#222] border-2 border-[#555] hover:border-green-500 hover:bg-[#333] p-4 flex items-center justify-between gap-8 transition-colors">
                           <div className="flex items-center gap-4">
                             <img src="/assets/items/potion.svg" className="w-12 h-12" style={{imageRendering: "pixelated"}} />
-                            <span className="text-white font-mono text-xl">{t.potionName}</span>
+                            <span className="text-white font-mono text-xl">Healing Potion</span>
                           </div>
                           <span className="text-yellow-400 font-bold text-xl">3 🪙</span>
                         </button>
@@ -708,7 +686,7 @@ export default function Home() {
                         <button onClick={() => window.dispatchEvent(new CustomEvent('shop-buy', { detail: 'machine_gun' }))} className="bg-[#222] border-2 border-[#555] hover:border-cyan-500 hover:bg-[#333] p-4 flex items-center justify-between gap-8 transition-colors">
                           <div className="flex items-center gap-4">
                             <img src="/assets/character/machine_gun.svg" className="w-12 h-12" style={{imageRendering: "pixelated"}} />
-                            <span className="text-white font-mono text-xl">{t.machineGunName}</span>
+                            <span className="text-white font-mono text-xl">Heavy Machine Gun</span>
                           </div>
                           <span className="text-yellow-400 font-bold text-xl">5 🪙</span>
                         </button>
@@ -716,7 +694,7 @@ export default function Home() {
                         <button onClick={() => window.dispatchEvent(new CustomEvent('shop-buy', { detail: 'shotgun' }))} className="bg-[#222] border-2 border-[#555] hover:border-red-500 hover:bg-[#333] p-4 flex items-center justify-between gap-8 transition-colors">
                           <div className="flex items-center gap-4">
                             <img src="/assets/character/shotgun.svg" className="w-12 h-12" style={{imageRendering: "pixelated"}} />
-                            <span className="text-white font-mono text-xl">{t.shotgunName}</span>
+                            <span className="text-white font-mono text-xl">Riot Shotgun</span>
                           </div>
                           <span className="text-yellow-400 font-bold text-xl">10 🪙</span>
                         </button>
@@ -799,62 +777,36 @@ export default function Home() {
             )}
 
             {/* Level Up Overlay */}
-            {/* Premium Level Up Overlay */}
             {levelUpData && (
-              <div className="absolute inset-0 bg-black/60 backdrop-blur-xl flex flex-col items-center justify-center z-[1000] animate-fade-in">
-                <div className="flex flex-col items-center mb-16 relative">
-                  <div className="absolute inset-0 bg-cyan-500/20 blur-[100px] rounded-full scale-150 pointer-events-none" />
-                  <h1 className="text-7xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white via-cyan-200 to-cyan-500 drop-shadow-[0_0_20px_rgba(34,211,238,0.5)] tracking-[0.2em] mb-4">
-                    LEVEL UP
-                  </h1>
-                  <div className="flex items-center gap-4">
-                    <div className="h-px w-16 bg-gradient-to-r from-transparent to-cyan-400/50" />
-                    <p className="text-2xl text-cyan-100 font-mono tracking-widest font-bold">SYSTEM UPGRADE <span className="text-cyan-400">V{levelUpData.level}.0</span></p>
-                    <div className="h-px w-16 bg-gradient-to-l from-transparent to-cyan-400/50" />
-                  </div>
-                </div>
+              <div className="absolute inset-0 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center z-[1000]">
+                <h1 className="text-5xl font-black text-cyan-400 drop-shadow-[0_4px_4px_rgba(0,0,0,1)] tracking-widest mb-2 animate-bounce">
+                  LEVEL UP!
+                </h1>
+                <p className="text-xl text-gray-300 font-mono mb-12">You reached Level {levelUpData.level}</p>
 
-                <div className="flex gap-8 perspective-1000">
-                  {levelUpData.options.map((buff, idx) => {
-                    const colors = [
-                      'from-red-500/20 to-orange-500/5 hover:border-red-400 hover:shadow-red-500/30 text-red-100',
-                      'from-cyan-500/20 to-blue-500/5 hover:border-cyan-400 hover:shadow-cyan-500/30 text-cyan-100',
-                      'from-purple-500/20 to-pink-500/5 hover:border-purple-400 hover:shadow-purple-500/30 text-purple-100',
-                      'from-green-500/20 to-emerald-500/5 hover:border-green-400 hover:shadow-green-500/30 text-green-100',
-                    ];
-                    const colorClass = colors[idx % colors.length];
-
-                    return (
-                      <button
-                        key={buff.id}
-                        onClick={() => {
-                          window.dispatchEvent(new CustomEvent('buff-selected', { detail: { buffId: buff.id } }));
-                          setLevelUpData(null);
-                        }}
-                        className={`group relative flex flex-col items-center w-72 h-96 bg-white/5 border border-white/10 backdrop-blur-md rounded-3xl p-8 transition-all duration-500 ease-out hover:bg-white/10 hover:scale-[1.03] hover:-translate-y-4 hover:shadow-[0_0_40px_rgba(255,255,255,0.1)] overflow-hidden`}
-                        style={{ animationDelay: `${idx * 150}ms`, animationFillMode: 'both', animationName: 'popIn' }}
-                      >
-                        {/* Dynamic Background Gradient */}
-                        <div className={`absolute inset-0 bg-gradient-to-b ${colorClass} opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
-                        
-                        {/* Shimmer Effect */}
-                        <div className="absolute inset-0 -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/5 to-transparent skew-x-12" />
-
-                        {/* Icon Container */}
-                        <div className="relative w-24 h-24 flex items-center justify-center mb-8 rounded-2xl bg-black/40 border border-white/10 group-hover:border-white/30 transition-all duration-500 shadow-inner group-hover:scale-110">
-                          <span className="text-5xl drop-shadow-[0_0_15px_rgba(255,255,255,0.5)] transform group-hover:-translate-y-1 transition-transform">{buff.icon}</span>
-                        </div>
-                        
-                        <h3 className="text-2xl font-black text-white text-center mb-4 uppercase tracking-widest z-10">{buff.name}</h3>
-                        
-                        <div className="w-16 h-[2px] bg-white/20 mb-6 group-hover:w-3/4 group-hover:bg-white/60 transition-all duration-500 z-10" />
-                        
-                        <p className={`text-lg font-mono font-bold text-center mt-auto z-10 drop-shadow-md`}>
-                          {buff.desc}
-                        </p>
-                      </button>
-                    );
-                  })}
+                <div className="flex gap-8">
+                  {levelUpData.options.map((buff) => (
+                    <button
+                      key={buff.id}
+                      onClick={() => {
+                        window.dispatchEvent(new CustomEvent('buff-selected', { detail: { buffId: buff.id } }));
+                        setLevelUpData(null);
+                      }}
+                      className="group relative flex flex-col items-center justify-center w-64 h-80 bg-[#1a1c23]/90 border-4 border-[#2d3748] rounded-2xl p-6 transition-all duration-300 hover:scale-105 hover:-translate-y-4 hover:border-cyan-400 hover:shadow-[0_0_30px_rgba(34,211,238,0.4)] overflow-hidden"
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                      
+                      <span className="text-6xl mb-6 drop-shadow-lg group-hover:scale-110 transition-transform">{buff.icon}</span>
+                      
+                      <h3 className="text-2xl font-black text-white text-center mb-4 uppercase tracking-wider">{buff.name}</h3>
+                      
+                      <div className="w-12 h-1 bg-cyan-500 mb-6 group-hover:w-full transition-all duration-300" />
+                      
+                      <p className="text-lg text-cyan-300 font-mono font-bold text-center mt-auto">
+                        {buff.desc}
+                      </p>
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
