@@ -126,6 +126,7 @@ export class GameManager {
   public activeSlot: number = -1;
   public isInventoryOpen: boolean = false;
   public isSettingsOpen: boolean = false;
+  public isLevelUpOpen: boolean = false;
 
   public isReloading = false;
   private reloadTimer = 0;
@@ -700,6 +701,15 @@ export class GameManager {
     this.coinTexture = await Assets.load('/assets/items/coin.svg');
     this.merchantTexture = await Assets.load('/assets/character/merchant.svg');
 
+    const mobTypes = ['grunt', 'archer', 'shield', 'shaman', 'bomber', 'bull', 'spider'];
+    const mobParts = ['core', 'armor', 'weapon', 'eye'];
+    for (const t of mobTypes) {
+        for (const p of mobParts) {
+            await Assets.load(`/assets/mobs/${t}_${p}.svg`);
+        }
+    }
+
+
     const loadTex = async (p: string) => await Assets.load(p);
     const generateTex = (graphics: Graphics) => {
       const tex = this.app.renderer.generateTexture({ target: graphics });
@@ -714,7 +724,9 @@ export class GameManager {
         generateTex(this.createFloorGraphics(1, 0)),
         generateTex(this.createFloorGraphics(2, 0))
       ],
-      customFloor: Array.from({length: 40}).map((_, i) => generateTex(this.createFloorGraphics(99, i))),
+      customFloor0: Array.from({length: 40}).map((_, i) => generateTex(this.createFloorGraphics(0, i))),
+      customFloor1: Array.from({length: 40}).map((_, i) => generateTex(this.createFloorGraphics(1, i))),
+      customFloor2: Array.from({length: 40}).map((_, i) => generateTex(this.createFloorGraphics(2, i))),
       wall_h: [
         generateTex(this.createWallGraphics(0, false)),
         generateTex(this.createWallGraphics(1, false)),
@@ -1880,13 +1892,18 @@ export class GameManager {
         const by = ty * TILE_PX;
         const cols = this.getBiomeColors(biome);
 
-        // Draw basic floors (magma, tutorial) vs Forest 
+        // Dynamic base floor color
+        let floorBaseCol = 0x2b4f1b; // Forest green
+        if (biome === 1) floorBaseCol = 0x2a110a; // Magma dark red
+        if (biome === 2) floorBaseCol = 0x10051f; // Void dark purple
+
         if (type === 'FLOOR' || type === 'DOOR' || type === 'OBSTACLE' || type === 'TREE') {
-          if (!(biome === 0 && this.currentDungeonStage > 1)) {
+          if (this.currentDungeonStage === 1 && this.currentDungeonWorld === 1) {
+              // Tutorial stone floors
               this.floorGraphics.rect(bx, by, TILE_PX, TILE_PX).fill(cols.floorLight);
               this.floorGraphics.rect(bx + 2, by + 2, TILE_PX - 4, TILE_PX - 4).fill(cols.floorDark);
           } else {
-              this.floorGraphics.rect(bx, by, TILE_PX, TILE_PX).fill(0x2b4f1b); // Generate green flooring first
+              this.floorGraphics.rect(bx, by, TILE_PX, TILE_PX).fill(floorBaseCol); 
               
               if (activeFloorSpriteCount >= this.pooledFloorSprites.length) {
                   const newFloor = new Sprite();
@@ -1908,16 +1925,19 @@ export class GameManager {
                   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
               };
 
-              const texIdx = Math.floor(rng() * 40);
+              const texIdx = Math.floor(Math.abs(rng()) * 40);
               
-              fspr.texture = this.mapTextures.customFloor[texIdx];
+              let texArray = this.mapTextures.customFloor0;
+              if (biome === 1) texArray = this.mapTextures.customFloor1;
+              if (biome === 2) texArray = this.mapTextures.customFloor2;
+              
+              if (texArray) fspr.texture = texArray[texIdx];
               fspr.x = bx + 32;
               fspr.y = by + 32;
               
               const flipX = rng() > 0.5 ? 1 : -1;
               const flipY = rng() > 0.5 ? 1 : -1;
               fspr.scale.set(flipX, flipY);
-              // Since textures are exactly 64x64, setting scale to 1 or -1 is identical to setting width/height to 64.
           }
         }
 
@@ -2147,6 +2167,7 @@ export class GameManager {
             if (customProps.maxHp) enemy.maxHp = customProps.maxHp;
             if (customProps.hp) enemy.hp = customProps.hp;
             if (customProps.speed) enemy.speed = customProps.speed;
+            if (customProps.damage) enemy.damage = customProps.damage;
             if (customProps.scale) enemy.scale.set(customProps.scale);
         }
 
@@ -2401,6 +2422,55 @@ export class GameManager {
     if (e.detail) {
        this.buyItem(e.detail);
     }
+  };
+
+  private handleBuffSelected = (e: any) => {
+    const buffId = e.detail?.buffId;
+    if (buffId) {
+      if (buffId === 'maxhp') {
+        this.playerMaxHP += 3;
+        this.playerHP = this.playerMaxHP;
+      } else if (buffId === 'dmg') {
+        this.playerDmg += 5;
+      } else if (buffId === 'speed') {
+        this.basePlayerSpeed += 1.0;
+      } else if (buffId === 'firerate') {
+        // Find ranged weapons and reduce reload time or fire delay
+        for (let i = 0; i < this.inventory.length; i++) {
+           const inv = this.inventory[i];
+           if (inv && inv.id === 'gun') {
+              const stats = WeaponRegistry['gun'];
+              if (stats && stats.reloadTime) {
+                 stats.reloadTime = Math.max(200, stats.reloadTime * 0.8);
+              }
+           }
+           if (inv && inv.id === 'shotgun') {
+              const stats = WeaponRegistry['shotgun'];
+              if (stats && stats.reloadTime) {
+                 stats.reloadTime = Math.max(400, stats.reloadTime * 0.8);
+              }
+           }
+        }
+      }
+      
+      // Visual feedback
+      const style = new TextStyle({ fontFamily: '"CustomFont", Arial', fontSize: 24, fill: '#00ffff', stroke: { color: '#000000', width: 4 }, fontWeight: 'bold', align: 'center' });
+      let buffTextStr = "BUFF APPLIED!";
+      if (buffId === 'maxhp') buffTextStr = "MAX HP UP!";
+      if (buffId === 'dmg') buffTextStr = "DAMAGE UP!";
+      if (buffId === 'speed') buffTextStr = "SPEED UP!";
+      if (buffId === 'firerate') buffTextStr = "FIRE RATE UP!";
+      
+      const levelUpText = new Text({ text: buffTextStr, style });
+      levelUpText.anchor.set(0.5, 1);
+      levelUpText.x = this.player.x;
+      levelUpText.y = this.player.y - 60;
+      levelUpText.zIndex = 99999;
+      this.worldContainer.addChild(levelUpText);
+      this.damagePopups.push({ sprite: levelUpText, life: 120 });
+    }
+    this.isLevelUpOpen = false;
+    this.dispatchState();
   };
 
   private setupInput() {
@@ -2692,7 +2762,7 @@ export class GameManager {
        }
     }
 
-    if (this.playerHP <= 0 || this.isInventoryOpen || this.isSettingsOpen) return; // Freeze simulation on death, inventory, or settings
+    if (this.playerHP <= 0 || this.isInventoryOpen || this.isSettingsOpen || this.isLevelUpOpen) return; // Freeze simulation on UI
 
 
       // Room Lockdown & Cleared Logic
@@ -4256,7 +4326,7 @@ export class GameManager {
                          monster.state = 'run';
                      }
                      if (dist < 50 && !this.isInvulnerable) {
-                         this.playerHP -= 5; this.isInvulnerable = true; this.invulnerableTimer = 60;
+                         this.playerHP -= monster.damage; this.isInvulnerable = true; this.invulnerableTimer = 60;
                          SoundManager.getInstance().playSound('hit'); this.shakeAmount = 35;
                      }
                  } else if (monster.aiState === 'cooldown') {
@@ -4285,7 +4355,7 @@ export class GameManager {
                      monster.vy = (dy / dist) * (monster.speed * 2.5);
                      monster.state = 'attack';
                      if (dist < 40 && !this.isInvulnerable) {
-                         this.playerHP -= (monster.archetype === 'shield' ? 3 : 2); 
+                         this.playerHP -= monster.damage; 
                          this.isInvulnerable = true; this.invulnerableTimer = 60;
                          SoundManager.getInstance().playSound('hit'); this.shakeAmount = 15;
                      }
@@ -4324,7 +4394,7 @@ export class GameManager {
                          monster.aiState = 'surface'; monster.stateTimer = 0;
                          monster.alpha = 1.0;
                          if (!this.isInvulnerable && dist < 60) {
-                             this.playerHP -= 3; this.isInvulnerable = true; this.invulnerableTimer = 60;
+                             this.playerHP -= monster.damage; this.isInvulnerable = true; this.invulnerableTimer = 60;
                              SoundManager.getInstance().playSound('hit'); this.shakeAmount = 20;
                          }
                      }

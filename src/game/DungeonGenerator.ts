@@ -76,11 +76,8 @@ export class DungeonGenerator {
   }
 
   public static generateProceduralLayout(dungeonTiles: Record<string, string>, dungeonRooms: DungeonRoom[], stage: number, biome: number) {
-      if (biome === 0) {
-          this.generateOvergrownForest(dungeonTiles, dungeonRooms, stage);
-      } else {
-          this.generateStandardLayout(dungeonTiles, dungeonRooms, stage, biome);
-      }
+      // Use organic bubble generation for all 3 biomes now
+      this.generateOvergrownForest(dungeonTiles, dungeonRooms, stage);
   }
 
     private static generateOvergrownForest(dungeonTiles: Record<string, string>, dungeonRooms: DungeonRoom[], stage: number) {
