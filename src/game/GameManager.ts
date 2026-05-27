@@ -652,6 +652,17 @@ export class GameManager {
     }
   };
 
+  private handleTeleportBoss = async () => {
+    this.currentDungeonStage = 5;
+    this.currentDungeonWorld = 1;
+    this.playerHP = this.playerMaxHP;
+    await this.initOpenWorld();
+    this.player.x = 0;
+    this.player.y = 0;
+    this.dispatchState();
+    SoundManager.getInstance().playSound('close_inventory');
+  };
+
   private handleSettingsToggle = () => {
     this.isSettingsOpen = !this.isSettingsOpen;
     if (this.isSettingsOpen) SoundManager.getInstance().playSound('open_inventory');
@@ -1898,11 +1909,6 @@ export class GameManager {
         if (biome === 2) floorBaseCol = 0x10051f; // Void dark purple
 
         if (type === 'FLOOR' || type === 'DOOR' || type === 'OBSTACLE' || type === 'TREE') {
-          if (this.currentDungeonStage === 1 && this.currentDungeonWorld === 1) {
-              // Tutorial stone floors
-              this.floorGraphics.rect(bx, by, TILE_PX, TILE_PX).fill(cols.floorLight);
-              this.floorGraphics.rect(bx + 2, by + 2, TILE_PX - 4, TILE_PX - 4).fill(cols.floorDark);
-          } else {
               this.floorGraphics.rect(bx, by, TILE_PX, TILE_PX).fill(floorBaseCol); 
               
               if (activeFloorSpriteCount >= this.pooledFloorSprites.length) {
@@ -1938,7 +1944,6 @@ export class GameManager {
               const flipX = rng() > 0.5 ? 1 : -1;
               const flipY = rng() > 0.5 ? 1 : -1;
               fspr.scale.set(flipX, flipY);
-          }
         }
 
         if (type === 'TREE') {
@@ -2790,7 +2795,7 @@ export class GameManager {
             if (this.currentDungeonStage === 10) {
                activePlayerRoom.cleared = true; 
             } else {
-               let numEnemies = (3 + Math.floor(Math.random() * 4)) + this.currentDungeonStage;
+               let numEnemies = (10 + Math.floor(Math.random() * 8)) + this.currentDungeonStage * 3;
                if (this.currentDungeonStage === 5 && activePlayerRoom.isEndRoom) numEnemies = 1;
 
                this.activeRoomEnemies = numEnemies;
