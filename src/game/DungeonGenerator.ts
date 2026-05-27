@@ -304,7 +304,8 @@ export class DungeonGenerator {
        }
     }
 
-    // Generate Boundaries
+    // Generate Boundaries (skip walls for biome 0 - open world)
+    if (biome !== 0) {
     const dirs8 = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
     
     let minX = 0, maxX = 0, minY = 0, maxY = 0;
@@ -333,6 +334,7 @@ export class DungeonGenerator {
           }
         }
       }
+    }
     }
     
     // Sprinkle interactable obstacles inside rooms only
