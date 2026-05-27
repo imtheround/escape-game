@@ -2,7 +2,6 @@ import { PlotManager } from './PlotManager';
 import { Howl } from 'howler';
 import { Application, Container, Sprite, Texture, Assets, Graphics, Text, TextStyle, TilingSprite, DisplacementFilter, BlurFilter, RenderTexture } from 'pixi.js';
 import { SkeletonEnemy, EnemyArchetype } from './SkeletonEnemy';
-import { SoundManager } from './SoundManager';
 
 export interface WeaponStats {
   id: string;
@@ -128,7 +127,6 @@ interface DungeonRoom {
   th: number; // tile height
   cleared: boolean;
   active: boolean;
-  isEndRoom: boolean;
   spawnPoints: SpawnPoint[];
   doors: DungeonDoor[];
   spawnedEnemies: Sprite[];
@@ -165,10 +163,6 @@ export class GameManager {
   public activeSlot: number = 0;
   public isInventoryOpen: boolean = false;
   public isSettingsOpen: boolean = false;
-
-  private pooledFloorSprites: any[] = [];
-  private pooledTrees: any[] = [];
-  private sharedShadowTex: any = null;
 
   private masterVolume: number = 1.0;
   private bgmVolume: number = 0.1;
@@ -979,7 +973,7 @@ export class GameManager {
       const r = rooms[i];
       const room: DungeonRoom = {
         id: r.id, tx: r.tx, ty: r.ty, tw: r.tw, th: r.th,
-        cleared: true, active: false, isEndRoom: i === rooms.length - 1, spawnPoints: [], doors: [], spawnedEnemies: []
+        cleared: true, active: false, spawnPoints: [], doors: [], spawnedEnemies: []
       };
       this.dungeonRooms.push(room);
 
@@ -1070,7 +1064,7 @@ export class GameManager {
       const r = rooms[i];
       const room: DungeonRoom = {
         id: r.id, tx: r.tx, ty: r.ty, tw: r.tw, th: r.th,
-        cleared: i === 0, active: false, isEndRoom: i === rooms.length - 1, spawnPoints: [], doors: [], spawnedEnemies: []
+        cleared: true, active: false, spawnPoints: [], doors: [], spawnedEnemies: []
       };
       this.dungeonRooms.push(room);
 
@@ -1198,7 +1192,7 @@ export class GameManager {
         for (const room of this.dungeonRooms) {
             if (room.id !== 0) {
                 const archetypes: EnemyArchetype[] = ['grunt', 'archer', 'shield', 'shaman', 'bomber', 'bull', 'spider'];
-                const numEnemies = 3 + Math.floor(Math.random() * 4);
+                const numEnemies = 2 + Math.floor(Math.random() * 3);
                 for (let i = 0; i < numEnemies; i++) {
                     const rx = room.tx * 64 + Math.floor(Math.random() * (room.tw * 64 - 128)) - Math.floor((room.tw * 64)/2) + 64;
                     const ry = room.ty * 64 + Math.floor(Math.random() * (room.th * 64 - 128)) - Math.floor((room.th * 64)/2) + 64;
@@ -1253,8 +1247,7 @@ export class GameManager {
           ty,
           type: 'crate',
           destroyed: false,
-          hp: 30,
-          texture: this.mapTextures.crate,
+          hp: 30
         };
 
         this.allProps.push(propObj);
@@ -1266,45 +1259,87 @@ export class GameManager {
 
   private createFloorGraphics(biome: number, crackType: number = 0): Graphics {
     const g = new Graphics();
-    let seed = 777 + crackType * 31 + biome * 97;
-    const rng = () => { seed = (seed * 16807) % 2147483647; return Math.abs((seed - 1) / 2147483646); };
+    let baseCol = 0x242831;
+    let lightCol = 0x3b404d;
+    let darkCol = 0x181a21;
+    let accentCol = 0x4b5263;
 
-    if (biome === 0) {
-      // Grass decals
-      const numDecals = 3 + Math.floor(rng() * 10);
-      for (let i = 0; i < numDecals; i++) {
-          const dx = Math.floor(rng() * 64);
-          const dy = Math.floor(rng() * 64);
-          const rType = rng();
-          if (rType < 0.70) {
-              g.rect(dx, dy, 4, 2).fill(0x4c8a32);
-              g.rect(dx + 1, dy - 3, 2, 5).fill(0x569e3a);
-          } else if (rType < 0.85) {
-              g.rect(dx, dy, 6, 3).fill(0x457c2c);
-              g.rect(dx + 1, dy - 2, 4, 3).fill(0x4c8a32);
-          } else {
-              const pSize = 2 + Math.floor(rng() * 3);
-              g.rect(dx, dy, pSize, pSize).fill(0x555555);
-          }
-      }
-    } else if (biome === 1) {
-      // Magma cracks
-      const numCracks = 2 + Math.floor(rng() * 3);
-      for (let i = 0; i < numCracks; i++) {
-          const dx = Math.floor(rng() * 64);
-          const dy = Math.floor(rng() * 64);
-          g.rect(dx, dy, 12, 2).fill(0xff4500); 
-          g.rect(dx + 4, dy - 4, 2, 10).fill(0xff8c00);
-      }
-    } else if (biome === 2) {
-      // Void stars
-      const numStars = 10 + Math.floor(rng() * 15);
-      for (let i = 0; i < numStars; i++) {
-          const dx = Math.floor(rng() * 64);
-          const dy = Math.floor(rng() * 64);
-          g.rect(dx, dy, 2, 2).fill(rng() < 0.5 ? 0xaa00ff : 0x00ffff);
-      }
+    if (biome === 1) { // Magma/Desert
+      baseCol = 0x45281a;
+      lightCol = 0x5e3825;
+      darkCol = 0x2a160c;
+      accentCol = 0x7a4a33;
+    } else if (biome === 2) { // Void
+      baseCol = 0x1f1530;
+      lightCol = 0x33224d;
+      darkCol = 0x110b1a;
+      accentCol = 0x4c3373;
     }
+
+    // Base background
+    g.rect(0, 0, 64, 64).fill(baseCol);
+
+    // Draw 4 distinct stone tiles (32x32 each)
+    const drawSlab = (x: number, y: number, w: number, h: number) => {
+      // Slab body
+      g.rect(x + 1, y + 1, w - 2, h - 2).fill(baseCol);
+      // Highlights (Top & Left edges)
+      g.rect(x + 1, y + 1, w - 2, 2).fill(lightCol);
+      g.rect(x + 1, y + 1, 2, h - 2).fill(lightCol);
+      // Shadows (Bottom & Right edges)
+      g.rect(x + 1, y + h - 3, w - 2, 2).fill(darkCol);
+      g.rect(x + w - 3, y + 1, 2, h - 2).fill(darkCol);
+    };
+
+    drawSlab(0, 0, 32, 32);
+    drawSlab(32, 0, 32, 32);
+    drawSlab(0, 32, 32, 32);
+    drawSlab(32, 32, 32, 32);
+
+    // Add some noise dots
+    let seed = 777 + crackType * 31 + biome * 97;
+    const rng = () => {
+      seed = (seed * 16807) % 2147483647;
+      return (seed - 1) / 2147483646;
+    };
+
+    for (let i = 0; i < 20; i++) {
+      const px = Math.floor(rng() * 14) * 4 + 4;
+      const py = Math.floor(rng() * 14) * 4 + 4;
+      const dotCol = rng() > 0.5 ? lightCol : darkCol;
+      g.rect(px, py, 4, 4).fill(dotCol);
+    }
+
+    // Draw specific features depending on crackType
+    if (crackType === 1) {
+      // Crack traversing from center to top-left
+      g.rect(12, 12, 8, 4).fill(darkCol);
+      g.rect(8, 16, 4, 12).fill(darkCol);
+      // Highlight on the edge of the crack
+      g.rect(12, 16, 8, 2).fill(accentCol);
+    } else if (crackType === 2) {
+      // Crack traversing from right to bottom-left
+      g.rect(48, 12, 8, 4).fill(darkCol);
+      g.rect(40, 16, 8, 4).fill(darkCol);
+      g.rect(32, 20, 8, 4).fill(darkCol);
+      g.rect(28, 24, 4, 8).fill(darkCol);
+      // Highlight
+      g.rect(48, 16, 8, 2).fill(accentCol);
+      g.rect(40, 20, 8, 2).fill(accentCol);
+    } else if (crackType === 3) {
+      // Magical glowing runes in the center
+      let runeCol = 0x00d2ff; // Plains: Cyber blue
+      if (biome === 1) runeCol = 0xff5500; // Magma: Glowing orange
+      if (biome === 2) runeCol = 0xb800ff; // Void: Cyber purple
+
+      // Draw rune circle outline
+      g.circle(32, 32, 14).stroke({ width: 3, color: runeCol });
+      // Inner cross / square
+      g.rect(28, 28, 8, 8).fill(runeCol);
+      // Glow rings
+      g.circle(32, 32, 18).stroke({ width: 1, color: runeCol, alpha: 0.4 });
+    }
+
     return g;
   }
 
@@ -1826,173 +1861,164 @@ export class GameManager {
   private wallsBuffer: any[] = [];
 
   private renderEnvironment() {
-    const cx = this.player.x;
-    const cy = this.player.y;
-    const halfW = this.app.screen.width / 2;
-    const halfH = this.app.screen.height / 2;
-
-    const startTx = Math.floor((cx - halfW - 128) / TILE_PX);
-    const endTx = Math.floor((cx + halfW + 128) / TILE_PX);
-    const startTy = Math.floor((cy - halfH - 128) / TILE_PX);
-    const endTy = Math.floor((cy + halfH + 128) / TILE_PX);
-
-    const WALL_HEIGHT = 48; 
-    let wallCount = 0;
-    let activeTreeCount = 0;
-    let activeFloorSpriteCount = 0;
-
-    const project = (px: number, py: number, h: number) => {
-       const dx = px - cx;
-       const dy = py - cy;
-       const intensity = 0.08; 
-       return { x: px + dx * intensity, y: py + dy * intensity - h };
-    };
-
     this.floorGraphics.clear();
     this.wallGraphicsBack.clear();
     this.wallGraphicsFront.clear();
 
-    const world = this.currentDungeonWorld;
-    const stage = this.currentDungeonStage;
+    const cx = this.worldContainer.x;
+    const cy = this.worldContainer.y;
+    const halfW = this.app.screen.width / 2;
+    const halfH = this.app.screen.height / 2;
+
+    const minX = -cx - TILE_PX * 2;
+    const maxX = -cx + this.app.screen.width + TILE_PX * 2;
+    const minY = -cy - TILE_PX * 2;
+    const maxY = -cy + this.app.screen.height + TILE_PX * 2;
+
+    const startTx = Math.floor(minX / TILE_PX);
+    const endTx = Math.floor(maxX / TILE_PX);
+    const startTy = Math.floor(minY / TILE_PX);
+    const endTy = Math.floor(maxY / TILE_PX);
+
+    const focalX = -cx + halfW;
+    const focalY = -cy + halfH;
+    const WALL_HEIGHT = 48; 
+
+    let wallCount = 0;
 
     for (let tx = startTx; tx <= endTx; tx++) {
       for (let ty = startTy; ty <= endTy; ty++) {
         const key = `${tx},${ty}`;
-        let type = this.dungeonTiles[key];
-        const biome = this.getBiomeAt(tx, ty);
-        const cols = this.getBiomeColors(biome);
-
-        const isTutorial = (world === 1 && stage === 1);
-
-        // Fill void with trees in forest stages (World 1, Stage 2+)
-        if ((!type || type === 'VOID') && world === 1 && stage > 1) {
-            type = 'TREE';
-        }
-
+        const type = this.dungeonTiles[key];
         if (!type || type === 'VOID') continue;
 
         const bx = tx * TILE_PX;
         const by = ty * TILE_PX;
+        const biome = this.getBiomeAt(tx, ty);
+        const cols = this.getBiomeColors(biome);
 
-        // Draw Floors & Hazards
-        const isHazard = ['WATER', 'IRRADIATED_WATER', 'MAGMA', 'STEAM_VENT'].includes(type);
-        if (type === 'FLOOR' || type === 'DOOR' || type === 'OBSTACLE' || type === 'TREE' || type === 'WALL' || isHazard) {
-          if (isTutorial) {
-              this.floorGraphics.rect(bx, by, TILE_PX, TILE_PX).fill(cols.floorLight);
-              this.floorGraphics.rect(bx + 2, by + 2, TILE_PX - 4, TILE_PX - 4).fill(cols.floorDark);
-          } else {
-              let floorBaseCol = 0x2b4f1b; 
-              if (biome === 1) floorBaseCol = 0x21110a; 
-              if (biome === 2) floorBaseCol = 0x0f0914; 
-              this.floorGraphics.rect(bx, by, TILE_PX, TILE_PX).fill(floorBaseCol); 
+        if (type === 'FLOOR' || type === 'DOOR' || type === 'OBSTACLE') {
+          this.floorGraphics.rect(bx, by, TILE_PX, TILE_PX).fill(cols.floorLight);
+          this.floorGraphics.rect(bx + 2, by + 2, TILE_PX - 4, TILE_PX - 4).fill(cols.floorDark);
+        } else if (type === 'WALL' || type === 'TREE' || type === 'FENCE') {
+          const isWallN = this.dungeonTiles[`${tx},${ty-1}`] === 'WALL' || this.dungeonTiles[`${tx},${ty-1}`] === 'TREE' || this.dungeonTiles[`${tx},${ty-1}`] === 'FENCE';
+          const isWallS = this.dungeonTiles[`${tx},${ty+1}`] === 'WALL' || this.dungeonTiles[`${tx},${ty+1}`] === 'TREE' || this.dungeonTiles[`${tx},${ty+1}`] === 'FENCE';
+          const isWallE = this.dungeonTiles[`${tx+1},${ty}`] === 'WALL' || this.dungeonTiles[`${tx+1},${ty}`] === 'TREE' || this.dungeonTiles[`${tx+1},${ty}`] === 'FENCE';
+          const isWallW = this.dungeonTiles[`${tx-1},${ty}`] === 'WALL' || this.dungeonTiles[`${tx-1},${ty}`] === 'TREE' || this.dungeonTiles[`${tx-1},${ty}`] === 'FENCE';
 
-              if (activeFloorSpriteCount < this.pooledFloorSprites.length) {
-                  const fspr = this.pooledFloorSprites[activeFloorSpriteCount++];
-                  fspr.visible = true;
-                  fspr.anchor.set(0.5, 0.5);
-                  let floorSeed = (tx * 31337) ^ (ty * 73856) ^ stage;
-                  const rng = () => { floorSeed = (floorSeed * 16807) % 2147483647; return Math.abs((floorSeed - 1) / 2147483646); };
-                  const texIdx = Math.floor(rng() * 40);
-                  const texArray = (biome === 1) ? this.mapTextures.customFloor1 : (biome === 2 ? this.mapTextures.customFloor2 : this.mapTextures.customFloor0);
-                  if (texArray && texArray[texIdx]) fspr.texture = texArray[texIdx];
-                  fspr.x = bx + 32; fspr.y = by + 32;
-                  fspr.scale.set(rng() > 0.5 ? 1 : -1, rng() > 0.5 ? 1 : -1);
-              }
+          const centerBx = bx + TILE_PX / 2;
+          const centerBy = by + TILE_PX / 2;
+          const distSq = (centerBx - focalX) ** 2 + (centerBy - focalY) ** 2;
 
-              if (isHazard) {
-                  let hCol = 0x00ffff;
-                  if (type === 'IRRADIATED_WATER') hCol = 0x22ff22;
-                  if (type === 'MAGMA') hCol = 0xff4500;
-                  if (type === 'STEAM_VENT') hCol = 0xaaaaaa;
-                  this.floorGraphics.rect(bx + 4, by + 4, TILE_PX - 8, TILE_PX - 8).fill({ color: hCol, alpha: 0.4 });
-                  if (Math.random() < 0.05) this.spawnParticles(bx + 32, by + 32, hCol, 1);
-              }
-          }
-        }
-
-        // Draw Trees / Rocks
-        if (type === 'TREE' || type === 'OBSTACLE') {
-          let treeSeed = (tx * 73856093) ^ (ty * 19349663) ^ stage;
-          const rng = () => { treeSeed = (treeSeed * 16807) % 2147483647; return Math.abs((treeSeed - 1) / 2147483646); };
-          const numProps = (type === 'OBSTACLE') ? 1 : (1 + Math.floor(rng() * 2));
-
-          for (let i = 0; i < numProps; i++) {
-              if (activeTreeCount < this.pooledTrees.length) {
-                  const sprite = this.pooledTrees[activeTreeCount++];
-                  sprite.visible = true;
-                  sprite.anchor.set(0.5, 0.9);
-                  sprite.tint = 0xffffff;
-
-                  if (biome === 1) { 
-                      const r = rng();
-                      sprite.texture = (r < 0.33) ? this.mapTextures.rock[0] : (r < 0.66 ? this.mapTextures.rock[1] : this.mapTextures.rock[2]);
-                      sprite.scale.set(2.0);
-                  } else if (biome === 2) { 
-                      sprite.visible = false; activeTreeCount--; continue; 
-                  } else { 
-                      const r = rng();
-                      if (r < 0.2) sprite.texture = this.mapTextures.tree1;
-                      else if (r < 0.4) sprite.texture = this.mapTextures.tree2;
-                      else if (r < 0.6) sprite.texture = this.mapTextures.tree3;
-                      else if (r < 0.8) sprite.texture = this.mapTextures.tree4;
-                      else sprite.texture = this.mapTextures.tree5;
-                      sprite.scale.set(0.6 + rng() * 0.2);
-                  }
-                  sprite.x = bx + 32 + (rng() - 0.5) * 48;
-                  sprite.y = by + 32 + (rng() - 0.5) * 48;
-                  sprite.zIndex = sprite.y;
-                  sprite.scale.x *= (rng() > 0.5 ? 1 : -1);
-
-                  if (!sprite.getChildByName("shadow")) {
-                      if (!this.sharedShadowTex) {
-                          const shadowGraphics = new Graphics();
-                          shadowGraphics.ellipse(0, 0, 26, 10).fill({color: 0x11220b, alpha: 0.8});
-                          this.sharedShadowTex = this.app.renderer.generateTexture(shadowGraphics);
-                      }
-                      const shadow = new Sprite(this.sharedShadowTex);
-                      shadow.name = "shadow";
-                      shadow.anchor.set(0.5, 0.5);
-                      shadow.zIndex = -1;
-                      sprite.addChild(shadow);
-                  }
-              }
-          }
-        }
-
-        if (type === 'WALL' || type === 'FENCE') {
           if (!this.wallsBuffer[wallCount]) this.wallsBuffer[wallCount] = {};
           const w = this.wallsBuffer[wallCount++];
-          w.distSq = (bx + 32 - cx)**2 + (by + 32 - cy)**2;
-          w.bx = bx; w.by = by; w.cols = cols; w.type = type; w.tx = tx; w.ty = ty;
-          
-          const isTreeN = (this.dungeonTiles[`${tx},${ty-1}`] === 'TREE' || !this.dungeonTiles[`${tx},${ty-1}`] || this.dungeonTiles[`${tx},${ty-1}`] === 'VOID') && world === 1 && stage > 1;
-          const isTreeS = (this.dungeonTiles[`${tx},${ty+1}`] === 'TREE' || !this.dungeonTiles[`${tx},${ty+1}`] || this.dungeonTiles[`${tx},${ty+1}`] === 'VOID') && world === 1 && stage > 1;
-          const isTreeE = (this.dungeonTiles[`${tx+1},${ty}`] === 'TREE' || !this.dungeonTiles[`${tx+1},${ty}`] || this.dungeonTiles[`${tx+1},${ty}`] === 'VOID') && world === 1 && stage > 1;
-          const isTreeW = (this.dungeonTiles[`${tx-1},${ty}`] === 'TREE' || !this.dungeonTiles[`${tx-1},${ty}`] || this.dungeonTiles[`${tx-1},${ty}`] === 'VOID') && world === 1 && stage > 1;
-
-          w.isWallN = this.dungeonTiles[`${tx},${ty-1}`] === 'WALL' || isTreeN;
-          w.isWallS = this.dungeonTiles[`${tx},${ty+1}`] === 'WALL' || isTreeS;
-          w.isWallE = this.dungeonTiles[`${tx+1},${ty}`] === 'WALL' || isTreeE;
-          w.isWallW = this.dungeonTiles[`${tx-1},${ty}`] === 'WALL' || isTreeW;
+          w.distSq = distSq;
+          w.bx = bx;
+          w.by = by;
+          w.isProp = false;
+          w.cols = cols;
+          w.type = type;
+          w.isWallN = isWallN;
+          w.isWallS = isWallS;
+          w.isWallE = isWallE;
+          w.isWallW = isWallW;
         }
       }
     }
 
-    const activeWalls = this.wallsBuffer.slice(0, wallCount);
-    activeWalls.sort((a, b) => b.distSq - a.distSq);
-    for (const w of activeWalls) {
-      const targetGraphics = w.by >= cy ? this.wallGraphicsFront : this.wallGraphicsBack;
-      const t0 = project(w.bx, w.by, WALL_HEIGHT);
-      const t1 = project(w.bx + 64, w.by, WALL_HEIGHT);
-      const t2 = project(w.bx + 64, w.by + 64, WALL_HEIGHT);
-      const t3 = project(w.bx, w.by + 64, WALL_HEIGHT);
-      if (!w.isWallS) targetGraphics.poly([w.bx, w.by+64, w.bx+64, w.by+64, t2.x, t2.y, t3.x, t3.y]).fill(w.cols.wallLight).stroke({width:1, color: w.cols.seam});
-      if (!w.isWallN) targetGraphics.poly([w.bx, w.by, w.bx+64, w.by, t1.x, t1.y, t0.x, t0.y]).fill(w.cols.wallDark);
-      targetGraphics.poly([t0.x, t0.y, t1.x, t1.y, t2.x, t2.y, t3.x, t3.y]).fill(w.cols.wallTop).stroke({width:1, color: w.cols.seam});
+    for (const prop of this.allProps) {
+      if (prop.destroyed) continue;
+      const bx = prop.x - prop.width / 2;
+      const by = prop.y - prop.height / 2;
+      const distSq = (prop.x - focalX) ** 2 + (prop.y - focalY) ** 2;
+      
+      if (!this.wallsBuffer[wallCount]) this.wallsBuffer[wallCount] = {};
+      const w = this.wallsBuffer[wallCount++];
+      w.distSq = distSq;
+      w.bx = bx;
+      w.by = by;
+      w.isProp = true;
+      w.prop = prop;
     }
 
-    for (let i = activeTreeCount; i < this.pooledTrees.length; i++) this.pooledTrees[i].visible = false;
-    for (let i = activeFloorSpriteCount; i < this.pooledFloorSprites.length; i++) this.pooledFloorSprites[i].visible = false;
+    const activeWalls = this.wallsBuffer.slice(0, wallCount);
+    activeWalls.sort((a, b) => b.distSq - a.distSq);
+
+    const project = (px: number, py: number, height: number) => {
+       const dx = px - focalX;
+       const dy = py - focalY;
+       const intensity = 0.08; 
+       return { x: px + dx * intensity, y: py + dy * intensity - height };
+    };
+
+    for (let i = 0; i < wallCount; i++) {
+      const w = activeWalls[i];
+      const isFront = w.by >= this.player.y;
+      const targetGraphics = isFront ? this.wallGraphicsFront : this.wallGraphicsBack;
+
+      if (w.isProp) {
+          const prop = w.prop;
+          const pulse = Math.sin(this.frameCount * 0.05 + prop.x) * 5;
+          const MONOLITH_HEIGHT = 36 + pulse;
+
+          const p0 = { x: w.bx, y: w.by };
+          const p1 = { x: w.bx + prop.width, y: w.by };
+          const p2 = { x: w.bx + prop.width, y: w.by + prop.height };
+          const p3 = { x: w.bx, y: w.by + prop.height };
+          
+          const centerTopX = w.bx + prop.width / 2;
+          const centerTopY = w.by + prop.height / 2;
+
+          const tCenter = project(centerTopX, centerTopY, MONOLITH_HEIGHT);
+
+          const wallLight = 0x00ffff;
+          const wallDark = 0x008888;
+          const seam = 0x00ffff;
+
+          if (tCenter.y < p2.y || tCenter.y < p3.y) {
+             targetGraphics.poly([p3.x, p3.y, p2.x, p2.y, tCenter.x, tCenter.y]).fill(wallLight);
+             targetGraphics.poly([p3.x, p3.y, p2.x, p2.y, tCenter.x, tCenter.y]).stroke({ width: 2, color: seam, alpha: 0.8 });
+          }
+          if (tCenter.y > p0.y || tCenter.y > p1.y) {
+             targetGraphics.poly([p0.x, p0.y, p1.x, p1.y, tCenter.x, tCenter.y]).fill(wallDark);
+          }
+          if (tCenter.x < p1.x || tCenter.x < p2.x) {
+             targetGraphics.poly([p1.x, p1.y, p2.x, p2.y, tCenter.x, tCenter.y]).fill(wallDark);
+             targetGraphics.poly([p1.x, p1.y, p2.x, p2.y, tCenter.x, tCenter.y]).stroke({ width: 2, color: seam, alpha: 0.5 });
+          }
+          if (tCenter.x > p0.x || tCenter.x > p3.x) {
+             targetGraphics.poly([p0.x, p0.y, p3.x, p3.y, tCenter.x, tCenter.y]).fill(wallDark);
+             targetGraphics.poly([p0.x, p0.y, p3.x, p3.y, tCenter.x, tCenter.y]).stroke({ width: 2, color: seam, alpha: 0.5 });
+          }
+      } else {
+          const p0 = { x: w.bx, y: w.by };
+          const p1 = { x: w.bx + TILE_PX, y: w.by };
+          const p2 = { x: w.bx + TILE_PX, y: w.by + TILE_PX };
+          const p3 = { x: w.bx, y: w.by + TILE_PX };
+
+          const t0 = project(p0.x, p0.y, WALL_HEIGHT);
+          const t1 = project(p1.x, p1.y, WALL_HEIGHT);
+          const t2 = project(p2.x, p2.y, WALL_HEIGHT);
+          const t3 = project(p3.x, p3.y, WALL_HEIGHT);
+
+          if (!w.isWallS && (t2.y < p2.y || t3.y < p3.y)) {
+             targetGraphics.poly([p3.x, p3.y, p2.x, p2.y, t2.x, t2.y, t3.x, t3.y]).fill(w.cols.wallLight);
+             targetGraphics.poly([p3.x, p3.y, p2.x, p2.y, t2.x, t2.y, t3.x, t3.y]).stroke({ width: 2, color: w.cols.seam });
+          }
+          if (!w.isWallN && (t0.y > p0.y || t1.y > p1.y)) {
+             targetGraphics.poly([p0.x, p0.y, p1.x, p1.y, t1.x, t1.y, t0.x, t0.y]).fill(w.cols.wallDark);
+          }
+          if (!w.isWallE && (t1.x < p1.x || t2.x < p2.x)) {
+             targetGraphics.poly([p1.x, p1.y, p2.x, p2.y, t2.x, t2.y, t1.x, t1.y]).fill(w.cols.wallDark);
+          }
+          if (!w.isWallW && (t0.x > p0.x || t3.x > p3.x)) {
+             targetGraphics.poly([p0.x, p0.y, p3.x, p3.y, t3.x, t3.y, t0.x, t0.y]).fill(w.cols.wallDark);
+          }
+
+          targetGraphics.poly([t0.x, t0.y, t1.x, t1.y, t2.x, t2.y, t3.x, t3.y]).fill(w.cols.wallTop);
+          targetGraphics.poly([t0.x, t0.y, t1.x, t1.y, t2.x, t2.y, t3.x, t3.y]).stroke({ width: 1, color: w.cols.seam });
+      }
+    }
   }
 
 
@@ -2132,84 +2158,6 @@ export class GameManager {
 
 
 
-  private handleSkipTutorial = async () => {
-    this.tutorialStep = 15;
-    this.tutorialTaskCompleted = true;
-    this.inventory = [
-       { id: 'gun', count: 1, ammo: 12 },
-       { id: 'sword', count: 1, ammo: undefined },
-       { id: '', count: 0 }
-    ];
-    this.activeSlot = 0;
-    this.playerHP = this.playerMaxHP;
-    await this.initOpenWorld();
-    this.player.x = 0; this.player.y = 0;
-    if (this.portalSprite) { try { this.worldContainer.removeChild(this.portalSprite); this.portalSprite.destroy(); } catch(e){} this.portalSprite = null; }
-    this.dispatchTutorial();
-    this.dispatchState();
-    SoundManager.getInstance().playSound('close_inventory');
-  };
-
-  private handleSkipToBiome1 = async () => {
-    this.tutorialStep = 15;
-    this.tutorialTaskCompleted = true;
-    this.inventory = [
-       { id: 'gun', count: 1, ammo: 12 },
-       { id: 'sword', count: 1, ammo: undefined },
-       { id: '', count: 0 }
-    ];
-    this.activeSlot = 0;
-    this.currentDungeonStage = 11;
-    this.currentDungeonWorld = 2; 
-    this.playerHP = this.playerMaxHP;
-    await this.initOpenWorld();
-    this.player.x = 0; this.player.y = 0;
-    if (this.portalSprite) { try { this.worldContainer.removeChild(this.portalSprite); this.portalSprite.destroy(); } catch(e){} this.portalSprite = null; }
-    this.dispatchTutorial();
-    this.dispatchState();
-    SoundManager.getInstance().playSound('close_inventory');
-  };
-
-  private handleSkipToBiome2 = async () => {
-    this.tutorialStep = 15;
-    this.tutorialTaskCompleted = true;
-    this.inventory = [
-       { id: 'gun', count: 1, ammo: 12 },
-       { id: 'sword', count: 1, ammo: undefined },
-       { id: '', count: 0 }
-    ];
-    this.activeSlot = 0;
-    this.currentDungeonStage = 21;
-    this.currentDungeonWorld = 3; 
-    this.playerHP = this.playerMaxHP;
-    await this.initOpenWorld();
-    this.player.x = 0; this.player.y = 0;
-    if (this.portalSprite) { try { this.worldContainer.removeChild(this.portalSprite); this.portalSprite.destroy(); } catch(e){} this.portalSprite = null; }
-    this.dispatchTutorial();
-    this.dispatchState();
-    SoundManager.getInstance().playSound('close_inventory');
-  };
-
-  private handleTeleportBoss = async () => {
-    this.tutorialStep = 15;
-    this.tutorialTaskCompleted = true;
-    this.inventory = [
-       { id: 'gun', count: 1, ammo: 12 },
-       { id: 'sword', count: 1, ammo: undefined },
-       { id: '', count: 0 }
-    ];
-    this.activeSlot = 0;
-    this.currentDungeonStage = 5;
-    this.currentDungeonWorld = 1;
-    this.playerHP = this.playerMaxHP;
-    await this.initOpenWorld();
-    this.player.x = 0; this.player.y = 0;
-    if (this.portalSprite) { try { this.worldContainer.removeChild(this.portalSprite); this.portalSprite.destroy(); } catch(e){} this.portalSprite = null; }
-    this.dispatchTutorial();
-    this.dispatchState();
-    SoundManager.getInstance().playSound('close_inventory');
-  };
-
   private setupInput() {
     window.addEventListener('contextmenu', this.handleContextMenu);
     window.addEventListener('keydown', this.handleKeyDown);
@@ -2222,10 +2170,6 @@ export class GameManager {
     window.addEventListener('slot-change', this.handleSlotChange);
     window.addEventListener('volume-change', this.handleVolumeChange);
     window.addEventListener('settings-toggle', this.handleSettingsToggle);
-    window.addEventListener('skip-tutorial', this.handleSkipTutorial);
-    window.addEventListener('skip-to-biome-1', this.handleSkipToBiome1);
-    window.addEventListener('skip-to-biome-2', this.handleSkipToBiome2);
-    window.addEventListener('teleport-boss', this.handleTeleportBoss);
   }
 
 
@@ -2509,21 +2453,7 @@ export class GameManager {
 
       if (activePlayerRoom && !activePlayerRoom.cleared && !activePlayerRoom.active) {
         activePlayerRoom.active = true;
-        
-        // Always spawn portal in end room immediately on entry
-        if (activePlayerRoom.isEndRoom && !this.portalSpawned) {
-            this.portalSpawned = true;
-            const portalX = activePlayerRoom.tx * 64 + 32;
-            const portalY = activePlayerRoom.ty * 64 + 32;
-            this.portalSprite = new Sprite(this.mapTextures.portal);
-            this.portalSprite.anchor.set(0.5, 0.5);
-            this.portalSprite.scale.set(4);
-            this.portalSprite.x = portalX;
-            this.portalSprite.y = portalY;
-            this.portalSprite.alpha = 1.0;
-            this.portalSprite.zIndex = portalY;
-            this.worldContainer.addChild(this.portalSprite);
-        }
+        activePlayerRoom.cleared = true;
         
         // Spawn a reward chest in the center of the room immediately
         const chestTx = activePlayerRoom.tx + Math.floor(activePlayerRoom.tw / 2);

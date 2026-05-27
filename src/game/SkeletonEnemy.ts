@@ -1,6 +1,6 @@
 import { Container, Graphics, Sprite, Texture, Ticker } from 'pixi.js';
 
-export type EnemyArchetype = 'grunt' | 'archer' | 'shield' | 'shaman' | 'bomber' | 'bull' | 'spider' | 'boss';
+export type EnemyArchetype = 'grunt' | 'archer' | 'shield' | 'shaman' | 'bomber' | 'bull' | 'spider';
 
 export class SkeletonEnemy extends Container {
     public archetype: EnemyArchetype;
@@ -21,10 +21,6 @@ export class SkeletonEnemy extends Container {
     public weapon: Sprite;
     public eye: Sprite;
     public shadow: Graphics;
-
-    // UI
-    public hpBarBg: Graphics;
-    public hpBarFill: Graphics;
 
     // Animation state
     private animTime: number = 0;
@@ -57,13 +53,6 @@ export class SkeletonEnemy extends Container {
         this.addChild(this.core);
         this.addChild(this.armor);
         this.addChild(this.eye);
-
-        this.hpBarBg = new Graphics().rect(-20, -32, 40, 6).fill(0x222222);
-        this.hpBarFill = new Graphics().rect(-19, -31, 38, 4).fill(0xff0000);
-        this.hpBarBg.visible = false;
-        this.hpBarFill.visible = false;
-        this.addChild(this.hpBarBg);
-        this.addChild(this.hpBarFill);
         
         this.maxHp = this.hp;
     }
@@ -79,18 +68,18 @@ export class SkeletonEnemy extends Container {
         if (this.archetype === 'grunt') {
             this.hp = 20;
             this.speed = 3;
-            this.damage = 5;
+            this.damage = 10;
             this.weapon.x = 16;
             this.weapon.y = 0;
         } else if (this.archetype === 'archer') {
             this.hp = 15;
             this.speed = 4;
-            this.damage = 8;
+            this.damage = 15;
             this.weapon.x = 18;
         } else if (this.archetype === 'shield') {
             this.hp = 40;
             this.speed = 1.5;
-            this.damage = 5;
+            this.damage = 20;
             this.weapon.x = 20;
             this.core.scale.set(1.2);
         } else if (this.archetype === 'shaman') {
@@ -101,12 +90,12 @@ export class SkeletonEnemy extends Container {
         } else if (this.archetype === 'bomber') {
             this.hp = 10;
             this.speed = 6;
-            this.damage = 8;
+            this.damage = 30;
             this.weapon.visible = false; // Hands free for running
         } else if (this.archetype === 'bull') {
             this.hp = 60;
             this.speed = 2; // Very fast when charging
-            this.damage = 12;
+            this.damage = 25;
             this.weapon.visible = false;
         } else if (this.archetype === 'spider') {
             this.hp = 15;
@@ -150,23 +139,5 @@ export class SkeletonEnemy extends Container {
         // Keep shadow flat
         this.shadow.y = 16 - this.core.y * 0.5;
         this.shadow.scale.x = 1 + this.core.y * 0.05;
-
-        // HP Bar logic
-        if (this.hp < this.maxHp && this.hp > 0 && this.archetype !== 'boss') {
-            this.hpBarBg.visible = true;
-            this.hpBarFill.visible = true;
-            const hpPercent = Math.max(0, this.hp / this.maxHp);
-            this.hpBarFill.width = 38 * hpPercent;
-            // Float slightly above the bouncing body
-            this.hpBarBg.y = this.core.y - 32;
-            this.hpBarFill.y = this.core.y - 31;
-        } else {
-            this.hpBarBg.visible = false;
-            this.hpBarFill.visible = false;
-        }
-
-        if (this.archetype === 'boss') {
-            window.dispatchEvent(new CustomEvent('boss-hp-change', { detail: { hp: this.hp, maxHp: this.maxHp } }));
-        }
     }
 }
