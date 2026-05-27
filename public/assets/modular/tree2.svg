@@ -1,0 +1,13 @@
+<svg width="32" height="64" viewBox="0 0 32 64" xmlns="http://www.w3.org/2000/svg">
+  <path d="M 12 64 L 14 30 L 18 30 L 20 64 Z" fill="#4d3626" />
+  <path d="M 12 64 L 16 64 L 16 30 L 14 30 Z" fill="#332118" />
+  <circle cx="16" cy="28" r="16" fill="#143314" />
+  <circle cx="24" cy="20" r="11" fill="#1a401a" />
+  <circle cx="8" cy="20" r="11" fill="#1a401a" />
+  <circle cx="16" cy="14" r="12" fill="#215221" />
+  <circle cx="12" cy="8" r="8" fill="#2d662d" />
+  <circle cx="20" cy="8" r="8" fill="#2d662d" />
+  <!-- Small glowing accents -->
+  <circle cx="16" cy="18" r="1.5" fill="#00ffcc" opacity="0.6" />
+  <circle cx="22" cy="24" r="1" fill="#00ffcc" opacity="0.4" />
+</svg>
