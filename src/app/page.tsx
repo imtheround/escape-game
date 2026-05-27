@@ -47,63 +47,79 @@ function Heart({ type }: { type: "full" | "half" | "empty" }) {
 // --- Translations ---
 export const translations = {
   en: {
-    loading: "INITIALIZING...",
-    integrity: "INTEGRITY",
-    level: "LEVEL",
-    pressSpace: "Press [SPACE] to continue...",
-    objectiveLabel: "Objective",
-    objectiveText: "Reach the Core Reactor.",
+    loading: "LOADING...",
+    integrity: "HP",
+    level: "LVL",
+    pressSpace: "Press [SPACE]",
+    objectiveLabel: "Quest",
+    objectiveText: "Find the exit portal.",
     settingsTitle: "SETTINGS",
-    volumeBgm: "Music (BGM)",
-    volumeSfx: "Effects (SFX)",
+    volumeBgm: "Music",
+    volumeSfx: "Sounds",
     language: "Language",
-    skipTutorial: "SKIP TO BIOME 1",
-    inventoryTitle: "BACKPACK",
-    merchantTitle: "REQ-TERMINAL",
-    outOfStock: "OUT OF STOCK",
+    skipTutorial: "SKIP TUTORIAL",
+    inventoryTitle: "INVENTORY",
+    merchantTitle: "SHOP",
+    outOfStock: "SOLD OUT",
     equipped: "EQUIPPED",
     playAgain: "PLAY AGAIN",
-    deathMessage: "TERMINATED",
+    deathMessage: "YOU DIED",
     tutorial: {
-      step0: { speaker: "Slime", text: "Systems critical. Movement online. Use WASD to walk, Shift to sprint, Q/C to roll." },
-      step2: { speaker: "System", text: "Door 1 open. Proceed to the armory." },
-      step4: { speaker: "System", text: "Armory reached. Collect weapons." },
-      step6: { speaker: "System", text: "Weapons ready. Right-Click aim, Left-Click shoot, R reload." },
-      step8: { speaker: "System", text: "Door 2 open. Hostiles detected. Defend yourself." },
-      step10: { speaker: "System", text: "Good luck." },
-      step12: { speaker: "System", text: "Area clear. Collect coins, use Synthesizer [E] to buy potion." },
-      step14: { speaker: "System", text: "Purchase confirmed. Door 3 open. Proceed to portal." },
-      step16: { speaker: "System", text: "Portal stable. Warp sequence initiated. Go." }
+      step0: { speaker: "Player", text: "Use WASD to move, Shift to sprint, and Q/C to roll." },
+      step1: { task: "Move, Sprint, and Roll." },
+      step2: { speaker: "System", text: "Door opened. Go to the armory." },
+      step3: { task: "Go to the armory." },
+      step4: { speaker: "System", text: "Pick up the weapons." },
+      step5: { task: "Equip the Pistol and Sword." },
+      step6: { speaker: "System", text: "Right-Click: Aim. Left-Click: Shoot. R: Reload." },
+      step7: { task: "Practice shooting and reloading." },
+      step8: { speaker: "System", text: "Enemies approaching. Defend yourself." },
+      step9: { task: "Enter the arena." },
+      step10: { speaker: "System", text: "Fight." },
+      step11: { task: "Survive the swarm." },
+      step12: { speaker: "System", text: "Clear. Collect coins and buy a potion with [E]." },
+      step13: { task: "Buy a healing potion (Press E)." },
+      step14: { speaker: "System", text: "Door opened. Go to the portal." },
+      step15: { task: "Reach the escape portal." },
+      step16: { speaker: "System", text: "Enter the portal to escape." }
     }
   },
   fr: {
-    loading: "INITIALISATION...",
-    integrity: "INTÉGRITÉ",
-    level: "NIVEAU",
-    pressSpace: "Appuyez sur [ESPACE] pour continuer...",
-    objectiveLabel: "Objectif",
-    objectiveText: "Atteignez le Réacteur Central.",
+    loading: "CHARGEMENT...",
+    integrity: "PV",
+    level: "NIV",
+    pressSpace: "Appuyez sur [ESPACE]",
+    objectiveLabel: "Quête",
+    objectiveText: "Trouvez le portail de sortie.",
     settingsTitle: "PARAMÈTRES",
-    volumeBgm: "Musique (BGM)",
-    volumeSfx: "Effets (SFX)",
+    volumeBgm: "Musique",
+    volumeSfx: "Sons",
     language: "Langue",
-    skipTutorial: "PASSER AU BIOME 1",
-    inventoryTitle: "SAC À DOS",
-    merchantTitle: "TERMINAL-REQ",
+    skipTutorial: "PASSER LE TUTO",
+    inventoryTitle: "INVENTAIRE",
+    merchantTitle: "BOUTIQUE",
     outOfStock: "ÉPUISÉ",
     equipped: "ÉQUIPÉ",
     playAgain: "REJOUER",
-    deathMessage: "TERMINÉ",
+    deathMessage: "VOUS ÊTES MORT",
     tutorial: {
-      step0: { speaker: "Slime", text: "Systèmes critiques. Mouvement en ligne. WASD pour marcher, Shift pour courir, Q/C pour esquiver." },
-      step2: { speaker: "Système", text: "Porte 1 ouverte. Avancez vers l'armurerie." },
-      step4: { speaker: "Système", text: "Armurerie atteinte. Ramassez les armes." },
-      step6: { speaker: "Système", text: "Armes prêtes. Clic droit viser, Clic gauche tirer, R recharger." },
-      step8: { speaker: "Système", text: "Porte 2 ouverte. Hostiles détectés. Défendez-vous." },
-      step10: { speaker: "Système", text: "Bonne chance." },
-      step12: { speaker: "Système", text: "Zone sécurisée. Ramassez les pièces, utilisez le Synthétiseur [E] pour une potion." },
-      step14: { speaker: "Système", text: "Achat confirmé. Porte 3 ouverte. Allez au portail." },
-      step16: { speaker: "Système", text: "Portail stable. Séquence de saut initiée. Partez." }
+      step0: { speaker: "Joueur", text: "WASD pour bouger, Maj pour courir, Q/C pour rouler." },
+      step1: { task: "Bouger, Courir, et Rouler." },
+      step2: { speaker: "Système", text: "Porte ouverte. Allez à l'armurerie." },
+      step3: { task: "Allez à l'armurerie." },
+      step4: { speaker: "Système", text: "Ramassez les armes." },
+      step5: { task: "Équipez le Pistolet et l'Épée." },
+      step6: { speaker: "Système", text: "Clic-Droit: Viser. Clic-Gauche: Tirer. R: Recharger." },
+      step7: { task: "Pratiquez le tir et la recharge." },
+      step8: { speaker: "Système", text: "Ennemis en approche. Défendez-vous." },
+      step9: { task: "Entrez dans l'arène." },
+      step10: { speaker: "Système", text: "Battez-vous." },
+      step11: { task: "Survivez à l'essaim." },
+      step12: { speaker: "Système", text: "Terminé. Prenez les pièces et achetez une potion avec [E]." },
+      step13: { task: "Achetez une potion (Appuyez sur E)." },
+      step14: { speaker: "Système", text: "Porte ouverte. Allez au portail." },
+      step15: { task: "Atteignez le portail de sortie." },
+      step16: { speaker: "Système", text: "Entrez dans le portail pour fuir." }
     }
   }
 };
@@ -441,14 +457,7 @@ export default function Home() {
                   <div className={`flex items-center justify-end gap-3 transition-opacity duration-500 ${tutorialCompleted ? 'opacity-80' : 'opacity-100'}`}>
                     <span className="relative font-mono text-xl text-white inline-block">
                       <span className={`transition-all duration-500 relative z-0 ${tutorialCompleted ? 'text-green-400/80 line-through decoration-green-500 decoration-2' : 'text-white'}`}>
-                        {tutorialStep === 1 && "System Error. Manual override required. Calibrate evasion systems (Move, Sprint, Roll)."}
-                        {tutorialStep === 3 && "Proceed through the flooded laboratory to the armory."}
-                        {tutorialStep === 5 && "Calibrate weapon systems. Equip the Service Pistol and Energy Sword."}
-                        {tutorialStep === 7 && "Target practice. Hold Right-Click to aim, Left-Click to shoot, and press R to reload."}
-                        {tutorialStep === 9 && "Proceed to the combat arena."}
-                        {tutorialStep === 11 && "Facility lockdown. Survive the bio-weapon swarm."}
-                        {tutorialStep === 13 && "Access the Requisition Terminal (E) and purchase a healing potion."}
-                        {tutorialStep === 15 && "Proceed to the Aether Rift portal to escape."}
+                        {((t as any).tutorial)?.['step' + tutorialStep]?.task || ""}
                       </span>
                     </span>
                     {tutorialCompleted && (
@@ -496,7 +505,7 @@ export default function Home() {
 
                   {/* Text Area */}
                   <div className="flex flex-col flex-grow">
-                    <div className="bg-indigo-900 inline-block px-3 py-1 text-sm font-mono font-bold text-indigo-200 tracking-wider mb-2 self-start">SLIME</div>
+                    <div className="bg-indigo-900 inline-block px-3 py-1 text-sm font-mono font-bold text-indigo-200 tracking-wider mb-2 self-start">{((t as any).tutorial)?.['step' + tutorialStep]?.speaker?.toUpperCase() || 'PLAYER'}</div>
 
                     <p className="text-white font-mono leading-relaxed text-2xl">
                       {((t as any).tutorial)?.['step' + tutorialStep]?.text || dialogueText}
@@ -516,7 +525,7 @@ export default function Home() {
 
                   {/* Text Area */}
                   <div className="flex flex-col flex-grow items-end">
-                    <div className="bg-red-900/50 inline-block px-3 py-1 text-sm font-mono font-bold text-red-300/80 tracking-wider mb-2 self-end">{(t.tutorial as any)?.['step' + tutorialStep]?.speaker || dialogueSpeaker}</div>
+                    <div className="bg-red-900/50 inline-block px-3 py-1 text-sm font-mono font-bold text-red-300/80 tracking-wider mb-2 self-end">{((t as any).tutorial)?.['step' + tutorialStep]?.speaker?.toUpperCase() || 'SYSTEM'}</div>
 
                     <p className="text-red-100/90 font-mono leading-relaxed text-2xl text-right">
                       {((t as any).tutorial)?.['step' + tutorialStep]?.text || dialogueText}
