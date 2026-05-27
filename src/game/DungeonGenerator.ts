@@ -85,7 +85,7 @@ export class DungeonGenerator {
 
     private static generateOvergrownForest(dungeonTiles: Record<string, string>, dungeonRooms: DungeonRoom[], stage: number) {
       const rng = new RNG(stage * 9999);
-      const numRooms = 5 + Math.floor(stage / 2);
+      const numRooms = 10 + Math.floor(stage);
       
       const roomCoords = [{x: 0, y: 0}]; // Origin is the spawn room
       let cx = 0;
@@ -217,7 +217,7 @@ export class DungeonGenerator {
   }
 
   private static generateStandardLayout(dungeonTiles: Record<string, string>, dungeonRooms: DungeonRoom[], stage: number, biome: number) {
-    const numRooms = 4 + Math.floor(stage / 2); // 4 to 9 rooms based on stage
+    const numRooms = 8 + Math.floor(stage); // Double rooms based on stage
     
     let cx = 0;
     let cy = 0;

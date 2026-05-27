@@ -213,6 +213,7 @@ export class GameManager {
   public coins: number = 0;
   public playerDmg: number = 30;
   public playerMaxHP: number = 10;
+  public basePlayerSpeed: number = 8;
 
   public endgameTimer: number = -1;
   public isEndgameActive: boolean = false;
@@ -2205,7 +2206,7 @@ export class GameManager {
 
       this.dispatchState();
 
-      if (Math.random() < 0.20 || this.tutorialStep < 15) { // 20% drop chance (100% in tutorial)
+      if (Math.random() < 0.75 || this.tutorialStep < 15) { // 75% drop chance (100% in tutorial)
         const coinSprite = new Sprite(this.coinTexture);
         coinSprite.anchor.set(0.5, 0.5);
         coinSprite.scale.set(0.15);
@@ -3168,7 +3169,7 @@ export class GameManager {
 
 
     // Base Speed processing
-    let speed = 8;
+    let speed = this.basePlayerSpeed;
     let dx = 0;
     let dy = 0;
 
@@ -3748,6 +3749,23 @@ export class GameManager {
            this.playerMaxExp = Math.floor(this.playerMaxExp * 1.5);
            this.hitStopFrames = 30; // 0.5s dramatic pause
            SoundManager.getInstance().playSound('level_up');
+           
+           // Apply Buffs
+           this.playerMaxHP += 2;
+           this.playerHP = this.playerMaxHP;
+           this.playerDmg += 5;
+           this.basePlayerSpeed += 0.2;
+           
+           // Show text
+           const style = new TextStyle({ fontFamily: '"CustomFont", Arial', fontSize: 24, fill: '#00ffff', stroke: { color: '#000000', width: 4 }, fontWeight: 'bold', align: 'center' });
+           const levelUpText = new Text({ text: `LEVEL UP!\n+ DMG + SPEED + HP`, style });
+           levelUpText.anchor.set(0.5, 1);
+           levelUpText.x = this.player.x;
+           levelUpText.y = this.player.y - 60;
+           levelUpText.zIndex = 99999;
+           this.worldContainer.addChild(levelUpText);
+           this.damagePopups.push({ sprite: levelUpText, life: 120 });
+           
            // Open Level Up UI
            window.dispatchEvent(new CustomEvent('level-up-trigger', {
                detail: { level: this.playerLevel }
@@ -4112,8 +4130,8 @@ export class GameManager {
                    
                    SoundManager.getInstance().playSound('kill');
 
-                   // 25% chance to drop coin
-                   if (Math.random() < 0.25) {
+                   // 50% chance to drop coin
+                   if (Math.random() < 0.50) {
                       const coinSprite = new Sprite(this.coinTexture);
                       coinSprite.anchor.set(0.5, 0.5); coinSprite.scale.set(0.15);
                       coinSprite.x = cx; coinSprite.y = cy; coinSprite.zIndex = cy;
