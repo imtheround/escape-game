@@ -2,32 +2,12 @@ import { PlotManager } from './PlotManager';
 import { Howl } from 'howler';
 import { Application, Container, Sprite, Texture, Assets, Graphics, Text, TextStyle, TilingSprite, DisplacementFilter, BlurFilter, RenderTexture } from 'pixi.js';
 import { SkeletonEnemy, EnemyArchetype } from './SkeletonEnemy';
-
-export interface WeaponStats {
-  id: string;
-  type: 'melee' | 'ranged';
-  damage: number;
-  fireRate: number; // in ms
-  spread: number; // in radians
-  projectilesPerShot: number;
-  movementPenalty: number;
-  firingMovementPenalty: number;
-  spriteName: string;
-  projectileSpriteName: string;
-  sfx: string;
-  maxAmmo?: number;
-  reloadTime?: number; // ms
-}
-
-export const WeaponRegistry: Record<string, WeaponStats> = {
-  gun: { id: 'gun', type: 'ranged', damage: 30, fireRate: 250, spread: 0.05, projectilesPerShot: 1, movementPenalty: 1.0, firingMovementPenalty: 0.9, spriteName: 'gun', projectileSpriteName: 'bullet', sfx: 'shoot', maxAmmo: 12, reloadTime: 1200 },
-  sword: { id: 'sword', type: 'melee', damage: 45, fireRate: 700, spread: 0, projectilesPerShot: 1, movementPenalty: 1.1, firingMovementPenalty: 1.0, spriteName: 'sword', projectileSpriteName: 'sword', sfx: 'sword_swing' },
-  machine_gun: { id: 'machine_gun', type: 'ranged', damage: 35, fireRate: 100, spread: 0.6, projectilesPerShot: 1, movementPenalty: 0.85, firingMovementPenalty: 0.4, spriteName: 'machine_gun', projectileSpriteName: 'mg_bullet', sfx: 'mg_shoot', maxAmmo: 50, reloadTime: 2500 },
-  shotgun: { id: 'shotgun', type: 'ranged', damage: 15, fireRate: 800, spread: 0.8, projectilesPerShot: 5, movementPenalty: 0.95, firingMovementPenalty: 0.6, spriteName: 'shotgun', projectileSpriteName: 'shotgun_pellet', sfx: 'shotgun_blast', maxAmmo: 9, reloadTime: 600 }
-};
+import { WeaponStats, WeaponRegistry } from './WeaponSystem';
+import { DungeonGenerator, DungeonRoom } from './DungeonGenerator';
+import { SoundManager } from './SoundManager';
 
 // =============================================
-// SIMPLEX NOISE (2D) Ã¢â‚¬â€ Inline implementation
+// SIMPLEX NOISE (2D) — Inline implementation
 // =============================================
 const GRAD2 = [[1,1],[-1,1],[1,-1],[-1,-1],[1,0],[-1,0],[0,1],[0,-1]];
 const PERM = new Uint8Array(512);
@@ -119,19 +99,6 @@ interface DungeonDoor {
   sprite: Sprite | null;
 }
 
-interface DungeonRoom {
-  id: number;
-  tx: number; // center tile x
-  ty: number; // center tile y
-  tw: number; // tile width
-  th: number; // tile height
-  cleared: boolean;
-  active: boolean;
-  spawnPoints: SpawnPoint[];
-  doors: DungeonDoor[];
-  spawnedEnemies: Sprite[];
-}
-
 
 export class GameManager {
   public plotManager: PlotManager = new PlotManager();
@@ -155,21 +122,10 @@ export class GameManager {
   private spawnInterval: NodeJS.Timeout | null = null;
 
   // New Mechanics State
-  public inventory: { id: string, count: number, ammo?: number }[] = Array(12).fill(null).map((_, i) => {
-    if (i === 0) return { id: 'sword', count: 1 };
-    if (i === 1) return { id: 'machine_gun', count: 1, ammo: 50 };
-    return { id: '', count: 0 };
-  });
-  public activeSlot: number = 0;
+  public inventory: { id: string, count: number, ammo?: number }[] = [];
+  public activeSlot: number = -1;
   public isInventoryOpen: boolean = false;
   public isSettingsOpen: boolean = false;
-
-  private masterVolume: number = 1.0;
-  private bgmVolume: number = 0.1;
-  private sfxVolume: number = 0.85;
-
-  private bgmAudio: HTMLAudioElement | null = null;
-  private bgmList: string[] = [];
 
   public isReloading = false;
   private reloadTimer = 0;
@@ -187,7 +143,38 @@ export class GameManager {
   private goblinBlueTextures: Record<string, Texture[]> = {};
 
   // Player State
-  private playerHP = 10;
+  // Player State
+  private _playerHP = 10;
+  public get playerHP(): number {
+    return this._playerHP;
+  }
+  public set playerHP(val: number) {
+    let nextHP = val;
+    // 1HP safety net during tutorial Step 11 (combat arena grunts fight)
+    if (this.tutorialStep === 11 && nextHP <= 0 && this._playerHP > 0) {
+      nextHP = 1;
+      this.isInvulnerable = true;
+      this.invulnerableTimer = 90;
+      
+      const style = new TextStyle({
+        fontFamily: "'CustomFont', Arial",
+        fontSize: 24,
+        fill: '#ff0055',
+        stroke: { color: '#000000', width: 4 },
+        fontWeight: 'bold'
+      });
+      const popText = new Text({ text: "INTEGRITY SHIELD ENGAGED", style });
+      popText.anchor.set(0.5);
+      popText.x = this.player.x;
+      popText.y = this.player.y - 80;
+      popText.zIndex = this.player.y + 100;
+      this.worldContainer.addChild(popText);
+      this.damagePopups.push({ sprite: popText, life: 60 });
+    }
+    this._playerHP = nextHP;
+    window.dispatchEvent(new CustomEvent('hp-change', { detail: this._playerHP }));
+    this.dispatchState();
+  }
   private lastHP = 10;
   private isInvulnerable = false;
   private invulnerableTimer = 0;
@@ -227,9 +214,50 @@ export class GameManager {
   public playerDmg: number = 30;
   public playerMaxHP: number = 10;
 
+  public endgameTimer: number = -1;
+  public isEndgameActive: boolean = false;
+  private hasSpawnedEndgamePortal: boolean = false;
+
   private merchantSprite: Sprite | null = null;
   private portalSprite: Sprite | null = null;
   private coinDrops: { sprite: Sprite, life: number }[] = [];
+  private expDrops: { sprite: Graphics, life: number }[] = [];
+  private trailParticles: { sprite: Graphics, targetX: number, speed: number, life: number }[] = [];
+  private hitStopFrames: number = 0;
+
+  // Upgrade Modifiers
+  public upgrades = {
+    vampirism: false,
+    piercing_rounds: false,
+    bouncy_bullets: false,
+    heavy_caliber: false,
+    agile: false,
+    looter: false,
+    tactical_roll: false,
+    rapid_fire: false,
+    quick_draw: false
+  };
+
+  public applyUpgrade(upgradeId: string) {
+     SoundManager.getInstance().playSound('pickup');
+     if (upgradeId === 'vitality') {
+        this.playerMaxHP += 4;
+        this.playerHP += 4;
+     } else if (upgradeId === 'stamina_surge') {
+        this.maxStamina += 50;
+        this.stamina += 50;
+     } else if (upgradeId === 'quick_draw') {
+        // Handled in reload logic (need to add modifier there)
+     } else if (upgradeId === 'rapid_fire') {
+        // Handled in shooting logic
+     } else if (upgradeId === 'tactical_roll') {
+        // Handled in rolling logic
+     } else {
+        (this.upgrades as any)[upgradeId] = true;
+     }
+     this.hitStopFrames = 0; // Resume game
+     this.dispatchState();
+  }
 
   private coinTexture!: Texture;
   private merchantTexture!: Texture;
@@ -263,9 +291,14 @@ export class GameManager {
   private telegraphs: { sprite: Graphics, life: number, x: number, y: number, radius: number, owner: Sprite | null }[] = [];
   private ambientParticles: { sprite: Graphics, vx: number, vy: number, life: number, maxLife: number, rotSpeed: number }[] = [];
   private frameCount = 0;
+  
+  private environmentSprites: Sprite[] = [];
+  private activeRoomId: number = -1;
+  private activeRoomEnemies: number = 0;
 
   // 2.5D Procedural Environment
   private floorGraphics!: Graphics;
+  private staticFloorGraphics!: Graphics;
   private wallGraphicsBack!: Graphics;
   private wallGraphicsFront!: Graphics;
   private lightConeTex!: Texture;
@@ -285,7 +318,16 @@ export class GameManager {
   public tutorialProgress: number = 0;
   public tutorialTaskCompleted: boolean = false;
   public tutorialDelayTimer: number = 0;
+
+  // Tutorial tracking objectives
+  public hasMoved = false;
+  public hasSprinted = false;
+  public hasRolled = false;
+  public hasAimed = false;
+  public hasFired = false;
+  private hasReloaded = false;
   private spaceReleased = true;
+  private shadowAngle = 0;
   
   private dispatchTutorial() {
      window.dispatchEvent(new CustomEvent('tutorial-step', { 
@@ -317,7 +359,6 @@ export class GameManager {
   public artifactsCollected: number = 0;
   public totalArtifactsNeeded: number = 3;
   private artifactLocations: {cx: number, cy: number, collected: boolean, sprite: Sprite | null, type: string}[] = [];
-  private compassSprite!: Sprite;
   private sonarTimer = 0;
 
   private playerShadow!: Graphics;
@@ -326,7 +367,6 @@ export class GameManager {
   private particles: { sprite: Sprite, vx: number, vy: number, vz: number, z: number, life: number, maxLife: number }[] = [];
   private crosshair!: Graphics;
   private shakeAmount: number = 0;
-  private hitStopFrames: number = 0;
   private heatFilter!: DisplacementFilter;
   private heatFilterSprite!: Sprite;
 
@@ -349,46 +389,6 @@ export class GameManager {
       const vz = isDash ? 0 : -3 - Math.random() * 5; // Jump up initially
       this.particles.push({ sprite: p as any, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, vz: vz, z: 0, life: life, maxLife: life });
     }
-  }
-
-  // Native HTML5 Audio pool
-  private audioPool: Record<string, Howl> = {};
-
-  private preloadAudio() {
-    const files = ['shoot', 'hit', 'pickup', 'drink', 'death', 'kill', 'spawn', 'open_inventory', 'close_inventory', 'reload', 'level_up', 'knife_swing', 'sword_swing', 'mg_shoot', 'shotgun_blast', 'empty_click', 'room_clear', 'brute_slam', 'shaman_cast', 'elemental_explode', 'wraith_teleport', 'golem_stomp', 'artifact_ping', 'artifact_pickup', 'shrine_awaken', 'portal_boss_spawn', 'walk', 'sprint', 'roll'];
-    files.forEach(f => {
-      this.audioPool[f] = new Howl({
-        src: [`/assets/audio/${f}.wav`],
-        volume: this.masterVolume * this.sfxVolume,
-        preload: true
-      });
-    });
-  }
-
-  private playSound(type: string, sourceX?: number, sourceY?: number) {
-    if (!this.audioPool[type]) return;
-    const howl = this.audioPool[type];
-    
-    let vol = 1.0;
-    let pan = 0;
-    
-    // Spatial Audio Math
-    if (sourceX !== undefined && sourceY !== undefined && this.player) {
-       const dx = sourceX - this.player.x;
-       const dy = sourceY - this.player.y;
-       const dist = Math.hypot(dx, dy);
-       
-       const maxDist = 1200;
-       vol = Math.max(0, 1 - (dist / maxDist));
-       pan = Math.max(-1, Math.min(1, dx / 400));
-    }
-    
-    const finalVol = vol * this.masterVolume * this.sfxVolume;
-    if (finalVol <= 0) return; 
-    
-    const id = howl.play();
-    howl.volume(finalVol, id);
-    howl.stereo(pan, id);
   }
 
   private lastDispatchTime = 0;
@@ -414,6 +414,52 @@ export class GameManager {
     }
   }
 
+  public buyItem(itemId: string) {
+    let cost = 0;
+    if (itemId === 'potion') cost = 3;
+    else if (itemId === 'machine_gun') cost = 5;
+    else if (itemId === 'shotgun') cost = 10;
+    else return;
+
+    if (this.coins < cost) {
+      SoundManager.getInstance().playSound('empty_click');
+      return;
+    }
+
+    this.coins -= cost;
+    const stats = WeaponRegistry[itemId];
+    const startAmmo = stats ? stats.maxAmmo : undefined;
+
+    if (itemId === 'potion') {
+      const existingSlot = this.inventory.findIndex(inv => inv.id === 'potion');
+      if (existingSlot !== -1) {
+        this.inventory[existingSlot].count += 1;
+      } else {
+        const emptySlot = this.inventory.findIndex(inv => inv.id === '');
+        if (emptySlot !== -1) {
+          this.inventory[emptySlot] = { id: 'potion', count: 1, ammo: undefined };
+        } else {
+          this.inventory.push({ id: 'potion', count: 1, ammo: undefined });
+        }
+      }
+    } else {
+      // Weapons
+      const emptySlot = this.inventory.findIndex(inv => inv.id === '');
+      let newSlotIdx = -1;
+      if (emptySlot !== -1) {
+        this.inventory[emptySlot] = { id: itemId, count: 1, ammo: startAmmo };
+        newSlotIdx = emptySlot;
+      } else {
+        this.inventory.push({ id: itemId, count: 1, ammo: startAmmo });
+        newSlotIdx = this.inventory.length - 1;
+      }
+      this.activeSlot = newSlotIdx;
+    }
+
+    SoundManager.getInstance().playSound('pickup');
+    this.dispatchState();
+  }
+
   private actuallyDispatchState() {
     const clonedInv = this.inventory.map(s => ({ id: s.id, count: s.count }));
     window.dispatchEvent(new CustomEvent('inventory-change', {
@@ -425,12 +471,19 @@ export class GameManager {
       }
     }));
     const activeInv = this.inventory[this.activeSlot];
-    const stats = WeaponRegistry[activeInv.id];
+    const stats = activeInv ? WeaponRegistry[activeInv.id] : undefined;
     window.dispatchEvent(new CustomEvent('ammo-change', {
-      detail: { ammo: activeInv.ammo || 0, maxAmmo: stats?.maxAmmo || 0, isReloading: this.isReloading }
+      detail: { ammo: activeInv?.ammo || 0, maxAmmo: stats?.maxAmmo || 0, isReloading: this.isReloading }
     }));
     window.dispatchEvent(new CustomEvent('wave-change', {
-      detail: { gameState: this.gameState, merchantTimer: this.merchantTimer, world: this.currentDungeonWorld, stage: this.currentDungeonStage }
+      detail: {
+        gameState: this.gameState,
+        merchantTimer: this.merchantTimer,
+        world: this.currentDungeonWorld,
+        stage: this.currentDungeonStage,
+        openWorldKills: this.openWorldKills,
+        totalArtifactsNeeded: this.totalArtifactsNeeded
+      }
     }));
     window.dispatchEvent(new CustomEvent('exp-change', {
       detail: { exp: this.playerExp, maxExp: this.playerMaxExp, level: this.playerLevel, maxHP: this.playerMaxHP }
@@ -502,12 +555,15 @@ export class GameManager {
     this.lightConeTex = Texture.from(coneCanvas);
 
     // 2. Load Assets
-    this.preloadAudio();
+
     await this.loadAssets();
 
     // 2.5D Environment Graphics
     this.floorGraphics = new Graphics();
     this.floorGraphics.zIndex = -100000;
+    this.staticFloorGraphics = new Graphics();
+    this.staticFloorGraphics.zIndex = -100001;
+    this.worldContainer.addChild(this.staticFloorGraphics);
     this.worldContainer.addChild(this.floorGraphics);
 
     this.wallGraphicsBack = new Graphics();
@@ -549,12 +605,12 @@ export class GameManager {
     this.lightMaskSprite = new Sprite(this.lightMaskTexture);
     this.sharpWorldSprite.mask = this.lightMaskSprite;
 
-    this.setupPlayer();
+    await this.setupPlayer();
     this.setupInput();
-    this.fetchBGM();
+    SoundManager.getInstance().fetchBGM();
 
     this.dispatchState(); // Initial state dispatch
-    this.playSound('spawn');
+    SoundManager.getInstance().playSound('spawn');
     window.dispatchEvent(new CustomEvent('assets-loaded'));
 
     this.app.ticker.add((ticker) => {
@@ -562,58 +618,42 @@ export class GameManager {
     });
   }
 
-  private async fetchBGM() {
-    try {
-      const res = await fetch('/api/bgm');
-      const data = await res.json();
-      if (data.files && data.files.length > 0) {
-        this.bgmList = data.files;
-        this.playNextBGM();
-      }
-    } catch (e) { console.error("Failed to fetch BGM:", e); }
-  }
-
-  private playNextBGM() {
-    if (this.bgmList.length === 0) return;
-    const file = this.bgmList[Math.floor(Math.random() * this.bgmList.length)];
-    if (this.bgmAudio) {
-       this.bgmAudio.pause();
-       this.bgmAudio = null;
-    }
-    this.bgmAudio = new Audio(`/assets/bgm/${file}`);
-    this.bgmAudio.volume = this.bgmVolume * this.masterVolume;
-    this.bgmAudio.loop = false;
-    this.bgmAudio.addEventListener('ended', () => this.playNextBGM());
-    // Auto play might be blocked if user hasn't clicked yet, handle it via a user-gesture resolver later
-    this.bgmAudio.play().catch(e => console.log("BGM Autoplay prevented until interaction"));
-  }
-
-  private applyVolumes() {
-    const finalSfx = this.masterVolume * this.sfxVolume;
-    for (const key in this.audioPool) {
-      this.audioPool[key].volume(finalSfx);
-    }
-    if (this.bgmAudio) {
-      this.bgmAudio.volume = this.masterVolume * this.bgmVolume;
-    }
-  }
-
   private handleVolumeChange = (e: any) => {
-    this.masterVolume = e.detail.master;
-    this.bgmVolume = e.detail.bgm;
-    this.sfxVolume = e.detail.sfx;
-    this.applyVolumes();
-    
-    // Auto-start BGM if it was blocked by browser and user interacts with volume
-    if (this.bgmAudio && this.bgmAudio.paused) {
-       this.bgmAudio.play().catch(()=>{});
+    SoundManager.getInstance().handleVolumeChange(e.detail);
+  };
+
+  private handleSkipTutorial = async () => {
+    if (this.tutorialStep < 15) {
+        this.tutorialStep = 15;
+        this.tutorialTaskCompleted = true;
+        this.inventory = [
+           { id: 'gun', count: 1, ammo: WeaponRegistry['gun'].maxAmmo },
+           { id: 'sword', count: 1, ammo: undefined },
+           { id: '', count: 0 }
+        ];
+        this.activeSlot = 0;
+        this.currentDungeonStage = 2;
+        this.currentDungeonWorld = 1;
+        this.playerHP = this.playerMaxHP;
+        await this.initOpenWorld();
+        this.player.x = 0;
+        this.player.y = 0;
+        if (this.portalSprite) {
+           this.worldContainer.removeChild(this.portalSprite);
+           this.portalSprite.destroy();
+           this.portalSprite = null;
+        }
+        this.dispatchTutorial();
+        this.dispatchState();
+        this.isSettingsOpen = false;
+        SoundManager.getInstance().playSound('close_inventory');
     }
   };
 
   private handleSettingsToggle = () => {
     this.isSettingsOpen = !this.isSettingsOpen;
-    if (this.isSettingsOpen) this.playSound('open_inventory');
-    else this.playSound('close_inventory');
+    if (this.isSettingsOpen) SoundManager.getInstance().playSound('open_inventory');
+    else SoundManager.getInstance().playSound('close_inventory');
     this.dispatchState();
   };
 
@@ -673,12 +713,7 @@ export class GameManager {
         generateTex(this.createFloorGraphics(1, 0)),
         generateTex(this.createFloorGraphics(2, 0))
       ],
-      customFloor: [
-        generateTex(this.createFloorGraphics(0, 0)),
-        generateTex(this.createFloorGraphics(0, 1)),
-        generateTex(this.createFloorGraphics(0, 2)),
-        generateTex(this.createFloorGraphics(0, 3))
-      ],
+      customFloor: Array.from({length: 40}).map((_, i) => generateTex(this.createFloorGraphics(99, i))),
       wall_h: [
         generateTex(this.createWallGraphics(0, false)),
         generateTex(this.createWallGraphics(1, false)),
@@ -695,8 +730,11 @@ export class GameManager {
       crate: await loadTex('/assets/map/crate.svg'),
       bones: await loadTex('/assets/map/bones.svg'),
       web: await loadTex('/assets/map/web.svg'),
-      tree1: await loadTex('/assets/map/tree1.svg'),
-      tree2: await loadTex('/assets/map/tree2.svg'),
+      tree1: await loadTex('/assets/modular/tree1.png'),
+      tree2: await loadTex('/assets/modular/tree2.png'),
+      tree3: await loadTex('/assets/modular/tree3.png'),
+      tree4: await loadTex('/assets/modular/tree4.png'),
+      tree5: await loadTex('/assets/modular/tree5.png'),
       water: await loadTex('/assets/map/water.svg'),
       lava: await loadTex('/assets/map/lava.svg'),
       fire_trail: await loadTex('/assets/map/fire_trail.svg'),
@@ -848,9 +886,12 @@ export class GameManager {
     this.staminaGroup.y = this.player.y - 70;
 
     // Setup Gun
-    this.gunSprite = new Sprite(this.weaponTextures[WeaponRegistry[this.inventory[this.activeSlot].id]?.spriteName || 'gun']);
+    const activeWeaponId = this.inventory[this.activeSlot]?.id || '';
+    const activeWeaponSprite = WeaponRegistry[activeWeaponId]?.spriteName || 'gun';
+    this.gunSprite = new Sprite(this.weaponTextures[activeWeaponSprite] || this.weaponTextures['gun']);
     this.gunSprite.anchor.set(0.25, 0.5); // anchor roughly at the handle
     this.gunSprite.scale.set(3);
+    if (activeWeaponId === '') this.gunSprite.visible = false;
     this.worldContainer.addChild(this.gunSprite);
 
     // Setup held potion
@@ -889,6 +930,14 @@ export class GameManager {
     this.ambientContainer = new Container();
     this.ambientContainer.zIndex = -90000;
     this.worldContainer.addChild(this.ambientContainer);
+
+    if (this.currentDungeonWorld === 1 && this.currentDungeonStage === 1) {
+       this.tutorialStep = 0;
+       this.tutorialProgress = 0;
+       this.tutorialTaskCompleted = false;
+       this.dispatchTutorial();
+       this.triggerDialogueIfNeeded();
+    }
   }
 
   private generateWaveMap() {
@@ -943,235 +992,93 @@ export class GameManager {
       // Deprecated: ambient particle logic is now handled in the main update loop.
   }
 
-
-
-
-
   private generateDungeonLayout() {
     if (this.currentDungeonWorld === 1 && this.currentDungeonStage === 1) {
-        this.generateTutorialLayout();
+        DungeonGenerator.generateTutorialLayout(this.dungeonTiles, this.dungeonRooms);
     } else {
-        this.generateForestLayout();
+        const biome = this.getBiomeAt(0, 0); // Hack to get base biome
+        DungeonGenerator.generateProceduralLayout(this.dungeonTiles, this.dungeonRooms, this.currentDungeonStage, biome);
     }
   }
 
-  private generateTutorialLayout() {
-    this.dungeonRooms = [];
+  private async initOpenWorld() {
+    window.dispatchEvent(new CustomEvent('generation-start'));
+    await new Promise(r => setTimeout(r, 50));
+    // FORCE CLEAR any stuck sessionStorage flags from previous bugs
+    sessionStorage.removeItem('skipTutorial');
+
     this.dungeonTiles = {};
-    this.currentRoomIndex = -1;
-
-    // A linear sequence of rooms matching the tutorial steps
-    const rooms = [
-       { id: 0, tx: 0, ty: 0, tw: 13, th: 13 }, // Move & Aim
-       { id: 1, tx: 25, ty: 0, tw: 15, th: 15 }, // Shoot (Crates)
-       { id: 2, tx: 55, ty: 0, tw: 35, th: 9 }, // Sprint & Roll (Long Corridor)
-       { id: 3, tx: 95, ty: 0, tw: 11, th: 11 }, // Inventory & Map
-       { id: 4, tx: 115, ty: 0, tw: 15, th: 15 } // Portal
-    ];
-
-    for (let i = 0; i < rooms.length; i++) {
-      const r = rooms[i];
-      const room: DungeonRoom = {
-        id: r.id, tx: r.tx, ty: r.ty, tw: r.tw, th: r.th,
-        cleared: true, active: false, spawnPoints: [], doors: [], spawnedEnemies: []
-      };
-      this.dungeonRooms.push(room);
-
-      const startX = r.tx - Math.floor(r.tw / 2);
-      const startY = r.ty - Math.floor(r.th / 2);
-      for (let tx = startX; tx < startX + r.tw; tx++) {
-        for (let ty = startY; ty < startY + r.th; ty++) {
-          this.dungeonTiles[`${tx},${ty}`] = 'FLOOR';
-        }
-      }
-    }
-
-    // Connect rooms with corridors
-    for (let i = 0; i < rooms.length - 1; i++) {
-       const r1 = rooms[i];
-       const r2 = rooms[i+1];
-       for (let tx = r1.tx; tx <= r2.tx; tx++) {
-          for (let dy = -1; dy <= 1; dy++) {
-             this.dungeonTiles[`${tx},${r1.ty + dy}`] = 'FLOOR';
-          }
-       }
-    }
-
-    // Wrap with Walls
-    const dirs8 = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
-    for (let tx = -10; tx <= 135; tx++) {
-      for (let ty = -15; ty <= 15; ty++) {
-        const key = `${tx},${ty}`;
-        if (!this.dungeonTiles[key]) {
-          let hasFloorNeighbor = false;
-          for (const d of dirs8) {
-            if (this.dungeonTiles[`${tx+d[0]},${ty+d[1]}`] === 'FLOOR') {
-              hasFloorNeighbor = true;
-              break;
-            }
-          }
-          if (hasFloorNeighbor) {
-            this.dungeonTiles[key] = 'WALL';
-          }
-        }
-      }
-    }
-
-    // Room 1 Crates (for target practice)
-    for (let i = 0; i < 5; i++) {
-        this.dungeonTiles[`${25 + i - 2},${-3}`] = 'OBSTACLE';
-        this.dungeonTiles[`${25 + i - 2},${3}`] = 'OBSTACLE';
-    }
-
-    // Room 2 Scattered Debris (for rolling/sprinting past)
-    this.dungeonTiles[`48,0`] = 'OBSTACLE';
-    this.dungeonTiles[`55,-2`] = 'OBSTACLE';
-    this.dungeonTiles[`62,2`] = 'OBSTACLE';
-    this.dungeonTiles[`68,-1`] = 'OBSTACLE';
-  }
-
-  private generateForestLayout() {
     this.dungeonRooms = [];
-    this.dungeonTiles = {};
-    this.currentRoomIndex = -1;
-
-    // Generate a lot of rooms (Roguelite style)
-    const numRooms = 15;
-    const rooms = [];
-    
-    // Starting room
-    rooms.push({ id: 0, tx: 0, ty: 0, tw: 15, th: 15 });
-
-    let currentTx = 0;
-    let currentTy = 0;
-    
-    for (let i = 1; i < numRooms; i++) {
-        // Random direction: 0=up, 1=right, 2=down, 3=left
-        const dir = Math.floor(Math.random() * 4);
-        const dist = 20 + Math.floor(Math.random() * 10);
-        
-        if (dir === 0) currentTy -= dist;
-        else if (dir === 1) currentTx += dist;
-        else if (dir === 2) currentTy += dist;
-        else currentTx -= dist;
-        
-        const rw = 11 + Math.floor(Math.random() * 8);
-        const rh = 11 + Math.floor(Math.random() * 8);
-        rooms.push({ id: i, tx: currentTx, ty: currentTy, tw: rw, th: rh });
-    }
-
-    for (let i = 0; i < rooms.length; i++) {
-      const r = rooms[i];
-      const room: DungeonRoom = {
-        id: r.id, tx: r.tx, ty: r.ty, tw: r.tw, th: r.th,
-        cleared: true, active: false, spawnPoints: [], doors: [], spawnedEnemies: []
-      };
-      this.dungeonRooms.push(room);
-
-      const startX = r.tx - Math.floor(r.tw / 2);
-      const startY = r.ty - Math.floor(r.th / 2);
-      for (let tx = startX; tx < startX + r.tw; tx++) {
-        for (let ty = startY; ty < startY + r.th; ty++) {
-          this.dungeonTiles[`${tx},${ty}`] = 'FLOOR';
-        }
-      }
-    }
-
-    // Connect rooms with corridors
-    for (let i = 0; i < rooms.length - 1; i++) {
-       const r1 = rooms[i];
-       const r2 = rooms[i+1];
-       
-       let cx = r1.tx;
-       let cy = r1.ty;
-       
-       while (cx !== r2.tx) {
-           for (let dy = -2; dy <= 2; dy++) this.dungeonTiles[`${cx},${cy + dy}`] = 'FLOOR';
-           cx += Math.sign(r2.tx - cx);
-       }
-       while (cy !== r2.ty) {
-           for (let dx = -2; dx <= 2; dx++) this.dungeonTiles[`${cx + dx},${cy}`] = 'FLOOR';
-           cy += Math.sign(r2.ty - cy);
-       }
-    }
-
-    // Wrap with Trees and Fences instead of Walls
-    const dirs8 = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
-    
-    // Find min and max bounds
-    let minX = 0, maxX = 0, minY = 0, maxY = 0;
-    for (const key in this.dungeonTiles) {
-        const [tx, ty] = key.split(',').map(Number);
-        if (tx < minX) minX = tx;
-        if (tx > maxX) maxX = tx;
-        if (ty < minY) minY = ty;
-        if (ty > maxY) maxY = ty;
-    }
-    
-    for (let tx = minX - 5; tx <= maxX + 5; tx++) {
-      for (let ty = minY - 5; ty <= maxY + 5; ty++) {
-        const key = `${tx},${ty}`;
-        if (!this.dungeonTiles[key]) {
-          let hasFloorNeighbor = false;
-          for (const d of dirs8) {
-            if (this.dungeonTiles[`${tx+d[0]},${ty+d[1]}`] === 'FLOOR') {
-              hasFloorNeighbor = true;
-              break;
-            }
-          }
-          if (hasFloorNeighbor) {
-            // Randomly pick between TREE and FENCE
-            if (Math.random() > 0.3) {
-                this.dungeonTiles[key] = 'TREE';
-            } else {
-                this.dungeonTiles[key] = 'FENCE';
-            }
-          }
-        }
-      }
-    }
-    
-    // Sprinkle some rocks inside
-    for (const r of rooms) {
-        if (r.id !== 0) {
-            for (let i = 0; i < 5; i++) {
-                const rx = r.tx + Math.floor(Math.random() * (r.tw - 4)) - Math.floor(r.tw/2) + 2;
-                const ry = r.ty + Math.floor(Math.random() * (r.th - 4)) - Math.floor(r.th/2) + 2;
-                this.dungeonTiles[`${rx},${ry}`] = 'OBSTACLE';
-            }
-        }
-    }
-  }
-  private initOpenWorld() {
     this.floorCells.clear();
+    
     this.obstacleCells.clear();
     this.waterCells.clear();
     this.propTypes.clear();
     this.exploredCells.clear();
-    this.destructibles = [];
     this.chunks.clear();
+
+    // CLEAR ALL ACTIVE GAME OBJECTS
+    for (const m of this.monsters) {
+      if (m.sprite && !m.sprite.destroyed) {
+        try { this.worldContainer.removeChild(m.sprite); m.sprite.destroy(); } catch(e){}
+      }
+    }
+    this.monsters = [];
+
+    for (const p of this.bullets) {
+      if (p.sprite && !p.sprite.destroyed) {
+        try { this.worldContainer.removeChild(p.sprite); p.sprite.destroy(); } catch(e){}
+      }
+    }
+    this.bullets = [];
+
+    for (const pt of this.particles) {
+      if (pt.sprite && !pt.sprite.destroyed) {
+        try { this.worldContainer.removeChild(pt.sprite); pt.sprite.destroy(); } catch(e){}
+      }
+    }
+    this.particles = [];
+
+    for (const di of this.droppedItems) {
+      if (di.sprite && !di.sprite.destroyed) {
+        try { this.worldContainer.removeChild(di.sprite); di.sprite.destroy(); } catch(e){}
+      }
+    }
+    this.droppedItems = [];
+
+    this.destructibles = [];
     this.allProps = [];
     this.torches = [];
-    this.dungeonChests = [];
     this.spawnPoints = [];
     this.openWorldKills = 0;
     this.portalSpawned = false;
     this.gatekeeperDefeated = false;
+    this.isEndgameActive = false;
+    this.endgameTimer = -1;
+    this.hasSpawnedEndgamePortal = false;
+    
+    for (const sp of this.environmentSprites) {
+        if (sp && !sp.destroyed) {
+            try { this.worldContainer.removeChild(sp); sp.destroy(); } catch(e){}
+        }
+    }
+    this.environmentSprites = [];
+    
+    for (const ch of this.dungeonChests) {
+        if (ch.sprite && !ch.sprite.destroyed) {
+            try { this.worldContainer.removeChild(ch.sprite); ch.sprite.destroy(); } catch(e){}
+        }
+    }
+    this.dungeonChests = [];
+
+    this.activeRoomId = -1;
+    this.activeRoomEnemies = 0;
 
     // Artifact Quest Setup (dummy link for stages)
     this.artifactsCollected = 0;
     this.totalArtifactsNeeded = 1;
     this.artifactLocations = [];
     
-    if (this.compassSprite) {
-       this.compassSprite.destroy();
-    }
-    this.compassSprite = new Sprite(this.mapTextures.compass_arrow);
-    this.compassSprite.anchor.set(0.5, 0.5);
-    this.compassSprite.scale.set(3);
-    this.compassSprite.zIndex = 999999;
-    this.compassSprite.alpha = 0;
-
     // Initialize Heat Filter
     const heatTex = this.mapTextures.floor[1];
     this.heatFilterSprite = new Sprite(heatTex);
@@ -1179,7 +1086,6 @@ export class GameManager {
     this.heatFilterSprite.scale.set(10);
     this.heatFilter = new DisplacementFilter({ sprite: this.heatFilterSprite, scale: 20 });
     this.worldContainer.addChild(this.heatFilterSprite);
-    this.worldContainer.addChild(this.compassSprite);
 
     // Generate Bounded Dungeon Layout
     this.generateDungeonLayout();
@@ -1188,27 +1094,28 @@ export class GameManager {
     this.buildDungeonMap();
 
     // Spawn enemies in non-tutorial rooms
-    if (!(this.currentDungeonWorld === 1 && this.currentDungeonStage === 1)) {
-        for (const room of this.dungeonRooms) {
-            if (room.id !== 0) {
-                const archetypes: EnemyArchetype[] = ['grunt', 'archer', 'shield', 'shaman', 'bomber', 'bull', 'spider'];
-                const numEnemies = 3 + Math.floor(Math.random() * 4);
-                for (let i = 0; i < numEnemies; i++) {
-                    const rx = room.tx * 64 + Math.floor(Math.random() * (room.tw * 64 - 128)) - Math.floor((room.tw * 64)/2) + 64;
-                    const ry = room.ty * 64 + Math.floor(Math.random() * (room.th * 64 - 128)) - Math.floor((room.th * 64)/2) + 64;
-                    const arch = archetypes[Math.floor(Math.random() * archetypes.length)];
-                    this.spawnEnemy(rx, ry, arch);
-                }
-            }
-        }
+    if (this.currentDungeonStage === 10) {
+        this.isEndgameActive = true;
+        this.endgameTimer = 60 * 60; // 60 seconds at 60fps
+        
+        // Spawn Final Boss in the middle room
+        const room = this.dungeonRooms[Math.floor(this.dungeonRooms.length / 2)]; 
+        const rx = room ? room.tx * 64 : 0;
+        const ry = room ? room.ty * 64 : 0;
+        this.spawnEnemy(rx, ry, 'spider', { enemyTypeId: 'final_boss', maxHp: 5000, hp: 5000, speed: 3.5, scale: 5 });
     }
 
     // Setup dynamic lighting
     this.setupLighting();
+    window.dispatchEvent(new CustomEvent('generation-end'));
   }
 
   private getBiomeAt(wx: number, wy: number): number {
-    return 2; // Always dark dungeon
+    if (this.currentDungeonWorld === 1) {
+       if (this.currentDungeonStage <= 5) return 0; // Overgrown Laboratory
+       else return 1; // Core Reactor (Magma)
+    }
+    return 2; // Void/Escape
   }
 
   private generateChunk(_cx: number, _cy: number) {
@@ -1219,8 +1126,6 @@ export class GameManager {
     this.allProps = [];
     this.destructibles = [];
     
-    // We no longer build a static sprite container for the map
-    // The environment is rendered dynamically in 2.5D via renderEnvironment()
 
     for (const cellKey in this.dungeonTiles) {
       const type = this.dungeonTiles[cellKey];
@@ -1228,10 +1133,27 @@ export class GameManager {
       const tx = parseInt(parts[0]);
       const ty = parseInt(parts[1]);
 
-      if (type === 'FLOOR') {
+      if (type === 'FLOOR' || type === 'IRRADIATED_WATER' || type === 'MAGMA' || type === 'STEAM_VENT') {
         this.floorCells.add(cellKey);
-      } else if (type === 'WALL') {
+        if (type !== 'FLOOR') {
+            this.waterCells.add(cellKey); 
+        }
+      } else if (type === 'WALL' || type === 'FENCE') {
         this.obstacleCells.add(cellKey);
+      } else if (type === 'TREE' || type === 'ROCK') {
+        this.obstacleCells.add(cellKey);
+        
+        if (type === 'ROCK') {
+            let tex = this.mapTextures.rock[0];
+            const sprite = new Sprite(tex);
+            sprite.anchor.set(0.5, 0.8);
+            sprite.scale.set(5);
+            sprite.x = tx * 64 + 32;
+            sprite.y = ty * 64 + 32;
+            sprite.zIndex = sprite.y;
+            this.worldContainer.addChild(sprite);
+            this.environmentSprites.push(sprite);
+        }
       } else if (type === 'DOOR') {
         this.floorCells.add(cellKey);
       } else if (type === 'OBSTACLE') {
@@ -1239,10 +1161,10 @@ export class GameManager {
         this.obstacleCells.add(cellKey);
 
         const propObj = {
-          x: tx * TILE_PX + TILE_PX / 2,
-          y: ty * TILE_PX + TILE_PX / 2,
-          width: TILE_PX * 0.5,
-          height: TILE_PX * 0.5,
+          x: tx * 64 + 32,
+          y: ty * 64 + 32,
+          width: 32,
+          height: 32,
           tx,
           ty,
           type: 'crate',
@@ -1251,11 +1173,11 @@ export class GameManager {
         };
 
         this.allProps.push(propObj);
-        // Let's assume all obstacles are destructible crates for now in the new 2.5D system
         this.destructibles.push(propObj);
       }
     }
-  }
+
+      }
 
   private createFloorGraphics(biome: number, crackType: number = 0): Graphics {
     const g = new Graphics();
@@ -1274,6 +1196,56 @@ export class GameManager {
       lightCol = 0x33224d;
       darkCol = 0x110b1a;
       accentCol = 0x4c3373;
+    }
+
+    if (biome === 99 || (biome === 0 && this.currentDungeonStage > 1)) {
+      let seed = 777 + crackType * 31 + biome * 97;
+      const rng = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+      
+      // 1. Organic Dirt Patches
+      const numPatches = Math.floor(rng() * 3);
+      for(let p = 0; p < numPatches; p++) {
+          const px = rng() * 64;
+          const py = rng() * 64;
+          const radius = 6 + rng() * 8;
+          g.circle(px, py, radius).fill({color: 0x3d2817, alpha: 0.6}); // Dark brown dirt
+          g.circle(px + (rng()-0.5)*8, py + (rng()-0.5)*8, radius * 0.8).fill({color: 0x4a321f, alpha: 0.6}); // Light brown highlight
+      }
+
+      // 2. High-density grass and pebbles
+      for (let i = 0; i < 80; i++) {
+        const px = Math.floor(rng() * 32) * 2;
+        const py = Math.floor(rng() * 32) * 2;
+        const rType = rng();
+        
+        if (rType < 0.4) {
+            // Light grass clump
+            g.rect(px, py, 2, 6).fill(0x427d2d); 
+            g.rect(px-2, py+2, 2, 4).fill(0x3a6e27);
+        }
+        else if (rType < 0.7) {
+            // Dark tall grass
+            g.rect(px, py, 2, 8).fill(0x1a3811);
+        }
+        else if (rType < 0.85) {
+            // Tiny grey pebble
+            g.rect(px, py, 4, 4).fill(0x5c6370);
+            g.rect(px, py, 2, 2).fill(0x7a828f); // highlight
+        }
+        else if (rType < 0.95) {
+            // Larger mossy rock
+            g.rect(px, py, 8, 6).fill(0x404552);
+            g.rect(px, py, 8, 2).fill(0x5c6370); // top highlight
+            g.rect(px+4, py+4, 4, 2).fill(0x283825); // moss
+        }
+        else {
+            // Small forest flower (red or blue)
+            const flowerCol = rng() > 0.5 ? 0xcc3333 : 0x3366cc;
+            g.rect(px, py, 4, 4).fill(flowerCol);
+            g.rect(px+1, py+1, 2, 2).fill(0xffff00); // yellow center
+        }
+      }
+      return g;
     }
 
     // Base background
@@ -1859,6 +1831,9 @@ export class GameManager {
   }
 
   private wallsBuffer: any[] = [];
+  private pooledTrees: Sprite[] = [];
+  private sharedShadowTex: any;
+  private pooledFloorSprites: Sprite[] = [];
 
   private renderEnvironment() {
     this.floorGraphics.clear();
@@ -1885,22 +1860,124 @@ export class GameManager {
     const WALL_HEIGHT = 48; 
 
     let wallCount = 0;
+    let activeTreeCount = 0;
+    let activeFloorSpriteCount = 0;
 
     for (let tx = startTx; tx <= endTx; tx++) {
       for (let ty = startTy; ty <= endTy; ty++) {
         const key = `${tx},${ty}`;
-        const type = this.dungeonTiles[key];
+        let type = this.dungeonTiles[key];
+        const biome = this.getBiomeAt(tx, ty);
+        
+        if ((!type || type === 'VOID') && biome === 0 && this.currentDungeonStage > 1) {
+            type = 'TREE';
+        }
+
         if (!type || type === 'VOID') continue;
 
         const bx = tx * TILE_PX;
         const by = ty * TILE_PX;
-        const biome = this.getBiomeAt(tx, ty);
         const cols = this.getBiomeColors(biome);
 
-        if (type === 'FLOOR' || type === 'DOOR' || type === 'OBSTACLE') {
-          this.floorGraphics.rect(bx, by, TILE_PX, TILE_PX).fill(cols.floorLight);
-          this.floorGraphics.rect(bx + 2, by + 2, TILE_PX - 4, TILE_PX - 4).fill(cols.floorDark);
-        } else if (type === 'WALL' || type === 'TREE' || type === 'FENCE') {
+        // Draw basic floors (magma, tutorial) vs Forest 
+        if (type === 'FLOOR' || type === 'DOOR' || type === 'OBSTACLE' || type === 'TREE') {
+          if (!(biome === 0 && this.currentDungeonStage > 1)) {
+              this.floorGraphics.rect(bx, by, TILE_PX, TILE_PX).fill(cols.floorLight);
+              this.floorGraphics.rect(bx + 2, by + 2, TILE_PX - 4, TILE_PX - 4).fill(cols.floorDark);
+          } else {
+              this.floorGraphics.rect(bx, by, TILE_PX, TILE_PX).fill(0x2b4f1b); // Generate green flooring first
+              
+              if (activeFloorSpriteCount >= this.pooledFloorSprites.length) {
+                  const newFloor = new Sprite();
+                  newFloor.anchor.set(0.5, 0.5);
+                  newFloor.zIndex = -10000;
+                  this.worldContainer.addChild(newFloor);
+                  this.pooledFloorSprites.push(newFloor);
+              }
+              const fspr = this.pooledFloorSprites[activeFloorSpriteCount++];
+              fspr.visible = true;
+              
+              let floorSeed = (tx * 31337) ^ (ty * 73856) ^ this.currentDungeonStage;
+              let seedState = floorSeed;
+              const rng = () => {
+                  seedState += 0x6D2B79F5;
+                  let t = seedState;
+                  t = Math.imul(t ^ (t >>> 15), t | 1);
+                  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+                  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+              };
+
+              const texIdx = Math.floor(rng() * 40);
+              
+              fspr.texture = this.mapTextures.customFloor[texIdx];
+              fspr.x = bx + 32;
+              fspr.y = by + 32;
+              
+              const flipX = rng() > 0.5 ? 1 : -1;
+              const flipY = rng() > 0.5 ? 1 : -1;
+              fspr.scale.set(flipX, flipY);
+              // Since textures are exactly 64x64, setting scale to 1 or -1 is identical to setting width/height to 64.
+          }
+        }
+
+        if (type === 'TREE') {
+          let treeSeed = (tx * 73856093) ^ (ty * 19349663) ^ this.currentDungeonStage;
+          let seedState = treeSeed;
+          const rng = () => {
+              seedState += 0x6D2B79F5;
+              let t = seedState;
+              t = Math.imul(t ^ (t >>> 15), t | 1);
+              t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+              return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+          };
+
+          const numTrees = 1 + Math.floor(rng() * 2);
+          for (let i = 0; i < numTrees; i++) {
+              if (activeTreeCount >= this.pooledTrees.length) {
+                  const newTree = new Sprite(this.mapTextures.tree1);
+                  this.worldContainer.addChild(newTree);
+                  this.pooledTrees.push(newTree);
+              }
+              const sprite = this.pooledTrees[activeTreeCount++];
+              sprite.visible = true;
+              sprite.anchor.set(0.5, 0.9);
+
+              if (!sprite.getChildByName("shadow")) {
+                  if (!this.sharedShadowTex) {
+                      const shadowGraphics = new Graphics();
+                      shadowGraphics.ellipse(0, 0, 26, 10).fill({color: 0x11220b, alpha: 0.8});
+                      this.sharedShadowTex = this.app.renderer.generateTexture(shadowGraphics);
+                  }
+                  const shadow = new Sprite(this.sharedShadowTex);
+                  shadow.name = "shadow";
+                  shadow.anchor.set(0.5, 0.5);
+                  shadow.y = 0; 
+                  shadow.zIndex = -1;
+                  sprite.addChild(shadow);
+                  sprite.sortableChildren = true;
+              }
+
+              const r = rng();
+              if (r < 0.2) sprite.texture = this.mapTextures.tree1;
+              else if (r < 0.4) sprite.texture = this.mapTextures.tree2;
+              else if (r < 0.6) sprite.texture = this.mapTextures.tree3;
+              else if (r < 0.8) sprite.texture = this.mapTextures.tree4;
+              else sprite.texture = this.mapTextures.tree5;
+
+              const scaleVariation = 0.5 + (rng() * 0.35);
+              const flip = rng() > 0.5 ? 1 : -1;
+              sprite.scale.set(scaleVariation * flip, scaleVariation);
+
+              const offsetX = Math.floor((rng() - 0.5) * 64);
+              const offsetY = Math.floor((rng() - 0.5) * 64);
+
+              sprite.x = bx + 32 + offsetX;
+              sprite.y = by + 32 + offsetY;
+              sprite.zIndex = sprite.y;
+          }
+        }
+
+        if (type === 'WALL' || type === 'FENCE') {
           const isWallN = this.dungeonTiles[`${tx},${ty-1}`] === 'WALL' || this.dungeonTiles[`${tx},${ty-1}`] === 'TREE' || this.dungeonTiles[`${tx},${ty-1}`] === 'FENCE';
           const isWallS = this.dungeonTiles[`${tx},${ty+1}`] === 'WALL' || this.dungeonTiles[`${tx},${ty+1}`] === 'TREE' || this.dungeonTiles[`${tx},${ty+1}`] === 'FENCE';
           const isWallE = this.dungeonTiles[`${tx+1},${ty}`] === 'WALL' || this.dungeonTiles[`${tx+1},${ty}`] === 'TREE' || this.dungeonTiles[`${tx+1},${ty}`] === 'FENCE';
@@ -1922,23 +1999,17 @@ export class GameManager {
           w.isWallS = isWallS;
           w.isWallE = isWallE;
           w.isWallW = isWallW;
+          w.tx = tx;
+          w.ty = ty;
         }
       }
     }
 
-    for (const prop of this.allProps) {
-      if (prop.destroyed) continue;
-      const bx = prop.x - prop.width / 2;
-      const by = prop.y - prop.height / 2;
-      const distSq = (prop.x - focalX) ** 2 + (prop.y - focalY) ** 2;
-      
-      if (!this.wallsBuffer[wallCount]) this.wallsBuffer[wallCount] = {};
-      const w = this.wallsBuffer[wallCount++];
-      w.distSq = distSq;
-      w.bx = bx;
-      w.by = by;
-      w.isProp = true;
-      w.prop = prop;
+    for (let i = activeTreeCount; i < this.pooledTrees.length; i++) {
+        this.pooledTrees[i].visible = false;
+    }
+    for (let i = activeFloorSpriteCount; i < this.pooledFloorSprites.length; i++) {
+        this.pooledFloorSprites[i].visible = false;
     }
 
     const activeWalls = this.wallsBuffer.slice(0, wallCount);
@@ -2034,21 +2105,186 @@ export class GameManager {
     }
   }
 
-  private spawnEnemy(wx: number, wy: number, archetype: EnemyArchetype) {
-      const enemy = new SkeletonEnemy(archetype);
-      enemy.x = wx;
-      enemy.y = wy;
-      this.worldContainer.addChild(enemy);
-      this.monsters.push(enemy);
+  private spawnEnemy(wx: number, wy: number, archetype: EnemyArchetype, customProps?: any) {
+      const warning = new Graphics().circle(0, 0, 30).stroke({ width: 4, color: 0xff0000, alpha: 0.8 });
+      warning.x = wx;
+      warning.y = wy;
+      warning.zIndex = wy - 1;
+      this.worldContainer.addChild(warning);
+      
+      let scale = 1.0;
+      let alpha = 0.8;
+      const interval = setInterval(() => {
+          if (warning.destroyed) {
+              clearInterval(interval);
+              return;
+          }
+          scale -= 0.1;
+          alpha -= 0.1;
+          if (scale <= 0) scale = 1.0;
+          if (alpha <= 0) alpha = 0.8;
+          warning.scale.set(scale);
+          warning.alpha = alpha;
+      }, 50);
+
+      setTimeout(() => {
+        clearInterval(interval);
+        if (warning && !warning.destroyed) {
+           try { this.worldContainer.removeChild(warning); } catch(e){}
+           warning.destroy();
+        }
+        
+        if (!this.app || !this.worldContainer || this.worldContainer.destroyed) return;
+        
+        const enemy = new SkeletonEnemy(archetype);
+        enemy.x = wx;
+        enemy.y = wy;
+        
+        // Apply custom props
+        if (customProps) {
+            if (customProps.enemyTypeId) (enemy as any).enemyTypeId = customProps.enemyTypeId;
+            if (customProps.maxHp) enemy.maxHp = customProps.maxHp;
+            if (customProps.hp) enemy.hp = customProps.hp;
+            if (customProps.speed) enemy.speed = customProps.speed;
+            if (customProps.scale) enemy.scale.set(customProps.scale);
+        }
+
+        this.worldContainer.addChild(enemy);
+        this.monsters.push(enemy);
+        
+        this.spawnParticles(wx, wy, 0xff0000, 15);
+        SoundManager.getInstance().playSound('brute_slam', wx, wy);
+      }, 1500);
   }
 
   private updateSpawns() {
     // Handled dynamically via room lockdown mechanics.
   }
 
+  private spawnExclamation(monster: any) {
+    const style = new TextStyle({ fontFamily: "'CustomFont', Arial", fontSize: 40, fill: '#ff0000', stroke: { color: '#000000', width: 4 }, fontWeight: 'bold' });
+    const text = new Text({ text: '!', style });
+    text.anchor.set(0.5, 1);
+    text.x = monster.x;
+    text.y = monster.y - 40;
+    text.zIndex = monster.y + 100;
+    this.worldContainer.addChild(text);
+    this.damagePopups.push({ sprite: text, life: 25 });
+  }
 
+  private killMonster(monster: any, index: number) {
+      SoundManager.getInstance().playSound('kill');
+      const isRanged = monster.type === 'ranged';
+      
+      if (this.upgrades.vampirism && Math.random() < 0.05) {
+         this.playerHP = Math.min(this.playerMaxHP, this.playerHP + 1);
+         // Show heal popup
+         const style = new TextStyle({ fontFamily: "'CustomFont', Arial", fontSize: 24, fill: '#00ff00', stroke: { color: '#005500', width: 4 }, fontWeight: 'bold' });
+         const healText = new Text({ text: '+1 HP (Vamp)', style });
+         healText.anchor.set(0.5, 0.5); healText.x = this.player.x; healText.y = this.player.y - 64; healText.zIndex = this.player.y + 100;
+         this.worldContainer.addChild(healText);
+         this.damagePopups.push({ sprite: healText, life: 60 });
+      }
+
+      // Golem Boss Death Relay: triggers Portal & Merchant
+      if (monster.enemyTypeId === 'golem') {
+        this.gatekeeperDefeated = true;
+        this.artifactsCollected = 1;
+      } else if (monster.enemyTypeId === 'final_boss') {
+         // Final Boss defeated: trigger the rift immediately
+         this.endgameTimer = 0; 
+      }
+
+      // Progression & Rewards
+      this.enemiesAlive--;
+      this.openWorldKills++;
+      
+      if (this.tutorialStep === 11) {
+          this.tutorialProgress++;
+      }
+
+      this.dispatchState();
+
+      if (Math.random() < 0.20 || this.tutorialStep < 15) { // 20% drop chance (100% in tutorial)
+        const coinSprite = new Sprite(this.coinTexture);
+        coinSprite.anchor.set(0.5, 0.5);
+        coinSprite.scale.set(0.15);
+        coinSprite.x = monster.x + (Math.random() * 40 - 20);
+        coinSprite.y = monster.y - 12 + (Math.random() * 40 - 20);
+        coinSprite.zIndex = monster.y;
+        this.worldContainer.addChild(coinSprite);
+        this.coinDrops.push({ sprite: coinSprite, life: 600 });
+      }
+
+      // Room clearing check
+      if ((monster as any).roomId !== undefined && (monster as any).roomId === this.activeRoomId) {
+          this.activeRoomEnemies--;
+          if (this.activeRoomEnemies <= 0) {
+              const room = this.dungeonRooms.find(r => r.id === this.activeRoomId);
+              if (room && !room.cleared) {
+                  room.cleared = true;
+              }
+          }
+      }
+
+      // Drop EXP Orb
+      const expSprite = new Graphics().circle(0, 0, 4).fill({ color: 0x00ffaa });
+      expSprite.x = monster.x + (Math.random() * 40 - 20);
+      expSprite.y = monster.y - 12 + (Math.random() * 40 - 20);
+      expSprite.zIndex = monster.y;
+      this.worldContainer.addChild(expSprite);
+      this.expDrops.push({ sprite: expSprite, life: 1200 });
+
+      const textures = monster.enemyTypeId ? this.getEnemyTexturesForType(monster.enemyTypeId) : (isRanged ? this.goblinBlueTextures : this.goblinTextures);
+      const corpse = new Sprite(textures.dead1 ? textures.dead1[0] : textures.run[0]);
+      corpse.anchor.set(0.5, 0.8125);
+      corpse.scale.set(1);
+      corpse.scale.x = monster.scale.x;
+      corpse.x = monster.x;
+      corpse.y = monster.y;
+      corpse.zIndex = monster.y - 5;
+      corpse.alpha = 0.8;
+      (corpse as any).life = 180;
+      (corpse as any).isRanged = isRanged;
+
+      // Item Drop Logic
+      if (Math.random() < 0.05) { // 5% chance
+        const potionSprite = new Sprite(this.potionTexture);
+        potionSprite.anchor.set(0.5, 0.5);
+        potionSprite.scale.set(3);
+        potionSprite.x = monster.x;
+        potionSprite.y = monster.y - 12;
+        potionSprite.zIndex = monster.y;
+        this.worldContainer.addChild(potionSprite);
+        this.droppedItems.push({ sprite: potionSprite, id: 'potion', count: 1 });
+      }
+
+      this.worldContainer.removeChild(monster.shadow);
+      if (monster.shadow) monster.shadow.destroy();
+      this.worldContainer.addChild(corpse);
+      this.corpses.push(corpse);
+
+      if (monster.hpBar) {
+         this.worldContainer.removeChild(monster.hpBar);
+         monster.hpBar.destroy();
+      }
+      this.worldContainer.removeChild(monster);
+      monster.destroy();
+      this.monsters.splice(index, 1);
+  }
 
   private handleKeyDown = (e: KeyboardEvent) => {
+    if (this.tutorialStep < 15 && this.tutorialStep % 2 === 0) {
+      if (e.code === 'Space') {
+        window.dispatchEvent(new CustomEvent('dialogue-advance'));
+      }
+      return;
+    }
+    // Block inventory before step 11
+    if (e.code === 'KeyE' && !e.repeat && this.tutorialStep < 11) {
+       SoundManager.getInstance().playSound('empty_click');
+       return;
+    }
     this.keys[e.code] = true;
 
     // Inventory selection (1-3)
@@ -2063,14 +2299,9 @@ export class GameManager {
 
     // Toggle Inventory overlay
     if (e.code === 'KeyE' && !e.repeat) {
-      if (this.tutorialStep === 11 && !this.tutorialTaskCompleted) {
-          this.tutorialTaskCompleted = true;
-          this.tutorialDelayTimer = 180;
-          this.dispatchTutorial();
-      }
       this.isInventoryOpen = !this.isInventoryOpen;
-      if (this.isInventoryOpen) this.playSound('open_inventory');
-      else this.playSound('close_inventory');
+      if (this.isInventoryOpen) SoundManager.getInstance().playSound('open_inventory');
+      else SoundManager.getInstance().playSound('close_inventory');
       this.dispatchState();
     }
 
@@ -2081,7 +2312,7 @@ export class GameManager {
         this.updateMinimap();
       } else if (this.isInventoryOpen) {
         this.isInventoryOpen = false;
-        this.playSound('close_inventory');
+        SoundManager.getInstance().playSound('close_inventory');
         this.dispatchState();
       } else {
         window.dispatchEvent(new CustomEvent('settings-toggle'));
@@ -2089,30 +2320,34 @@ export class GameManager {
     }
 
     if (e.code === 'KeyM' && !e.repeat) {
-      if (this.tutorialStep === 13 && !this.tutorialTaskCompleted) {
-          this.tutorialTaskCompleted = true;
-          this.tutorialDelayTimer = 180;
-          this.dispatchTutorial();
-      }
       this.isMapOpen = !this.isMapOpen;
       this.updateMinimap();
     }
 
     // Reloading
     if (e.code === 'KeyR' && !this.isReloading) {
+      if (this.tutorialStep < 7) {
+         return;
+      }
       const inv = this.inventory[this.activeSlot];
+      if (!inv) return;
       const stats = WeaponRegistry[inv.id];
       if (stats && stats.type === 'ranged' && inv.ammo !== undefined && inv.ammo < stats.maxAmmo!) {
         this.isReloading = true;
+        this.shadowAngle = 0; // reload visual helper
         this.reloadTimer = (stats.reloadTime! / 1000) * 60; // Convert MS to frames roughly
-        this.playSound('reload');
+        SoundManager.getInstance().playSound('reload');
         this.dispatchState();
       }
     }
   };
-  private handleKeyUp = (e: KeyboardEvent) => { this.keys[e.code] = false; };
+  private handleKeyUp = (e: KeyboardEvent) => {
+    if (this.tutorialStep < 15 && this.tutorialStep % 2 === 0) return;
+    this.keys[e.code] = false;
+  };
 
   private handleSwap = (e: any) => {
+    if (this.tutorialStep < 15 && this.tutorialStep % 2 === 0) return;
     const from = e.detail.from;
     const to = e.detail.to;
     if (from === to) return;
@@ -2132,31 +2367,40 @@ export class GameManager {
 
   private handleClose = () => {
     this.isInventoryOpen = false;
-    this.playSound('close_inventory');
+    SoundManager.getInstance().playSound('close_inventory');
     this.dispatchState();
   };
 
   private handleContextMenu = (e: MouseEvent) => { e.preventDefault(); };
   private handleMouseDown = (e: MouseEvent) => {
+    if (this.tutorialStep < 15 && this.tutorialStep % 2 === 0) return;
     if (e.button === 0) this.isMouseDown = true;
     if (e.button === 2) this.isAiming = true;
   };
   private handleMouseUp = (e: MouseEvent) => {
+    if (this.tutorialStep < 15 && this.tutorialStep % 2 === 0) return;
     if (e.button === 0) this.isMouseDown = false;
     if (e.button === 2) this.isAiming = false;
   };
-  private handleMouseMove = (e: MouseEvent) => { this.targetMouseX = e.clientX; this.targetMouseY = e.clientY; };
+  private handleMouseMove = (e: MouseEvent) => {
+    if (this.tutorialStep < 15 && this.tutorialStep % 2 === 0) return;
+    this.targetMouseX = e.clientX;
+    this.targetMouseY = e.clientY;
+  };
 
   private handleSlotChange = (e: any) => {
+    if (this.tutorialStep < 15 && this.tutorialStep % 2 === 0) return;
     if (e.detail >= 0 && e.detail <= 2) {
       this.activeSlot = e.detail;
       this.dispatchState();
     }
   };
 
-
-
-
+  private handleShopBuy = (e: any) => {
+    if (e.detail) {
+       this.buyItem(e.detail);
+    }
+  };
 
   private setupInput() {
     window.addEventListener('contextmenu', this.handleContextMenu);
@@ -2170,14 +2414,16 @@ export class GameManager {
     window.addEventListener('slot-change', this.handleSlotChange);
     window.addEventListener('volume-change', this.handleVolumeChange);
     window.addEventListener('settings-toggle', this.handleSettingsToggle);
+    window.addEventListener('skip-tutorial', this.handleSkipTutorial);
+    window.addEventListener('dialogue-advance', this.handleDialogueAdvance);
+    window.addEventListener('shop-buy', this.handleShopBuy);
   }
 
-
-
-
-
   private useWeapon(targetAngle: number) {
-    const weaponId = this.inventory[this.activeSlot].id;
+    const activeInv = this.inventory[this.activeSlot];
+    if (!activeInv) return;
+
+    const weaponId = activeInv.id;
     const stats = WeaponRegistry[weaponId];
     if (!stats) return;
 
@@ -2211,13 +2457,13 @@ export class GameManager {
              this.isReloading = false; // Shotgun interrupt
              this.dispatchState();
           } else {
-             this.playSound('empty_click');
+             SoundManager.getInstance().playSound('empty_click');
              return; // Block firing if reloading other guns
           }
       }
       if (activeInv.ammo !== undefined) {
           if (activeInv.ammo <= 0) {
-              this.playSound('empty_click');
+              SoundManager.getInstance().playSound('empty_click');
               if (!this.isReloading) {
                  this.isReloading = true;
                  this.reloadTimer = (stats.reloadTime! / 1000) * 60;
@@ -2229,11 +2475,6 @@ export class GameManager {
           this.dispatchState();
       }
 
-      if (this.tutorialStep === 5 && !this.tutorialTaskCompleted) {
-          this.tutorialTaskCompleted = true;
-          this.tutorialDelayTimer = 180;
-          this.dispatchTutorial();
-      }
       this.gunRecoil = 1.0; // Apply strictlyly upon successful round utilization
       this.spawnParticles(this.gunSprite.x + Math.cos(baseAngle) * 24, this.gunSprite.y + Math.sin(baseAngle) * 24, 0xffaa00, 3);
       for (let i = 0; i < stats.projectilesPerShot; i++) {
@@ -2273,11 +2514,81 @@ export class GameManager {
       }
     }
     
-    this.playSound(stats.sfx);
+    SoundManager.getInstance().playSound(stats.sfx);
+  }
+  
+  private checkTutorial() {
+      if (this.tutorialStep % 2 === 0) return; // Wait for dialogue to finish
+      if (this.tutorialTaskCompleted) return; // Wait for delay
+
+      const pTx = Math.floor(this.player.x / 64);
+
+      if (this.tutorialStep === 1) { // Practice Dodge Roll (Q) or Sprint (Shift)
+          if (this.keys['KeyW'] || this.keys['KeyA'] || this.keys['KeyS'] || this.keys['KeyD']) {
+              this.hasMoved = true;
+          }
+          if (this.isSprinting) {
+              this.hasSprinted = true;
+          }
+          if (this.isRolling) {
+              this.hasRolled = true;
+          }
+          if (this.hasMoved && this.hasSprinted && this.hasRolled) {
+              this.completeTutorialTask();
+          }
+      } else if (this.tutorialStep === 3) { // Move into the next chamber
+          if (pTx >= 35) {
+              this.completeTutorialTask();
+          }
+      } else if (this.tutorialStep === 5) { // Walk over weapons to equip them
+          const hasPistol = this.inventory.some(i => i.id === 'gun');
+          const hasSword = this.inventory.some(i => i.id === 'sword');
+          if (hasPistol && hasSword) {
+              this.completeTutorialTask();
+          }
+      } else if (this.tutorialStep === 7) { // Aim, shoot, and reload calibration
+          if (this.isAiming) {
+              this.hasAimed = true;
+          }
+          if (this.isMouseDown) {
+              this.hasFired = true;
+          }
+          if (this.isReloading) {
+              this.hasReloaded = true;
+          }
+          if (this.hasAimed && this.hasFired && this.hasReloaded) {
+              this.completeTutorialTask();
+          }
+      } else if (this.tutorialStep === 9) { // Move to Room 2 Combat Arena
+          if (pTx >= 68) {
+              this.completeTutorialTask();
+          }
+      } else if (this.tutorialStep === 11) { // Defeat all security grunts
+          if (this.tutorialProgress >= 3) {
+              this.completeTutorialTask();
+          }
+      } else if (this.tutorialStep === 13) { // Open Backpack and buy a potion
+          if (this.inventory.some(i => i.id === 'potion')) {
+              this.completeTutorialTask();
+          }
+      } else if (this.tutorialStep === 15) {
+          // Handled via portal overlap Space check
+      }
+  }
+
+  private completeTutorialTask() {
+      this.tutorialTaskCompleted = true;
+      this.tutorialDelayTimer = 120; // 2 seconds
+      this.dispatchTutorial();
   }
 
   private update(dt: number) {
     if (this.destroyed) return;
+
+    if (this.tutorialStep < 15) {
+      this.checkTutorial();
+      this.updateTrailParticles(dt);
+    }
     
     // Hit-stop effect: pause game simulation momentarily for heavy impacts
     if (this.hitStopFrames > 0) {
@@ -2362,64 +2673,10 @@ export class GameManager {
     this.playerShadow.x = this.player.x;
     this.playerShadow.y = this.player.y;
 
-    // Tutorial Logic: MUST run before early returns so timers continue
-    let anyKeyPressed = false;
-    for (const key in this.keys) {
-        if (this.keys[key] && key !== 'Escape') {
-            anyKeyPressed = true;
-            break;
-        }
-    }
-
-    if (!anyKeyPressed) this.spaceReleased = true;
-
     if (this.tutorialStep % 2 === 0 && this.tutorialStep < 15) {
-       if (anyKeyPressed && this.spaceReleased) {
-           this.spaceReleased = false;
-           this.tutorialStep++;
-           this.tutorialProgress = 0;
-           this.tutorialTaskCompleted = false;
-           this.dispatchTutorial();
-           
-           // Spawn portal at the end of the tutorial (when moving from 14 to 15)
-           if (this.tutorialStep === 15 && this.currentDungeonWorld === 1 && this.currentDungeonStage === 1 && !this.portalSpawned) {
-               this.portalSpawned = true;
-               this.artifactsCollected = 1;
-               this.totalArtifactsNeeded = 1;
-
-               const portalX = 115 * 64; // Center of room 4
-               const portalY = 0;
-
-               this.portalSprite = new Sprite(this.mapTextures.portal);
-               this.portalSprite.anchor.set(0.5, 0.5);
-               this.portalSprite.scale.set(4);
-               this.portalSprite.x = portalX;
-               this.portalSprite.y = portalY;
-               this.portalSprite.alpha = 0.8;
-               this.portalSprite.zIndex = portalY;
-               this.worldContainer.addChild(this.portalSprite);
-               const pGlow = new Graphics().circle(0, 0, 32).fill({ color: 0x00ffff, alpha: 0.2 });
-               this.portalSprite.addChild(pGlow);
-
-               const style = new TextStyle({ fontFamily: "'CustomFont', Arial", fontSize: 36, fill: '#00ffff', stroke: { color: '#000000', width: 5 }, fontWeight: 'bold' });
-               const clearText = new Text({ text: 'PORTAL OPENED!', style });
-               clearText.anchor.set(0.5, 0.5);
-               clearText.x = this.player.x;
-               clearText.y = this.player.y - 100;
-               clearText.zIndex = this.player.y + 100;
-               this.worldContainer.addChild(clearText);
-               this.damagePopups.push({ sprite: clearText, life: 120 });
-               
-               // Add a fake artifact here just so the compass points to the portal!
-               this.totalArtifactsNeeded = 2; // Need one more so the compass stays active
-               const targetX = portalX;
-               const targetY = portalY;
-               const chunkX = (targetX - (CHUNK_PX/2)) / CHUNK_PX;
-               const chunkY = (targetY - (CHUNK_PX/2)) / CHUNK_PX;
-               this.artifactLocations.push({ cx: chunkX, cy: chunkY, collected: false, sprite: null, type: 'portal_marker' });           }
-       }
        this.isAiming = false;
        this.isRolling = false;
+       this.keys = {};
     } else if (this.tutorialStep % 2 !== 0 && this.tutorialStep < 15) {
        if (this.tutorialTaskCompleted) {
            // Allow time to pass even if inventory is open during tutorial
@@ -2429,6 +2686,7 @@ export class GameManager {
                this.tutorialProgress = 0;
                this.tutorialTaskCompleted = false;
                this.dispatchTutorial();
+               this.triggerDialogueIfNeeded();
            }
        }
     }
@@ -2455,27 +2713,117 @@ export class GameManager {
         activePlayerRoom.active = true;
         activePlayerRoom.cleared = true;
         
-        // Spawn a reward chest in the center of the room immediately
-        const chestTx = activePlayerRoom.tx + Math.floor(activePlayerRoom.tw / 2);
-        const chestTy = activePlayerRoom.ty + Math.floor(activePlayerRoom.th / 2);
-        const chestPx = (chestTx + 0.5) * TILE_PX;
-        const chestPy = (chestTy + 0.5) * TILE_PX;
-        
-        const chestSp = this.addMapSprite(this.mapTextures.chest, chestPx, chestPy, 0.5, 0.85, chestPy);
-        chestSp.scale.set(1);
-        this.syncMapSprite(chestSp);
-        
-        const shadow = new Graphics().ellipse(0, 0, 16, 6).fill({ color: 0x000000, alpha: 0.35 });
-        shadow.zIndex = -1;
-        chestSp.addChild(shadow);
-        
-        this.dungeonChests.push({
-          sprite: chestSp,
-          tx: chestTx,
-          ty: chestTy,
-          opened: false
-        });
-        this.obstacleCells.add(`${chestTx},${chestTy}`);
+        if (this.currentDungeonWorld > 1 || this.currentDungeonStage > 1) {
+            this.activeRoomId = activePlayerRoom.id;
+            
+            if (this.currentDungeonStage === 10) {
+               activePlayerRoom.cleared = true; 
+            } else {
+               let numEnemies = (3 + Math.floor(Math.random() * 4)) + this.currentDungeonStage;
+               if (this.currentDungeonStage === 5 && activePlayerRoom.isEndRoom) numEnemies = 1;
+
+               this.activeRoomEnemies = numEnemies;
+               const biome = this.getBiomeAt(0, 0);
+               
+               for (let i = 0; i < numEnemies; i++) {
+                   let rx = 0, ry = 0;
+                   if (biome === 0) {
+                       // Forest bubble clearings are very small. Tightly cluster.
+                       rx = activePlayerRoom.tx * 64 + (Math.random() * 128 - 64) + 32;
+                       ry = activePlayerRoom.ty * 64 + (Math.random() * 128 - 64) + 32;
+                   } else {
+                       rx = activePlayerRoom.tx * 64 + Math.floor(Math.random() * (activePlayerRoom.tw * 64 - 128)) - Math.floor((activePlayerRoom.tw * 64)/2) + 64;
+                       ry = activePlayerRoom.ty * 64 + Math.floor(Math.random() * (activePlayerRoom.th * 64 - 128)) - Math.floor((activePlayerRoom.th * 64)/2) + 64;
+                   }
+                   
+                   const customProps = { roomId: activePlayerRoom.id };
+                   if (this.currentDungeonStage === 5 && activePlayerRoom.isEndRoom) {
+                       Object.assign(customProps, { enemyTypeId: 'golem', maxHp: 500, hp: 500, speed: 1.5, scale: 3 });
+                       this.spawnEnemy(rx, ry, 'bull', customProps);
+                   } else {
+                       const archetypes: EnemyArchetype[] = ['grunt', 'archer', 'shield', 'shaman', 'bomber', 'bull', 'spider'];
+                       const arch = archetypes[Math.floor(Math.random() * archetypes.length)];
+                       this.spawnEnemy(rx, ry, arch, customProps);
+                   }
+               }
+            }
+        }
+      }
+
+      // Endgame Logic
+      if (this.isEndgameActive) {
+          this.endgameTimer -= dt;
+          
+          if (this.frameCount % 60 === 0) {
+              window.dispatchEvent(new CustomEvent('endgame-timer', { detail: Math.ceil(this.endgameTimer / 60) }));
+          }
+
+          if (this.endgameTimer > 0) {
+              // Endless intense wave spawning
+              if (this.frameCount % 90 === 0 && this.monsters.length < 30) {
+                  const archetypes: EnemyArchetype[] = ['grunt', 'archer', 'shield', 'shaman', 'bomber', 'spider'];
+                  const arch = archetypes[Math.floor(Math.random() * archetypes.length)];
+                  
+                  // Spawn randomly around player but offscreen
+                  const angle = Math.random() * Math.PI * 2;
+                  const dist = 600 + Math.random() * 200;
+                  const sx = this.player.x + Math.cos(angle) * dist;
+                  const sy = this.player.y + Math.sin(angle) * dist;
+                  
+                  this.spawnEnemy(sx, sy, arch);
+              }
+          } else if (!this.hasSpawnedEndgamePortal) {
+              this.hasSpawnedEndgamePortal = true;
+              
+              // Vaporize all enemies
+              for (const m of this.monsters) {
+                  this.spawnParticles(m.x, m.y, 0xffffff, 20);
+                  this.worldContainer.removeChild(m);
+                  m.destroy();
+              }
+              this.monsters = [];
+              
+              SoundManager.getInstance().playSound('elemental_explode');
+              this.shakeAmount = 100;
+              
+              const flash = new Graphics().rect(0, 0, this.app.screen.width, this.app.screen.height).fill({ color: 0xffffff, alpha: 0.8 });
+              flash.zIndex = 9999999;
+              this.app.stage.addChild(flash);
+              let flashAlpha = 0.8;
+              const flashInt = setInterval(() => {
+                  flashAlpha -= 0.05;
+                  if (flashAlpha <= 0) {
+                      clearInterval(flashInt);
+                      this.app.stage.removeChild(flash);
+                      flash.destroy();
+                  } else {
+                      flash.alpha = flashAlpha;
+                  }
+              }, 50);
+
+              // Spawn Rift
+              this.portalSpawned = true;
+              const portalX = this.player.x;
+              const portalY = this.player.y - 150;
+
+              this.portalSprite = new Sprite(this.mapTextures.relic_void); // Using relic as Aether rift
+              this.portalSprite.anchor.set(0.5, 0.5);
+              this.portalSprite.scale.set(6);
+              this.portalSprite.x = portalX;
+              this.portalSprite.y = portalY;
+              this.portalSprite.alpha = 1.0;
+              this.portalSprite.zIndex = portalY;
+              this.worldContainer.addChild(this.portalSprite);
+
+              const style = new TextStyle({ fontFamily: "'CustomFont', Arial", fontSize: 36, fill: '#aa00ff', stroke: { color: '#000000', width: 5 }, fontWeight: 'bold' });
+              const clearText = new Text({ text: 'AETHER RIFT OPENED!', style });
+              clearText.anchor.set(0.5, 0.5);
+              clearText.x = this.player.x;
+              clearText.y = this.player.y - 100;
+              clearText.zIndex = this.player.y + 100;
+              this.worldContainer.addChild(clearText);
+              this.damagePopups.push({ sprite: clearText, life: 180 });
+          }
       }
 
       // Dynamic 2.5D Environment
@@ -2511,8 +2859,8 @@ export class GameManager {
             this.shakeAmount = 25;
             this.hitStopFrames = 4;
             this.invulnerableTimer = 60;
-            if (this.playerHP <= 0) this.playSound('death');
-            else this.playSound('hit');
+            if (this.playerHP <= 0) SoundManager.getInstance().playSound('death');
+            else SoundManager.getInstance().playSound('hit');
             this.spawnParticles(this.player.x, this.player.y, 0xff4400, 8);
           }
           this.worldContainer.removeChild(tg.sprite);
@@ -2531,8 +2879,8 @@ export class GameManager {
             this.shakeAmount = 15;
             this.hitStopFrames = 2;
             this.invulnerableTimer = 30;
-            if (this.playerHP <= 0) this.playSound('death');
-            else this.playSound('hit');
+            if (this.playerHP <= 0) SoundManager.getInstance().playSound('death');
+            else SoundManager.getInstance().playSound('hit');
             break;
           }
         }
@@ -2558,7 +2906,7 @@ export class GameManager {
                   loc.sprite.destroy();
                   loc.sprite = null;
                }
-               this.playSound('artifact_pickup');
+               SoundManager.getInstance().playSound('artifact_pickup');
                
                // Visual popup
                const style = new TextStyle({ fontFamily: "'CustomFont', Arial", fontSize: 24, fill: '#FFD700', stroke: { color: '#000000', width: 4 }, fontWeight: 'bold' });
@@ -2574,7 +2922,7 @@ export class GameManager {
                const chunkKey = `${loc.cx},${loc.cy}`;
                const chunk = this.chunks.get(chunkKey);
                if (chunk) {
-                  this.playSound('shrine_awaken');
+                  SoundManager.getInstance().playSound('shrine_awaken');
                   for (const sp of chunk.spawnPoints) {
                      if (sp.currentMonster && (sp.currentMonster as any).aiState === 'sleeping') {
                         (sp.currentMonster as any).aiState = 'idle';
@@ -2592,31 +2940,34 @@ export class GameManager {
          }
       }
 
-      if (nearestArtifact && this.compassSprite) {
-          const ax = nearestArtifact.cx * CHUNK_PX + (CHUNK_PX/2);
-          const ay = nearestArtifact.cy * CHUNK_PX + (CHUNK_PX/2);
-          const angle = Math.atan2(ay - this.player.y, ax - this.player.x);
-          this.compassSprite.x = this.player.x + Math.cos(angle) * 80;
-          this.compassSprite.y = this.player.y - 30 + Math.sin(angle) * 80;
-          this.compassSprite.rotation = angle;
-          
-          if (this.isSprinting || (this.keys['KeyW'] || this.keys['KeyA'] || this.keys['KeyS'] || this.keys['KeyD']) === false) {
-             this.compassSprite.alpha = Math.min(1, this.compassSprite.alpha + 0.05);
-          } else {
-             this.compassSprite.alpha = Math.max(0, this.compassSprite.alpha - 0.05);
-          }
+      let targetX: number | null = null;
+      let targetY: number | null = null;
+      if (this.tutorialStep < 15) {
+         if (this.tutorialStep === 3) {
+            targetX = 6 * 64;
+            targetY = 0;
+         } else if (this.tutorialStep === 5) {
+            targetX = 40 * 64;
+            targetY = 0;
+         } else if (this.tutorialStep === 9) {
+            targetX = 68 * 64;
+            targetY = 0;
+         } else if (this.tutorialStep === 13) {
+            targetX = 105 * 64;
+            targetY = 0;
+         }
+      }
 
+      if (this.tutorialStep >= 15 && nearestArtifact) {
           // Sonar Ping
           this.sonarTimer -= dt;
           if (this.sonarTimer <= 0) {
-              const pingInterval = Math.max(30, nearestArtifact.dist / 10); // Faster when closer
+              const pingInterval = Math.max(30, nearestArtifact.dist / 10);
               this.sonarTimer = pingInterval;
               if (nearestArtifact.dist < 1500) {
-                 this.playSound('artifact_ping');
+                 SoundManager.getInstance().playSound('artifact_ping');
               }
           }
-      } else if (this.compassSprite) {
-          this.compassSprite.alpha = 0;
       }
 
       // Portal spawn on collecting all artifacts
@@ -2667,6 +3018,16 @@ export class GameManager {
     }
 
     if (this.portalSprite && this.portalSprite.parent) {
+       this.portalSprite.rotation += 0.02 * dt;
+       const pScale = (this.portalSprite.texture === this.mapTextures.relic_void) ? 6 : 4;
+       const s = pScale + Math.sin(performance.now() / 200) * 0.2;
+       this.portalSprite.scale.set(s);
+       if (Math.random() < 0.2) {
+          const angle = Math.random() * Math.PI * 2;
+          const r = 40;
+          this.spawnParticles(this.portalSprite.x + Math.cos(angle) * r, this.portalSprite.y + Math.sin(angle) * r, 0x00ffff, 1);
+       }
+
        const pDist = Math.hypot(this.player.x - this.portalSprite.x, this.player.y - this.portalSprite.y);
        if (pDist < 80) {
           // Check if Gatekeeper is dead
@@ -2691,15 +3052,42 @@ export class GameManager {
                  popText.zIndex = this.player.y + 100;
                  this.worldContainer.addChild(popText);
                  this.damagePopups.push({ sprite: popText, life: 60 });
-                 this.playSound('empty_click');
+                 SoundManager.getInstance().playSound('empty_click');
              } else {
                  this.keys['Space'] = false;
-                 this.playSound('level_up');
-                 this.currentDungeonStage++;
-                 if (this.currentDungeonStage > 3) {
-                    this.currentDungeonStage = 1;
-                    this.currentDungeonWorld++;
-                 }
+                  SoundManager.getInstance().playSound('level_up');
+                  if (this.tutorialStep === 15) {
+                      this.tutorialStep = 15;
+                      this.currentDungeonStage = 2;
+                      this.currentDungeonWorld = 1;
+                      this.playerHP = this.playerMaxHP;
+                      this.initOpenWorld();
+                      this.player.x = 0;
+                      this.player.y = 0;
+                      if (this.portalSprite) {
+                         this.worldContainer.removeChild(this.portalSprite);
+                         this.portalSprite.destroy();
+                         this.portalSprite = null;
+                      }
+                      this.dispatchTutorial();
+                      this.dispatchState();
+                      return;
+                  }
+                  if (this.tutorialStep < 15) {
+                      this.tutorialStep = 15;
+                      this.dispatchTutorial();
+                  }
+                  
+                  if (this.isEndgameActive) {
+                      window.dispatchEvent(new CustomEvent('victory'));
+                      return;
+                  }
+
+                  this.currentDungeonStage++;
+                  if (this.currentDungeonStage > 10) {
+                     this.currentDungeonStage = 1;
+                     this.currentDungeonWorld++;
+                  }
              this.portalSprite.destroy({ children: true });
              this.portalSprite = null;
              if (this.merchantSprite) {
@@ -2750,11 +3138,16 @@ export class GameManager {
       this.reloadTimer -= dt;
       if (this.reloadTimer <= 0) {
         const activeInv = this.inventory[this.activeSlot];
+        if (!activeInv) {
+           this.isReloading = false;
+           this.dispatchState();
+           return;
+        }
         const stats = WeaponRegistry[activeInv.id];
         if (stats && stats.type === 'ranged') {
            if (activeInv.id === 'shotgun') {
                activeInv.ammo = (activeInv.ammo || 0) + 1;
-               this.playSound('reload');
+               SoundManager.getInstance().playSound('reload');
                if (activeInv.ammo < stats.maxAmmo!) {
                   this.reloadTimer = (stats.reloadTime! / 1000) * 60;
                } else {
@@ -2763,7 +3156,7 @@ export class GameManager {
            } else {
                activeInv.ammo = stats.maxAmmo!;
                this.isReloading = false;
-               this.playSound('reload');
+               SoundManager.getInstance().playSound('reload');
            }
            this.dispatchState();
         } else {
@@ -2786,16 +3179,7 @@ export class GameManager {
         if (this.keys['ArrowLeft'] || this.keys['KeyA']) dx -= 1;
         if (this.keys['ArrowRight'] || this.keys['KeyD']) dx += 1;
 
-        if (this.tutorialStep === 1 && !this.tutorialTaskCompleted && (dx !== 0 || dy !== 0)) {
-            this.tutorialTaskCompleted = true;
-            this.tutorialDelayTimer = 180;
-            this.dispatchTutorial();
-        }
-        if (this.tutorialStep === 3 && !this.tutorialTaskCompleted && this.isAiming) {
-            this.tutorialTaskCompleted = true;
-            this.tutorialDelayTimer = 180;
-            this.dispatchTutorial();
-        }
+
     }
 
     // Normalize
@@ -2826,30 +3210,23 @@ export class GameManager {
         dy = this.rollDirection.y;
       }
     } else {
-      if ((this.keys['KeyQ'] || this.keys['KeyC']) && this.stamina >= 150 && this.rollCooldownTimer <= 0 && (dx !== 0 || dy !== 0)) {
-        if (this.tutorialStep === 7 && !this.tutorialTaskCompleted) {
-            this.tutorialTaskCompleted = true;
-            this.tutorialDelayTimer = 180;
-            this.dispatchTutorial();
+      if (this.keys['KeyQ'] || this.keys['KeyC']) {
+        const rollStaminaCost = 150;
+        if (this.stamina >= rollStaminaCost && this.rollCooldownTimer <= 0 && (dx !== 0 || dy !== 0)) {
+          this.isRolling = true;
+          this.stamina -= rollStaminaCost;
+          this.rollTimer = 24;
+          this.rollCooldownTimer = this.upgrades.tactical_roll ? 38 : 48; // 20% faster cooldown
+          this.rollDirection = { x: dx, y: dy };
+          this.isInvulnerable = true;
+          this.invulnerableTimer = 24;
+          speed = 45; // Initial burst speed
+          this.keys['KeyQ'] = false;
+          this.keys['KeyC'] = false; 
         }
-        this.isRolling = true;
-        this.stamina -= 150;
-        this.rollTimer = 24; // slightly longer duration to let frames breathe
-        this.rollCooldownTimer = 48; // 0.8s cooldown
-        this.rollDirection = { x: dx, y: dy };
-        this.isInvulnerable = true;
-        this.invulnerableTimer = 24;
-        speed = 45; // Initial burst speed
-        this.keys['KeyQ'] = false;
-        this.keys['KeyC'] = false; 
-      } else {
+      }
         if (this.keys['ShiftLeft'] || this.keys['ShiftRight']) {
           if (this.stamina > 0 && (dx !== 0 || dy !== 0)) {
-            if (this.tutorialStep === 9 && !this.tutorialTaskCompleted) {
-                this.tutorialTaskCompleted = true;
-                this.tutorialDelayTimer = 180;
-                this.dispatchTutorial();
-            }
             this.isSprinting = true;
             speed *= 1.6;
             this.stamina = Math.max(0, this.stamina - dt * 1.5);
@@ -2861,14 +3238,13 @@ export class GameManager {
           this.isSprinting = false;
           this.stamina = Math.min(this.maxStamina, this.stamina + dt * 1.5);
         }
-      }
     }
 
     // Update stamina bar graphics smoothly (float + sine bob)
-    const targetX = this.player.x - 40;
-    this.staminaGroup.x += (targetX - this.staminaGroup.x) * Math.min(1, 0.15 * dt);
-    const targetY = (this.player.y - 70) + Math.sin(performance.now() / 200) * 4;
-    this.staminaGroup.y += (targetY - this.staminaGroup.y) * Math.min(1, 0.15 * dt);
+    const staminaTargetX = this.player.x - 40;
+    this.staminaGroup.x += (staminaTargetX - this.staminaGroup.x) * Math.min(1, 0.15 * dt);
+    const staminaTargetY = (this.player.y - 70) + Math.sin(performance.now() / 200) * 4;
+    this.staminaGroup.y += (staminaTargetY - this.staminaGroup.y) * Math.min(1, 0.15 * dt);
     
     // Floating Circle Arc logic
     // Only redraw stamina arc when the visual value actually changes
@@ -2895,7 +3271,8 @@ export class GameManager {
     }
 
     // Dynamic Weapon Movement Penalties
-    const activeStats = WeaponRegistry[this.inventory[this.activeSlot].id];
+    const activeInvPenalty = this.inventory[this.activeSlot];
+    const activeStats = activeInvPenalty ? WeaponRegistry[activeInvPenalty.id] : undefined;
     if (activeStats) {
       speed *= activeStats.movementPenalty;
       // If fired within the last 500ms, apply firing slow
@@ -2975,56 +3352,74 @@ export class GameManager {
       }
     }
 
-    // Process Dropped Items
-    for (let i = this.droppedItems.length - 1; i >= 0; i--) {
-      const item = this.droppedItems[i];
-      // Float animation
-      item.sprite.y += Math.sin(performance.now() / 200) * 0.2;
-
-      const cdx = this.player.x - item.sprite.x;
-      const cdy = (this.player.y - 12) - item.sprite.y;
-      const dist = Math.hypot(cdx, cdy);
-
-      // Magnet Drop Items Pickup Radius logic
-      if (dist < 150 && dist > 8) {
-        const magnetSpeed = 10 * dt;
-        item.sprite.x += (cdx / dist) * magnetSpeed;
-        item.sprite.y += (cdy / dist) * magnetSpeed;
-      }
-
-      // Pickup collision
-      if (dist < 32) {
-        // Find existing stack first, then empty slot
-        let slot = this.inventory.findIndex(inv => inv.id === item.id);
-        if (slot === -1) slot = this.inventory.findIndex(inv => inv.id === '');
-
-        if (slot !== -1) {
-          const prev = this.inventory[slot];
-          const stats = WeaponRegistry[item.id];
-          const startAmmo = stats ? stats.maxAmmo : undefined;
-          this.inventory[slot] = {
-            id: item.id,
-            count: (prev.id === item.id ? prev.count : 0) + item.count,
-            ammo: prev.id === item.id ? (prev.ammo !== undefined ? prev.ammo : startAmmo) : startAmmo
-          };
-          this.worldContainer.removeChild(item.sprite);
-          item.sprite.destroy();
-          this.droppedItems.splice(i, 1);
-          this.dispatchState();
-          this.playSound('pickup');
-        }
-      }
-    }
+      // Process Dropped Items
+     for (let i = this.droppedItems.length - 1; i >= 0; i--) {
+       const item = this.droppedItems[i];
+       
+       const cdx = this.player.x - item.sprite.x;
+       // Use baseY only if the item is currently floating, otherwise use actual y
+       const isFloating = (item.sprite as any).isFloating !== false;
+       const itemRealY = (isFloating && (item.sprite as any).baseY !== undefined) ? (item.sprite as any).baseY : item.sprite.y;
+       const cdy = (this.player.y - 12) - itemRealY;
+       const dist = Math.hypot(cdx, cdy);
+ 
+       // Magnet Drop Items Pickup Radius logic
+       if (dist < 150 && dist > 8) {
+         // Stop bobbing when magnetized
+         (item.sprite as any).isFloating = false;
+         
+         const magnetSpeed = 10 * dt;
+         item.sprite.x += (cdx / dist) * magnetSpeed;
+         item.sprite.y += (cdy / dist) * magnetSpeed;
+       } else if ((item.sprite as any).isFloating) {
+          (item.sprite as any).bobTime += 0.05 * dt;
+          const offset = Math.sin((item.sprite as any).bobTime) * 8;
+          item.sprite.y = (item.sprite as any).baseY + offset;
+          if ((item.sprite as any).shadowChild) {
+             const scale = 1 - (offset / 24);
+             (item.sprite as any).shadowChild.scale.set(scale);
+             (item.sprite as any).shadowChild.alpha = 0.35 * (1 - (offset / 32));
+          }
+       } else {
+          item.sprite.y += Math.sin(performance.now() / 200) * 0.2;
+       }
+ 
+       // Pickup collision
+       if (dist < 32) {
+         if (item.id === 'potion') {
+             const existingSlot = this.inventory.findIndex(inv => inv.id === 'potion');
+             if (existingSlot !== -1) {
+               this.inventory[existingSlot].count += item.count;
+             } else {
+               this.inventory.push({ id: 'potion', count: item.count, ammo: undefined });
+             }
+         } else {
+             // Weapon pickup
+             const existingSlot = this.inventory.findIndex(inv => inv.id === item.id);
+             if (existingSlot === -1) {
+                const stats = WeaponRegistry[item.id];
+                const startAmmo = stats ? stats.maxAmmo : undefined;
+                this.inventory.push({ id: item.id, count: 1, ammo: startAmmo });
+                this.activeSlot = this.inventory.length - 1; // Auto equip
+             }
+         }
+         this.worldContainer.removeChild(item.sprite);
+         item.sprite.destroy();
+         this.droppedItems.splice(i, 1);
+         this.dispatchState();
+         SoundManager.getInstance().playSound('pickup');
+       }     }
 
     // Cursor-based targeting (accounting for zoom scale)
     const worldMouseX = (this.mouseX - this.worldContainer.x) / 1.0;
     const worldMouseY = (this.mouseY - this.worldContainer.y) / 1.0;
     const targetAngle = Math.atan2(worldMouseY - this.gunSprite.y, worldMouseX - this.gunSprite.x);
 
-    // Use items or shoot Ã¢â‚¬â€ always read activeSlot fresh, never cache the object
+    // Use items or shoot
     const now = performance.now();
     const slotIdx = this.activeSlot;
-    const slotId = this.inventory[slotIdx].id;
+    const activeInvCurrent = this.inventory[slotIdx];
+    const slotId = activeInvCurrent ? activeInvCurrent.id : '';
 
     // Show gun/potion if equipped
     const meleeBullet = this.bullets.find(b => (b as any).isMelee);
@@ -3042,7 +3437,7 @@ export class GameManager {
     }
 
     const fireRateMs = activeStats ? activeStats.fireRate : 250;
-    const canShoot = this.tutorialStep > 8 || this.tutorialStep % 2 !== 0;
+    const canShoot = this.tutorialStep >= 7 && (this.tutorialStep > 14 || this.tutorialStep % 2 !== 0);
     if (canShoot && !this.isRolling && (this.keys['Space'] || this.isMouseDown) && now - this.lastShootTime > fireRateMs) {
       this.lastShootTime = now;
       if (WeaponRegistry[slotId]) {
@@ -3069,7 +3464,7 @@ export class GameManager {
       this.drinkingPotionSprite.y = this.player.y - 32;
       this.drinkingPotionSprite.zIndex = this.player.y + 100;
       this.worldContainer.addChild(this.drinkingPotionSprite);
-      this.playSound('drink');
+      SoundManager.getInstance().playSound('drink');
       this.dispatchState(); // Export early progress
     }
 
@@ -3247,7 +3642,7 @@ export class GameManager {
             ch.sprite.texture = this.mapTextures.chest_open;
 
             this.obstacleCells.delete(`${ch.tx},${ch.ty}`);
-            this.playSound('room_clear');
+            SoundManager.getInstance().playSound('room_clear');
             
             // Scatter loot: coins, health/speed potions, custom weapons
             const numCoins = 5 + Math.floor(Math.random() * 6);
@@ -3321,6 +3716,54 @@ export class GameManager {
       }
 
 
+    // Process EXP Drops
+    for (let i = this.expDrops.length - 1; i >= 0; i--) {
+      const exp = this.expDrops[i];
+      exp.life -= dt;
+
+      exp.sprite.y += Math.sin(performance.now() / 150) * 0.4;
+      exp.sprite.alpha = Math.min(1, exp.life / 60);
+
+      const cdx = this.player.x - exp.sprite.x;
+      const cdy = (this.player.y - 12) - exp.sprite.y;
+      const dist = Math.hypot(cdx, cdy);
+
+      // Magnet logic
+      if (dist < 300 && dist > 8) {
+        const magnetSpeed = 20 * dt;
+        exp.sprite.x += (cdx / dist) * magnetSpeed;
+        exp.sprite.y += (cdy / dist) * magnetSpeed;
+      }
+
+      if (dist < 40) {
+        this.playerExp += 1; // 1 exp per orb
+        SoundManager.getInstance().playSound('pickup');
+        this.worldContainer.removeChild(exp.sprite);
+        exp.sprite.destroy();
+        this.expDrops.splice(i, 1);
+        
+        if (this.playerExp >= this.playerMaxExp) {
+           this.playerExp -= this.playerMaxExp;
+           this.playerLevel += 1;
+           this.playerMaxExp = Math.floor(this.playerMaxExp * 1.5);
+           this.hitStopFrames = 30; // 0.5s dramatic pause
+           SoundManager.getInstance().playSound('level_up');
+           // Open Level Up UI
+           window.dispatchEvent(new CustomEvent('level-up-trigger', {
+               detail: { level: this.playerLevel }
+           }));
+        }
+        this.dispatchState();
+        continue;
+      }
+
+      if (exp.life <= 0) {
+        this.worldContainer.removeChild(exp.sprite);
+        exp.sprite.destroy();
+        this.expDrops.splice(i, 1);
+      }
+    }
+
     // Process Coin Drops
     for (let i = this.coinDrops.length - 1; i >= 0; i--) {
       const coin = this.coinDrops[i];
@@ -3343,7 +3786,7 @@ export class GameManager {
 
       if (dist < 40) {
         this.coins++;
-        this.playSound('pickup');
+        SoundManager.getInstance().playSound('pickup');
         this.worldContainer.removeChild(coin.sprite);
         coin.sprite.destroy();
         this.coinDrops.splice(i, 1);
@@ -3421,7 +3864,7 @@ export class GameManager {
                   otherB.sprite.scale.y *= 1.5;
                   otherB.sprite.rotation = Math.atan2(otherB.vy, otherB.vx);
                 }
-                this.playSound('knife_swing', otherB.sprite.x, otherB.sprite.y);
+                SoundManager.getInstance().playSound('knife_swing', otherB.sprite.x, otherB.sprite.y);
                 this.spawnParticles(otherB.sprite.x, otherB.sprite.y, 0x00ffcc, 6);
               }
             }
@@ -3476,7 +3919,7 @@ export class GameManager {
                                const crate = this.destructibles[d];
                                if (crate.sprite === prop) {
                                   crate.hp -= this.playerDmg;
-                                  this.playSound('hit');
+                                  SoundManager.getInstance().playSound('hit');
                                   this.spawnParticles(crate.sprite.x, crate.sprite.y - 30, 0xddaa55, 5); // Wood splinters
 
                                   if (crate.hp <= 0) {
@@ -3488,7 +3931,7 @@ export class GameManager {
                                      this.destructibles.splice(d, 1);
                                      this.allProps = this.allProps.filter(p => p !== prop);
 
-                                     this.playSound('kill');
+                                     SoundManager.getInstance().playSound('kill');
                                      if (Math.random() < 0.25) {
                                         const coinSprite = new Sprite(this.coinTexture);
                                         coinSprite.anchor.set(0.5, 0.5); coinSprite.scale.set(0.15);
@@ -3560,8 +4003,8 @@ export class GameManager {
           this.playerHP -= 2;
           this.isInvulnerable = true;
           this.invulnerableTimer = 60;
-          if (this.playerHP <= 0) this.playSound('death');
-          else this.playSound('hit');
+          if (this.playerHP <= 0) SoundManager.getInstance().playSound('death');
+          else SoundManager.getInstance().playSound('hit');
         }
       } else {
         // Player bullet hitting monsters
@@ -3596,7 +4039,7 @@ export class GameManager {
             if (!(b as any).isMelee && activeStats?.type === 'melee') finalDamage += this.playerDmg * 0.5;
 
             (monster as any).hp -= finalDamage;
-            this.playSound('hit', b.sprite.x, b.sprite.y);
+            SoundManager.getInstance().playSound('hit', b.sprite.x, b.sprite.y);
             this.shakeAmount = 10;
             this.hitStopFrames = 2;
             
@@ -3625,69 +4068,10 @@ export class GameManager {
             this.damagePopups.push({ sprite: dmgText, life: 30 });
 
             if ((monster as any).hp <= 0) {
-              this.playSound('kill');
-              const isRanged = (monster as any).type === 'ranged';
-              
-              // Golem Boss Death Relay: triggers Portal & Merchant
-              if ((monster as any).enemyTypeId === 'golem') {
-                this.gatekeeperDefeated = true;
-                this.artifactsCollected = 1;
-              }
-
-              // Progression & Rewards
-              this.enemiesAlive--;
-              {
-                this.openWorldKills++;
-              }
-              this.dispatchState();
-
-              if (Math.random() < 0.20) { // 20% drop chance
-                const coinSprite = new Sprite(this.coinTexture);
-                coinSprite.anchor.set(0.5, 0.5);
-                coinSprite.scale.set(0.15);
-                coinSprite.x = monster.x + (Math.random() * 40 - 20);
-                coinSprite.y = monster.y - 12 + (Math.random() * 40 - 20);
-                coinSprite.zIndex = monster.y;
-                this.worldContainer.addChild(coinSprite);
-                this.coinDrops.push({ sprite: coinSprite, life: 600 });
-              }
-
-              const textures = (monster as any).enemyTypeId ? this.getEnemyTexturesForType((monster as any).enemyTypeId) : (isRanged ? this.goblinBlueTextures : this.goblinTextures);
-              const corpse = new Sprite(textures.dead1 ? textures.dead1[0] : textures.run[0]);
-              corpse.anchor.set(0.5, 0.8125);
-              corpse.scale.set(1);
-              corpse.scale.x = monster.scale.x;
-              corpse.x = monster.x;
-              corpse.y = monster.y;
-              corpse.zIndex = monster.y - 5;
-              corpse.alpha = 0.8;
-              (corpse as any).life = 180;
-              (corpse as any).isRanged = isRanged;
-
-              // Item Drop Logic
-              if (Math.random() < 0.05) { // 5% chance
-                const potionSprite = new Sprite(this.potionTexture);
-                potionSprite.anchor.set(0.5, 0.5);
-                potionSprite.scale.set(3);
-                potionSprite.x = monster.x;
-                potionSprite.y = monster.y - 12;
-                potionSprite.zIndex = monster.y;
-                this.worldContainer.addChild(potionSprite);
-                this.droppedItems.push({ sprite: potionSprite, id: 'potion', count: 1 });
-              }
-
-              this.worldContainer.removeChild((monster as any).shadow);
-              (monster as any).shadow.destroy();
-              this.worldContainer.addChild(corpse);
-              this.corpses.push(corpse);
-
-              this.worldContainer.removeChild((monster as any).hpBar);
-              (monster as any).hpBar.destroy();
-              this.worldContainer.removeChild(monster);
-              monster.destroy();
-              this.monsters.splice(j, 1);
+              this.killMonster(monster, j);
             }
-            if (!(b as any).isMelee) break; // Pierce indefinitely if it is a melee attack!
+            if (!(b as any).isMelee && (!this.upgrades.piercing_rounds || (b as any).pierced)) break; // Pierce logic
+            if (!(b as any).isMelee && this.upgrades.piercing_rounds) (b as any).pierced = true;
           }
         }
         
@@ -3711,7 +4095,7 @@ export class GameManager {
                  if ((b as any).hitSet) (b as any).hitSet.add(crate);
                  
                  crate.hp -= (activeStats ? activeStats.damage : this.playerDmg);
-                 this.playSound('hit', crate.sprite.x, crate.sprite.y);
+                 SoundManager.getInstance().playSound('hit', crate.sprite.x, crate.sprite.y);
                  this.shakeAmount = 5;
                  this.hitStopFrames = 1;
                  this.spawnParticles(crate.sprite.x, crate.sprite.y - 30, 0xddaa55, 5); // Wood splinters
@@ -3726,7 +4110,7 @@ export class GameManager {
                    this.destructibles.splice(d, 1);
                    this.allProps = this.allProps.filter(p => !p.destroyed);
                    
-                   this.playSound('kill');
+                   SoundManager.getInstance().playSound('kill');
 
                    // 25% chance to drop coin
                    if (Math.random() < 0.25) {
@@ -3800,57 +4184,160 @@ export class GameManager {
           const dy = this.player.y - monster.y;
           const dist = Math.hypot(dx, dy);
 
-          if (dist < 600) { // Aggro range
-             if (monster.archetype === 'grunt' || monster.archetype === 'shield' || monster.archetype === 'bull' || monster.archetype === 'spider' || monster.archetype === 'bomber') {
-                 // Melee rush
-                 if (dist > 30) {
+          if (dist < 800) { // Aggro range
+             if (monster.archetype === 'grunt' || monster.archetype === 'shield' || monster.archetype === 'bull') {
+                 if (monster.archetype === 'bull') {
+                     monster.stateTimer += dt;
+                     if (monster.aiState === 'idle') {
+                         monster.vx = 0; monster.vy = 0; monster.state = 'idle';
+                         if (monster.stateTimer > 120 && dist < 400) {
+                             monster.aiState = 'charge'; monster.stateTimer = 0;
+                             monster.customData.targetX = this.player.x;
+                             monster.customData.targetY = this.player.y;
+                             SoundManager.getInstance().playSound('brute_slam');
+                         }
+                     } else if (monster.aiState === 'charge') {
+                         const cdx = monster.customData.targetX - monster.x;
+                         const cdy = monster.customData.targetY - monster.y;
+                         const cDist = Math.hypot(cdx, cdy);
+                         if (cDist < 10 || monster.stateTimer > 60) {
+                             monster.aiState = 'cooldown'; monster.stateTimer = 0;
+                         } else {
+                             monster.vx = (cdx / cDist) * (monster.speed * 3);
+                             monster.vy = (cdy / cDist) * (monster.speed * 3);
+                             monster.state = 'run';
+                         }
+                         if (dist < 40 && !this.isInvulnerable) {
+                             this.playerHP -= 4; this.isInvulnerable = true; this.invulnerableTimer = 60;
+                             SoundManager.getInstance().playSound('hit'); this.shakeAmount = 25;
+                         }
+                     } else if (monster.aiState === 'cooldown') {
+                         monster.vx = 0; monster.vy = 0; monster.state = 'idle';
+                         if (monster.stateTimer > 90) { monster.aiState = 'idle'; monster.stateTimer = 0; }
+                     }
+                 } else { // Grunt / Shield
+                     if (dist > 30) {
+                         monster.vx = (dx / dist) * monster.speed;
+                         monster.vy = (dy / dist) * monster.speed;
+                         monster.state = 'run';
+                     } else {
+                         monster.vx = 0; monster.vy = 0; monster.state = 'attack';
+                         if (this.frameCount % 30 === 0 && !this.isInvulnerable) {
+                             this.playerHP -= 2; this.isInvulnerable = true; this.invulnerableTimer = 60;
+                             SoundManager.getInstance().playSound('hit'); this.shakeAmount = 15;
+                         }
+                     }
+                 }
+             } else if (monster.archetype === 'spider') {
+                 monster.stateTimer += dt;
+                 if (monster.aiState === 'idle') {
                      monster.vx = (dx / dist) * monster.speed;
                      monster.vy = (dy / dist) * monster.speed;
                      monster.state = 'run';
-                 } else {
-                     monster.vx = 0;
-                     monster.vy = 0;
-                     monster.state = 'attack';
-                     // Melee hit player
-                     if (this.frameCount % 30 === 0 && !this.isInvulnerable) {
-                         this.playerHP -= 2;
-                         this.isInvulnerable = true;
-                         this.invulnerableTimer = 60;
-                         this.playSound('hit');
-                         this.shakeAmount = 15;
+                     if (monster.stateTimer > 180 && dist < 300) {
+                         monster.aiState = 'burrow'; monster.stateTimer = 0;
+                         monster.alpha = 0; // completely invisible
                      }
+                 } else if (monster.aiState === 'burrow') {
+                     monster.vx = (dx / dist) * (monster.speed * 1.5);
+                     monster.vy = (dy / dist) * (monster.speed * 1.5);
+                     // Dust trail
+                     if (Math.random() < 0.4) this.spawnParticles(monster.x, monster.y, 0x555555, 1);
+                     
+                     if (monster.stateTimer > 120 && dist < 50) {
+                         monster.aiState = 'surface'; monster.stateTimer = 0;
+                         monster.alpha = 1.0;
+                         this.spawnExclamation(monster);
+                         if (!this.isInvulnerable) {
+                             this.playerHP -= 3; this.isInvulnerable = true; this.invulnerableTimer = 60;
+                             SoundManager.getInstance().playSound('hit'); this.shakeAmount = 20;
+                         }
+                     } else if (monster.stateTimer > 200) {
+                         monster.aiState = 'idle'; monster.stateTimer = 0; monster.alpha = 1.0;
+                     }
+                 } else if (monster.aiState === 'surface') {
+                     monster.vx = 0; monster.vy = 0; monster.state = 'attack';
+                     if (monster.stateTimer > 60) { monster.aiState = 'idle'; monster.stateTimer = 0; }
                  }
-             } else if (monster.archetype === 'archer' || monster.archetype === 'shaman') {
-                 // Ranged kite
-                 if (dist < 200) {
-                     monster.vx = -(dx / dist) * monster.speed; // Run away
-                     monster.vy = -(dy / dist) * monster.speed;
-                     monster.state = 'run';
-                 } else if (dist > 400) {
-                     monster.vx = (dx / dist) * monster.speed; // Chase
+             } else if (monster.archetype === 'bomber') {
+                 if (dist < 100 && monster.aiState !== 'fuse') {
+                     monster.aiState = 'fuse';
+                     this.spawnExclamation(monster);
+                 }
+                 if (monster.aiState === 'fuse') {
+                     monster.stateTimer += dt;
+                     monster.vx = 0; monster.vy = 0; monster.state = 'attack';
+                     monster.tint = (Math.floor(monster.stateTimer / 5) % 2 === 0) ? 0xff0000 : 0xffffff;
+                     if (monster.stateTimer > 48) { // 0.8s fuse
+                         monster.hp = 0; // Trigger death and explosion logic below
+                     }
+                 } else {
+                     monster.vx = (dx / dist) * monster.speed;
                      monster.vy = (dy / dist) * monster.speed;
                      monster.state = 'run';
+                     if (Math.random() < 0.3) this.spawnParticles(monster.x, monster.y - 16, 0xffaa00, 1); // sparks
+                 }
+             } else if (monster.archetype === 'archer') {
+                 if (dist < 250) {
+                     monster.vx = -(dx / dist) * monster.speed; monster.vy = -(dy / dist) * monster.speed; monster.state = 'run';
+                 } else if (dist > 450) {
+                     monster.vx = (dx / dist) * monster.speed; monster.vy = (dy / dist) * monster.speed; monster.state = 'run';
                  } else {
-                     monster.vx = 0;
-                     monster.vy = 0;
-                     monster.state = 'attack';
-                     // Shoot projectile
+                     monster.vx = 0; monster.vy = 0; monster.state = 'attack';
+                     if (this.frameCount % 90 === 60) {
+                         // Telegraph line and exclamation
+                         this.spawnExclamation(monster);
+                         const tg = new Graphics().moveTo(0,0).lineTo(dx, dy).stroke({ width: 2, color: 0xff0000, alpha: 0.5 });
+                         tg.x = monster.x; tg.y = monster.y - 16; tg.zIndex = monster.y;
+                         this.worldContainer.addChild(tg);
+                         this.telegraphs.push({ sprite: tg, life: 30, x: monster.x, y: monster.y, radius: 0, owner: null });
+                     }
                      if (this.frameCount % 90 === 0) {
-                         const ebullet = new Sprite(this.weaponTextures.ebullet);
-                         ebullet.anchor.set(0.5);
-                         ebullet.scale.set(4);
-                         ebullet.x = monster.x;
-                         ebullet.y = monster.y - 16;
-                         this.worldContainer.addChild(ebullet);
-                         this.bullets.push({ sprite: ebullet, vx: (dx/dist)*8, vy: (dy/dist)*8, isEnemy: true, bounces: 0 } as any);
-                         this.playSound('shoot', monster.x, monster.y);
+                         const baseAngle = Math.atan2(dy, dx);
+                         // Bullet hell spread: 5 bullets, slower speed (4)
+                         for (let i = -2; i <= 2; i++) {
+                             const angle = baseAngle + i * 0.15;
+                             const ebullet = new Sprite(this.weaponTextures.ebullet);
+                             ebullet.anchor.set(0.5); ebullet.scale.set(4);
+                             ebullet.x = monster.x; ebullet.y = monster.y - 16;
+                             this.worldContainer.addChild(ebullet);
+                             this.bullets.push({ sprite: ebullet, vx: Math.cos(angle)*4, vy: Math.sin(angle)*4, isEnemy: true, bounces: 2 } as any); 
+                         }
+                         SoundManager.getInstance().playSound('shoot', monster.x, monster.y);
+                     }
+                 }
+             } else if (monster.archetype === 'shaman') {
+                 monster.stateTimer += dt;
+                 // Stay away from player
+                 if (dist < 300) {
+                     monster.vx = -(dx / dist) * monster.speed; monster.vy = -(dy / dist) * monster.speed; monster.state = 'run';
+                 } else {
+                     monster.vx = 0; monster.vy = 0; monster.state = 'idle';
+                 }
+                 // Heal pulse every 5 seconds
+                 if (monster.stateTimer > 270 && monster.aiState !== 'casting') {
+                     monster.aiState = 'casting';
+                     this.spawnExclamation(monster);
+                 }
+                 if (monster.stateTimer > 300) {
+                     monster.stateTimer = 0;
+                     monster.aiState = 'idle';
+                     SoundManager.getInstance().playSound('shaman_cast', monster.x, monster.y);
+                     const pulse = new Graphics().circle(0, 0, 200).fill({ color: 0x00ff00, alpha: 0.3 });
+                     pulse.x = monster.x; pulse.y = monster.y; pulse.zIndex = monster.y - 1;
+                     this.worldContainer.addChild(pulse);
+                     this.telegraphs.push({ sprite: pulse, life: 30, x: monster.x, y: monster.y, radius: 200, owner: null });
+                     
+                     for (const other of this.monsters) {
+                         if (Math.hypot(other.x - monster.x, other.y - monster.y) < 200) {
+                             other.hp = Math.min(other.maxHp, other.hp + 50);
+                             this.spawnParticles(other.x, other.y, 0x00ff00, 5);
+                         }
                      }
                  }
              }
           } else {
-             monster.vx = 0;
-             monster.vy = 0;
-             monster.state = 'idle';
+             monster.vx = 0; monster.vy = 0; monster.state = 'idle';
           }
 
           // Apply velocity with basic collision
@@ -3869,6 +4356,20 @@ export class GameManager {
           else if (monster.vx > 0) monster.scale.x = 1;
 
           monster.update(dt);
+          
+          if (monster.hp <= 0) {
+              if (monster.archetype === 'bomber') {
+                  SoundManager.getInstance().playSound('elemental_explode', monster.x, monster.y);
+                  this.shakeAmount = 40;
+                  this.spawnParticles(monster.x, monster.y, 0xff5500, 30);
+                  const blast = new Graphics().circle(0, 0, 150).fill({ color: 0xff0000, alpha: 0.5 });
+                  blast.x = monster.x; blast.y = monster.y; blast.zIndex = monster.y;
+                  this.worldContainer.addChild(blast);
+                  this.telegraphs.push({ sprite: blast, life: 10, x: monster.x, y: monster.y, radius: 150, owner: monster as any });
+              }
+              // Kill monster
+              this.killMonster(monster, j);
+          }
       }
     }
     // Also rank bullets
@@ -4035,6 +4536,320 @@ export class GameManager {
     this.minimapGraphics.rect(halfSize - scale/2, halfSize - scale/2, scale, scale).fill(0xffffff);
   }
 
+  private handleDialogueAdvance = () => {
+    if (this.tutorialStep < 15 && this.tutorialStep % 2 === 0) {
+      this.tutorialStep++;
+      this.tutorialProgress = 0;
+      this.tutorialTaskCompleted = false;
+      this.dispatchTutorial();
+      
+      if (this.tutorialStep === 11) {
+        this.setDoorStatus(68, false);
+        this.spawnTutorialEnemies();
+      }
+
+      this.triggerDialogueIfNeeded();
+    }
+  };
+
+  private triggerDialogueIfNeeded() {
+     if (this.tutorialStep >= 15 || this.tutorialStep % 2 !== 0) return;
+
+     if (this.isInventoryOpen) {
+        this.isInventoryOpen = false;
+        this.dispatchState();
+     }
+
+     let speaker = '¿';
+     let text = '';
+
+     if (this.tutorialStep === 0) {
+        speaker = 'Slime';
+        text = "Where am I? My energy is low. I need to test movement first: walk with WASD, shift to sprint, and press Q or C to roll.";
+     } else if (this.tutorialStep === 2) {
+        text = "Diagnostics complete. Door 1 is now open. Go through the hallway to the armory.";
+        this.carveHallway(6, 34);
+        this.setDoorStatus(6, true);
+     } else if (this.tutorialStep === 4) {
+        text = "Armory reached. Pick up the pistol and sword from the floor to calibrate weapon systems.";
+        this.setDoorStatus(34, false);
+        this.sealHallway(6, 33);
+        this.spawnTutorialWeapons();
+     } else if (this.tutorialStep === 6) {
+        text = "Weapons equipped. Hold Right-Click to aim, Left-Click to shoot, and press R to reload.";
+     } else if (this.tutorialStep === 8) {
+        text = "Weapons calibrated. Door 2 is open. Security grunts detected in the arena. Defend yourself.";
+        this.carveHallway(46, 67);
+        this.setDoorStatus(46, true);
+     } else if (this.tutorialStep === 10) {
+        text = "Good luck.";
+        this.setDoorStatus(67, false);
+        this.sealHallway(46, 66);
+     } else if (this.tutorialStep === 12) {
+        text = "Security grunts defeated. Collect the coins, open the Synthesizer with [E], and buy a healing potion.";
+     } else if (this.tutorialStep === 14) {
+        text = "Purchase complete. Door 3 is open. Walk to the portal in Room 3 to warp out.";
+        this.carveHallway(83, 99);
+        this.setDoorStatus(83, true);
+        this.spawnTutorialPortal();
+     } else if (this.tutorialStep === 16) {
+        text = "Portal stable. Preparing warp sequence. Go.";
+     }
+
+     window.dispatchEvent(new CustomEvent('tutorial-dialogue-trigger', {
+        detail: {
+           step: this.tutorialStep,
+           speaker,
+           text
+        }
+     }));
+  }
+
+  private setDoorStatus(doorX: number, open: boolean) {
+    if (open) SoundManager.getInstance().playSound('door_creak');
+    const ys = [0, -1, 1];
+    ys.forEach((dy, index) => {
+      setTimeout(() => {
+        const key = `${doorX},${dy}`;
+        if (open) {
+          this.dungeonTiles[key] = 'FLOOR';
+          this.obstacleCells.delete(key);
+          this.floorCells.add(key);
+          this.spawnParticles(doorX * 64, dy * 64, 0x00ffff, 8);
+        } else {
+          this.dungeonTiles[key] = 'WALL';
+          this.obstacleCells.add(key);
+          this.floorCells.delete(key);
+          this.spawnParticles(doorX * 64, dy * 64, 0x888888, 8);
+        }
+      }, index * 200); // Stagger by 200ms
+    });
+  }
+
+  private sealHallway(startX: number, endX: number) {
+    let currentX = startX;
+    
+    const sealInterval = setInterval(() => {
+      if (currentX > endX) {
+        clearInterval(sealInterval);
+        return;
+      }
+      
+      const tx = currentX;
+      
+      for (let dy = -3; dy <= 3; dy++) {
+        const key = `${tx},${dy}`;
+        if (this.dungeonTiles[key] && this.dungeonTiles[key] !== 'VOID') {
+           delete this.dungeonTiles[key];
+           this.obstacleCells.delete(key);
+           this.floorCells.delete(key);
+           if (Math.abs(dy) <= 1) { // Only particles for the floor area
+              this.spawnParticles(tx * 64, dy * 64, 0x222222, 2);
+           }
+        }
+      }
+      
+      currentX++;
+    }, 30); // 30ms per column for smoother/faster disappearance
+  }
+
+  private carveHallway(startX: number, endX: number) {
+    let currentX = startX;
+    const dirs8 = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+    
+    const carveInterval = setInterval(() => {
+      if (currentX > endX) {
+        clearInterval(carveInterval);
+        return;
+      }
+      
+      const tx = currentX;
+      
+      // Carve floor tiles
+      for (let dy = -1; dy <= 1; dy++) {
+        const key = `${tx},${dy}`;
+        this.dungeonTiles[key] = 'FLOOR';
+        this.obstacleCells.delete(key);
+        this.floorCells.add(key);
+        this.spawnParticles(tx * 64, dy * 64, 0x00ffff, 4);
+      }
+      
+      // Generate wall borders around new floor tiles (check neighbors)
+      for (let cx = tx - 1; cx <= tx + 1; cx++) {
+        for (let ty = -3; ty <= 3; ty++) {
+          const key = `${cx},${ty}`;
+          if (!this.dungeonTiles[key]) {
+            let hasFloorNeighbor = false;
+            for (const d of dirs8) {
+              const nType = this.dungeonTiles[`${cx+d[0]},${ty+d[1]}`];
+              if (nType === 'FLOOR' || nType === 'DOOR' || nType === 'WATER') {
+                hasFloorNeighbor = true;
+                break;
+              }
+            }
+            if (hasFloorNeighbor) {
+              this.dungeonTiles[key] = 'WALL';
+              this.obstacleCells.add(key);
+            }
+          }
+        }
+      }
+      
+      currentX++;
+    }, 30); // 30ms per column
+  }
+
+  private spawnTutorialWeapons() {
+    const rx = 40 * 64;
+    const ry = 0;
+    
+    // Clean up any existing dropped items
+    for (const item of this.droppedItems) {
+      if (item.sprite) {
+        this.worldContainer.removeChild(item.sprite);
+        item.sprite.destroy();
+      }
+    }
+    this.droppedItems = [];
+
+    // Spawn Pistol
+    const gunTex = this.weaponTextures['gun'];
+    if (gunTex) {
+      const gunSprite = new Sprite(gunTex);
+      gunSprite.anchor.set(0.5, 0.5);
+      gunSprite.scale.set(2.5);
+      gunSprite.x = rx - 64;
+      gunSprite.y = ry;
+      gunSprite.zIndex = ry + 20;
+      (gunSprite as any).isFloating = true;
+      (gunSprite as any).baseY = ry;
+      (gunSprite as any).bobTime = 0;
+
+      const shadow = new Graphics().ellipse(0, 20, 16, 6).fill({ color: 0x000000, alpha: 0.35 });
+      gunSprite.addChild(shadow);
+      (gunSprite as any).shadowChild = shadow;
+
+      this.worldContainer.addChild(gunSprite);
+      this.droppedItems.push({ sprite: gunSprite, id: 'gun', count: 1 });
+    }
+
+    // Spawn Sword
+    const swordTex = this.weaponTextures['sword'];
+    if (swordTex) {
+      const swordSprite = new Sprite(swordTex);
+      swordSprite.anchor.set(0.5, 0.5);
+      swordSprite.scale.set(2.5);
+      swordSprite.x = rx + 64;
+      swordSprite.y = ry;
+      swordSprite.zIndex = ry + 20;
+      (swordSprite as any).isFloating = true;
+      (swordSprite as any).baseY = ry;
+      (swordSprite as any).bobTime = Math.PI / 2;
+
+      const shadow = new Graphics().ellipse(0, 20, 16, 6).fill({ color: 0x000000, alpha: 0.35 });
+      swordSprite.addChild(shadow);
+      (swordSprite as any).shadowChild = shadow;
+
+      this.worldContainer.addChild(swordSprite);
+      this.droppedItems.push({ sprite: swordSprite, id: 'sword', count: 1 });
+    }
+  }
+
+  private spawnTutorialEnemies() {
+     for (const m of this.monsters) {
+       this.worldContainer.removeChild(m);
+       m.destroy();
+     }
+     this.monsters = [];
+     
+     this.spawnEnemy(73 * 64, -64, 'grunt');
+     this.spawnEnemy(75 * 64, 0, 'grunt');
+     this.spawnEnemy(77 * 64, 64, 'grunt');
+  }
+
+  private spawnTutorialPortal() {
+     if (this.portalSprite) {
+       this.worldContainer.removeChild(this.portalSprite);
+       this.portalSprite.destroy();
+       this.portalSprite = null;
+     }
+
+     const portalX = 105 * 64;
+     const portalY = 0;
+
+     const tex = this.mapTextures.portal;
+     if (tex) {
+        this.portalSprite = new Sprite(tex);
+        this.portalSprite.anchor.set(0.5, 0.5);
+        this.portalSprite.scale.set(4);
+        this.portalSprite.x = portalX;
+        this.portalSprite.y = portalY;
+        this.portalSprite.alpha = 0.8;
+        this.portalSprite.zIndex = portalY;
+        this.worldContainer.addChild(this.portalSprite);
+
+        const pGlow = new Graphics().circle(0, 0, 32).fill({ color: 0x00ffff, alpha: 0.2 });
+        this.portalSprite.addChild(pGlow);
+     }
+     this.portalSpawned = true;
+  }
+
+  private updateTrailParticles(dt: number) {
+    if (this.tutorialStep > 15) return;
+    
+    // Determine target coordinate
+    let targetX = 0;
+    if (this.tutorialStep < 3) {
+      targetX = 6 * 64;
+    } else if (this.tutorialStep < 9) {
+      targetX = 46 * 64;
+    } else if (this.tutorialStep < 15) {
+      targetX = 83 * 64;
+    } else {
+      targetX = 105 * 64;
+    }
+    const targetY = 0;
+
+    // Spawn new trail particle from player towards target
+    if (Math.random() < 0.15 && this.trailParticles.length < 40) {
+      const p = new Graphics();
+      // Neon cyan glow
+      p.circle(0, 0, 4).fill({ color: 0x00ffff, alpha: 0.8 });
+      p.x = this.player.x + (Math.random() - 0.5) * 16;
+      p.y = this.player.y + (Math.random() - 0.5) * 16;
+      
+      this.worldContainer.addChild(p);
+      this.trailParticles.push({
+        sprite: p,
+        targetX,
+        speed: 3 + Math.random() * 2,
+        life: 120 // max frames/steps
+      });
+    }
+
+    // Update existing particles
+    for (let i = this.trailParticles.length - 1; i >= 0; i--) {
+      const tp = this.trailParticles[i];
+      tp.life -= dt;
+
+      // Move towards target
+      const dx = tp.targetX - tp.sprite.x;
+      const dy = targetY - tp.sprite.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < 10 || tp.life <= 0) {
+        this.worldContainer.removeChild(tp.sprite);
+        tp.sprite.destroy();
+        this.trailParticles.splice(i, 1);
+      } else {
+        tp.sprite.x += (dx / dist) * tp.speed * dt;
+        tp.sprite.y += (dy / dist) * tp.speed * dt;
+        // Fade out
+        tp.sprite.alpha = Math.max(0, tp.life / 120);
+      }
+    }
+  }
+
   public getPlayerHP() {
     return this.playerHP;
   }
@@ -4045,14 +4860,39 @@ export class GameManager {
     window.removeEventListener('contextmenu', this.handleContextMenu);
     window.removeEventListener('keydown', this.handleKeyDown);
     window.removeEventListener('keyup', this.handleKeyUp);
+    window.removeEventListener('mousedown', this.handleMouseDown);
+    window.removeEventListener('mouseup', this.handleMouseUp);
     window.removeEventListener('mousemove', this.handleMouseMove);
     window.removeEventListener('inventory-swap', this.handleSwap);
     window.removeEventListener('inventory-close', this.handleClose);
     window.removeEventListener('slot-change', this.handleSlotChange);
+    window.removeEventListener('settings-toggle', this.handleSettingsToggle);
+    window.removeEventListener('dialogue-advance', this.handleDialogueAdvance);
+    window.removeEventListener('shop-buy', this.handleShopBuy);
+    
     if (this.spawnInterval) clearInterval(this.spawnInterval);
     if (this.worldRenderTexture) {
       this.worldRenderTexture.destroy(true);
     }
+
+    for (const sp of this.environmentSprites) {
+        if (sp && !sp.destroyed) {
+            try { this.worldContainer.removeChild(sp); sp.destroy(); } catch(e){}
+        }
+    }
+    this.environmentSprites = [];
+
+    // Clean up trail particles
+    for (const tp of this.trailParticles) {
+      if (tp.sprite) {
+        try {
+          this.worldContainer.removeChild(tp.sprite);
+          tp.sprite.destroy();
+        } catch (e) {}
+      }
+    }
+    this.trailParticles = [];
+
     try { this.app.destroy(true, { children: true }); } catch (e) { }
   }
 }

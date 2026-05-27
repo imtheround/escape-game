@@ -44,7 +44,73 @@ function Heart({ type }: { type: "full" | "half" | "empty" }) {
   );
 }
 
+// --- Translations ---
+export const translations = {
+  en: {
+    loading: "INITIALIZING...",
+    integrity: "INTEGRITY",
+    level: "LEVEL",
+    pressSpace: "Press [SPACE] to continue...",
+    objectiveLabel: "Objective",
+    objectiveText: "Reach the Core Reactor.",
+    settingsTitle: "SETTINGS",
+    volumeBgm: "Music (BGM)",
+    volumeSfx: "Effects (SFX)",
+    language: "Language",
+    skipTutorial: "SKIP TO BIOME 1",
+    inventoryTitle: "BACKPACK",
+    merchantTitle: "REQ-TERMINAL",
+    outOfStock: "OUT OF STOCK",
+    equipped: "EQUIPPED",
+    playAgain: "PLAY AGAIN",
+    deathMessage: "TERMINATED",
+    tutorial: {
+      step0: { speaker: "Slime", text: "Systems critical. Movement online. Use WASD to walk, Shift to sprint, Q/C to roll." },
+      step2: { speaker: "System", text: "Door 1 open. Proceed to the armory." },
+      step4: { speaker: "System", text: "Armory reached. Collect weapons." },
+      step6: { speaker: "System", text: "Weapons ready. Right-Click aim, Left-Click shoot, R reload." },
+      step8: { speaker: "System", text: "Door 2 open. Hostiles detected. Defend yourself." },
+      step10: { speaker: "System", text: "Good luck." },
+      step12: { speaker: "System", text: "Area clear. Collect coins, use Synthesizer [E] to buy potion." },
+      step14: { speaker: "System", text: "Purchase confirmed. Door 3 open. Proceed to portal." },
+      step16: { speaker: "System", text: "Portal stable. Warp sequence initiated. Go." }
+    }
+  },
+  fr: {
+    loading: "INITIALISATION...",
+    integrity: "INTÉGRITÉ",
+    level: "NIVEAU",
+    pressSpace: "Appuyez sur [ESPACE] pour continuer...",
+    objectiveLabel: "Objectif",
+    objectiveText: "Atteignez le Réacteur Central.",
+    settingsTitle: "PARAMÈTRES",
+    volumeBgm: "Musique (BGM)",
+    volumeSfx: "Effets (SFX)",
+    language: "Langue",
+    skipTutorial: "PASSER AU BIOME 1",
+    inventoryTitle: "SAC À DOS",
+    merchantTitle: "TERMINAL-REQ",
+    outOfStock: "ÉPUISÉ",
+    equipped: "ÉQUIPÉ",
+    playAgain: "REJOUER",
+    deathMessage: "TERMINÉ",
+    tutorial: {
+      step0: { speaker: "Slime", text: "Systèmes critiques. Mouvement en ligne. WASD pour marcher, Shift pour courir, Q/C pour esquiver." },
+      step2: { speaker: "Système", text: "Porte 1 ouverte. Avancez vers l'armurerie." },
+      step4: { speaker: "Système", text: "Armurerie atteinte. Ramassez les armes." },
+      step6: { speaker: "Système", text: "Armes prêtes. Clic droit viser, Clic gauche tirer, R recharger." },
+      step8: { speaker: "Système", text: "Porte 2 ouverte. Hostiles détectés. Défendez-vous." },
+      step10: { speaker: "Système", text: "Bonne chance." },
+      step12: { speaker: "Système", text: "Zone sécurisée. Ramassez les pièces, utilisez le Synthétiseur [E] pour une potion." },
+      step14: { speaker: "Système", text: "Achat confirmé. Porte 3 ouverte. Allez au portail." },
+      step16: { speaker: "Système", text: "Portail stable. Séquence de saut initiée. Partez." }
+    }
+  }
+};
+
 export default function Home() {
+  const [language, setLanguage] = useState<'en' | 'fr'>('en');
+  const t = translations[language];
   const [gameState, setGameState] = useState<'start' | 'playing' | 'gameover'>('start');
   const [hp, setHp] = useState(10);
   const [inventory, setInventory] = useState<{ id: string, count: number }[]>(
@@ -70,6 +136,8 @@ export default function Home() {
   const [tutorialStep, setTutorialStep] = useState(0);
   const [tutorialProgress, setTutorialProgress] = useState(0);
   const [tutorialCompleted, setTutorialCompleted] = useState(false);
+  const [dialogueText, setDialogueText] = useState("");
+  const [dialogueSpeaker, setDialogueSpeaker] = useState("Voice");
 
   // Instructions
   const [showItemInstruction, setShowItemInstruction] = useState(true);
@@ -82,6 +150,12 @@ export default function Home() {
       setTutorialCompleted(e.detail.completed);
     };
     window.addEventListener('tutorial-step', handleTutorialStep);
+
+    const handleDialogueTrigger = (e: any) => {
+      setDialogueSpeaker(e.detail.speaker);
+      setDialogueText(e.detail.text);
+    };
+    window.addEventListener('tutorial-dialogue-trigger', handleDialogueTrigger);
 
     const handleHpChange = (e: any) => {
       setHp(e.detail);
@@ -124,12 +198,22 @@ export default function Home() {
     const handleHover = (e: any) => setInteractHover(e.detail);
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'Escape') setShowShop(false);
+      if (e.code === 'F1') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('skip-tutorial'));
+      }
     };
     const handleSettingsToggle = () => setIsSettingsOpen(prev => !prev);
+    const handleSkipTutorial = () => setIsSettingsOpen(false);
     const handleAssetsLoaded = () => setIsLoadingAssets(false);
+
+    const handleGenerationStart = () => setIsLoadingAssets(true);
+    const handleGenerationEnd = () => setIsLoadingAssets(false);
 
     window.addEventListener("hp-change", handleHpChange);
     window.addEventListener("assets-loaded", handleAssetsLoaded);
+    window.addEventListener("generation-start", handleGenerationStart);
+    window.addEventListener("generation-end", handleGenerationEnd);
     window.addEventListener("inventory-change", handleInventoryChange);
     window.addEventListener("ammo-change", handleAmmoChange);
     window.addEventListener("wave-change", handleWaveChange);
@@ -140,6 +224,7 @@ export default function Home() {
     window.addEventListener("interact-hover", handleHover);
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("settings-toggle", handleSettingsToggle);
+    window.addEventListener("skip-tutorial", handleSkipTutorial);
 
     return () => {
       window.removeEventListener('tutorial-step', handleTutorialStep);
@@ -154,7 +239,11 @@ export default function Home() {
       window.removeEventListener("interact-hover", handleHover);
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("settings-toggle", handleSettingsToggle);
+      window.removeEventListener("skip-tutorial", handleSkipTutorial);
       window.removeEventListener("assets-loaded", handleAssetsLoaded);
+      window.removeEventListener("generation-start", handleGenerationStart);
+      window.removeEventListener("generation-end", handleGenerationEnd);
+      window.removeEventListener('tutorial-dialogue-trigger', handleDialogueTrigger);
     };
   }, [hasPickedUpPotion]);
 
@@ -208,10 +297,11 @@ export default function Home() {
               <h2 className="text-yellow-500 text-center font-black text-4xl mb-10 tracking-widest uppercase drop-shadow-[0_2px_2px_rgba(0,0,0,1)]">Settings</h2>
 
               <div className="flex flex-col gap-8 w-full px-8">
+                
                 {/* Master Volume */}
                 <div className="flex flex-col gap-2">
                   <div className="flex justify-between items-end">
-                    <label className="text-white font-mono font-bold text-xl uppercase tracking-widest">Master Volume</label>
+                    <label className="text-white font-mono font-bold text-xl uppercase tracking-widest">{t.volumeBgm}</label>
                     <span className="text-gray-400 font-mono">{Math.round(volume.master * 100)}%</span>
                   </div>
                   <input
@@ -225,7 +315,7 @@ export default function Home() {
                 {/* BGM Volume */}
                 <div className="flex flex-col gap-2">
                   <div className="flex justify-between items-end">
-                    <label className="text-indigo-400 font-mono font-bold text-xl uppercase tracking-widest">Music (BGM)</label>
+                    <label className="text-indigo-400 font-mono font-bold text-xl uppercase tracking-widest">{t.volumeBgm}</label>
                     <span className="text-gray-400 font-mono">{Math.round(volume.bgm * 100)}%</span>
                   </div>
                   <input
@@ -239,7 +329,7 @@ export default function Home() {
                 {/* SFX Volume */}
                 <div className="flex flex-col gap-2">
                   <div className="flex justify-between items-end">
-                    <label className="text-red-400 font-mono font-bold text-xl uppercase tracking-widest">Effects (SFX)</label>
+                    <label className="text-red-400 font-mono font-bold text-xl uppercase tracking-widest">{t.volumeSfx}</label>
                     <span className="text-gray-400 font-mono">{Math.round(volume.sfx * 100)}%</span>
                   </div>
                   <input
@@ -258,7 +348,7 @@ export default function Home() {
 
         {isLoadingAssets && (
           <div className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-black gap-4">
-            <h1 className="text-4xl text-white font-mono tracking-widest drop-shadow-[0_2px_2px_rgba(255,255,255,0.5)]">LOADING ASSETS...</h1>
+            <h1 className="text-4xl text-white font-mono tracking-widest drop-shadow-[0_2px_2px_rgba(255,255,255,0.5)]">{t.loading}</h1>
             <div className="w-96 h-6 border-4 border-gray-700 bg-gray-900 p-1 shadow-2xl">
               <div className="h-full bg-indigo-500 animate-pulse w-full"></div>
             </div>
@@ -274,6 +364,32 @@ export default function Home() {
         {gameState === 'start' && (
           <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm">
             <h1 className="text-6xl font-black text-red-600 mb-8 tracking-widest drop-shadow-[0_4px_4px_rgba(255,0,0,0.5)]">ESCAPE</h1>
+<div className="mb-8 w-64">
+
+                {/* Language Selection */}
+                <div className="flex flex-col gap-2">
+                  <div className="flex justify-between items-end">
+                    <label className="text-cyan-400 font-mono font-bold text-xl uppercase tracking-widest">{t.language}</label>
+                    <span className="text-gray-400 font-mono uppercase">{language === 'en' ? 'ENGLISH' : 'FRANÇAIS'}</span>
+                  </div>
+                  <div className="flex gap-4">
+                    <button
+                      onClick={() => setLanguage('en')}
+                      className={`flex-1 py-2 font-bold transition-colors ${language === 'en' ? 'bg-cyan-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                    >
+                      ENGLISH
+                    </button>
+                    <button
+                      onClick={() => setLanguage('fr')}
+                      className={`flex-1 py-2 font-bold transition-colors ${language === 'fr' ? 'bg-cyan-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                    >
+                      FRANÇAIS
+                    </button>
+                  </div>
+                </div>
+
+</div>
+
             <div className="flex flex-col items-center gap-4">
               <button
                 onClick={() => { setGameState('playing'); setIsLoadingAssets(true); }}
@@ -287,7 +403,7 @@ export default function Home() {
 
         {gameState === 'gameover' && (
           <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm">
-            <h1 className="text-7xl font-black text-red-600 mb-8 tracking-widest animate-bounce">DIED</h1>
+            <h1 className="text-7xl font-black text-red-600 mb-8 tracking-widest animate-bounce">{t.deathMessage}</h1>
             <button
               onClick={() => window.location.reload()}
               className="px-8 py-4 bg-[#333] border-4 border-white text-2xl font-bold hover:bg-white hover:text-black transition-colors"
@@ -306,6 +422,13 @@ export default function Home() {
                   {Math.round(fps)} FPS
                 </span>
               </div>
+              {tutorialStep < 15 && (
+                <div className="bg-black/80 px-3 py-1 border-2 border-gray-600 shadow-md mt-2 pointer-events-auto">
+                  <button onClick={() => window.dispatchEvent(new CustomEvent('skip-tutorial'))} className="text-sm font-mono font-bold text-gray-400 hover:text-white transition-colors">
+                    [F1] Skip Tutorial
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Action Objectives - Top Right */}
@@ -317,15 +440,15 @@ export default function Home() {
                   </p>
                   <div className={`flex items-center justify-end gap-3 transition-opacity duration-500 ${tutorialCompleted ? 'opacity-80' : 'opacity-100'}`}>
                     <span className="relative font-mono text-xl text-white inline-block">
-                      <span className={`absolute top-1/2 left-0 h-[3px] bg-green-500 transition-all duration-500 ease-out z-10 ${tutorialCompleted ? 'w-full' : 'w-0'}`}></span>
-                      <span className={`transition-colors duration-500 relative z-0 ${tutorialCompleted ? 'text-green-400/80' : 'text-white'}`}>
-                        {tutorialStep === 1 && "Move around"}
-                        {tutorialStep === 3 && "Hold Right Click to Aim"}
-                        {tutorialStep === 5 && "Left Click to Fire"}
-                        {tutorialStep === 7 && "Dodge Roll"}
-                        {tutorialStep === 9 && "Hold Shift to Sprint"}
-                        {tutorialStep === 11 && "Press E to Open Backpack"}
-                        {tutorialStep === 13 && "Press M to Open Map"}
+                      <span className={`transition-all duration-500 relative z-0 ${tutorialCompleted ? 'text-green-400/80 line-through decoration-green-500 decoration-2' : 'text-white'}`}>
+                        {tutorialStep === 1 && "System Error. Manual override required. Calibrate evasion systems (Move, Sprint, Roll)."}
+                        {tutorialStep === 3 && "Proceed through the flooded laboratory to the armory."}
+                        {tutorialStep === 5 && "Calibrate weapon systems. Equip the Service Pistol and Energy Sword."}
+                        {tutorialStep === 7 && "Target practice. Hold Right-Click to aim, Left-Click to shoot, and press R to reload."}
+                        {tutorialStep === 9 && "Proceed to the combat arena."}
+                        {tutorialStep === 11 && "Facility lockdown. Survive the bio-weapon swarm."}
+                        {tutorialStep === 13 && "Access the Requisition Terminal (E) and purchase a healing potion."}
+                        {tutorialStep === 15 && "Proceed to the Aether Rift portal to escape."}
                       </span>
                     </span>
                     {tutorialCompleted && (
@@ -339,27 +462,14 @@ export default function Home() {
                         <span className="inline-block w-8 h-8 bg-[url('/assets/ui/tilemap_packed.png')] bg-[length:1088px_768px] bg-[-640px_-96px]" style={{ imageRendering: 'pixelated' }}></span>
                       </div>
                     )}
-                    {!tutorialCompleted && tutorialStep === 3 && (
-                      <span className="inline-block w-8 h-8 bg-[url('/assets/ui/tilemap_packed.png')] bg-[length:1088px_768px] bg-[-288px_-704px]" style={{ imageRendering: 'pixelated' }}></span>
-                    )}
-                    {!tutorialCompleted && tutorialStep === 5 && (
-                      <span className="inline-block w-8 h-8 bg-[url('/assets/ui/tilemap_packed.png')] bg-[length:1088px_768px] bg-[-256px_-704px]" style={{ imageRendering: 'pixelated' }}></span>
-                    )}
                     {!tutorialCompleted && tutorialStep === 7 && (
                       <div className="flex gap-1 items-center">
-                        <span className="inline-block w-8 h-8 bg-[url('/assets/ui/tilemap_packed.png')] bg-[length:1088px_768px] bg-[-544px_-64px]" style={{ imageRendering: 'pixelated' }}></span>
-                        <span className="text-gray-400 font-mono text-sm">or</span>
-                        <span className="inline-block w-8 h-8 bg-[url('/assets/ui/tilemap_packed.png')] bg-[length:1088px_768px] bg-[-64px_-160px]" style={{ imageRendering: 'pixelated' }}></span>
+                        <span className="inline-block w-8 h-8 bg-[url('/assets/ui/tilemap_packed.png')] bg-[length:1088px_768px] bg-[-288px_-704px]" style={{ imageRendering: 'pixelated' }}></span>
+                        <span className="inline-block w-8 h-8 bg-[url('/assets/ui/tilemap_packed.png')] bg-[length:1088px_768px] bg-[-256px_-704px]" style={{ imageRendering: 'pixelated' }}></span>
                       </div>
                     )}
-                    {!tutorialCompleted && tutorialStep === 9 && (
-                      <span className="inline-block w-16 h-8 bg-[url('/assets/ui/tilemap_packed.png')] bg-[length:1088px_768px] bg-[-256px_-128px]" style={{ imageRendering: 'pixelated' }}></span>
-                    )}
-                    {!tutorialCompleted && tutorialStep === 11 && (
-                      <span className="inline-block w-8 h-8 bg-[url('/assets/ui/tilemap_packed.png')] bg-[length:1088px_768px] bg-[-704px_-32px]" style={{ imageRendering: 'pixelated' }}></span>
-                    )}
                     {!tutorialCompleted && tutorialStep === 13 && (
-                      <span className="inline-block w-8 h-8 bg-[url('/assets/ui/tilemap_packed.png')] bg-[length:1088px_768px] bg-[-128px_-64px]" style={{ imageRendering: 'pixelated' }}></span>
+                      <span className="inline-block w-8 h-8 bg-[url('/assets/ui/tilemap_packed.png')] bg-[length:1088px_768px] bg-[-704px_-32px]" style={{ imageRendering: 'pixelated' }}></span>
                     )}
                   </div>
                 </div>
@@ -368,8 +478,8 @@ export default function Home() {
               {/* Free play objective */}
               {tutorialStep >= 15 && (
                 <div className="bg-black/80 border-r-4 border-yellow-500 pr-4 py-2 pl-6 shadow-xl mb-4 animate-fade-in transition-all duration-500">
-                  <p className="text-sm font-mono text-yellow-500 uppercase tracking-widest opacity-80 text-right">Objective</p>
-                  <span className="text-white font-mono text-lg">Explore the dungeon and find the exit</span>
+                  <p className="text-sm font-mono text-yellow-500 uppercase tracking-widest opacity-80 text-right">{t.objectiveLabel}</p>
+                  <span className="text-white font-mono text-lg">{t.objectiveText}</span>
                 </div>
               )}
             </div>
@@ -377,7 +487,7 @@ export default function Home() {
             {/* Conversational Tutorial UI - Bottom Center */}
             <div className="absolute bottom-1/4 left-1/2 -translate-x-1/2 z-30 flex flex-col pointer-events-none w-full max-w-4xl transition-all duration-500">
               {/* Conversation Boxes */}
-              {tutorialStep % 2 === 0 && tutorialStep <= 14 && (
+              {tutorialStep % 2 === 0 && tutorialStep <= 14 && dialogueSpeaker === 'Slime' && (
                 <div className="w-full bg-[#111118]/95 border-4 border-indigo-900 shadow-2xl p-6 relative animate-fade-in flex gap-6 items-center">
                   {/* Slime Avatar */}
                   <div className="w-32 h-32 bg-black/80 border-2 border-indigo-500 rounded-lg flex items-center justify-center shrink-0 overflow-hidden">
@@ -389,24 +499,37 @@ export default function Home() {
                     <div className="bg-indigo-900 inline-block px-3 py-1 text-sm font-mono font-bold text-indigo-200 tracking-wider mb-2 self-start">SLIME</div>
 
                     <p className="text-white font-mono leading-relaxed text-2xl">
-                      {tutorialStep === 0 && "My head... The facility has collapsed. I need to prove my stability to survive. I should try moving."}
-                      {tutorialStep === 2 && "It's completely dark in here. I need to calibrate my optical tracking and look around."}
-                      {tutorialStep === 4 && "Pathways are blocked by debris. I must engage my weapon systems to shatter them."}
-                      {tutorialStep === 6 && "Hostile entities detected nearby. I need to practice evasive maneuvers."}
-                      {tutorialStep === 8 && "I feel sluggish. I need to exert more energy to move faster."}
-                      {tutorialStep === 10 && "I should check my supplies. What did I bring?"}
-                      {tutorialStep === 12 && "Navigational data is required to escape this sector. I must access the cartography module."}
-                      {tutorialStep === 14 && "Calibration complete. I need to find the portal."}
+                      {((t as any).tutorial)?.['step' + tutorialStep]?.text || dialogueText}
                     </p>
 
-                    <p className="text-indigo-400 mt-4 text-lg font-mono animate-pulse">Press [ANY KEY] to continue...</p>
+                    <p className="text-indigo-400 mt-4 text-lg font-mono animate-pulse">{t.pressSpace}</p>
+                  </div>
+                </div>
+              )}
+
+              {tutorialStep % 2 === 0 && tutorialStep <= 14 && dialogueSpeaker === '¿' && (
+                <div className="w-full bg-[#0a0a12]/95 border-4 border-red-900/60 shadow-2xl p-6 relative animate-fade-in flex gap-6 items-center flex-row-reverse">
+                  {/* ¿ Avatar */}
+                  <div className="w-32 h-32 bg-black/80 border-2 border-red-800/60 rounded-lg flex items-center justify-center shrink-0 overflow-hidden">
+                    <span className="text-red-500/80 font-black" style={{ fontSize: '4rem', fontFamily: 'monospace', lineHeight: 1, filter: 'blur(0.5px)' }}>{(((t as any).tutorial)?.['step' + tutorialStep]?.speaker || dialogueSpeaker).charAt(0)}</span>
+                  </div>
+
+                  {/* Text Area */}
+                  <div className="flex flex-col flex-grow items-end">
+                    <div className="bg-red-900/50 inline-block px-3 py-1 text-sm font-mono font-bold text-red-300/80 tracking-wider mb-2 self-end">{(t.tutorial as any)?.['step' + tutorialStep]?.speaker || dialogueSpeaker}</div>
+
+                    <p className="text-red-100/90 font-mono leading-relaxed text-2xl text-right">
+                      {((t as any).tutorial)?.['step' + tutorialStep]?.text || dialogueText}
+                    </p>
+
+                    <p className="text-red-400/60 mt-4 text-lg font-mono animate-pulse text-right">{t.pressSpace}</p>
                   </div>
                 </div>
               )}
             </div>
             {/* UI Overlay (HP Bar) */}
             <div className="absolute bottom-6 right-[calc(50%+190px)] pointer-events-none z-40 w-48 transition-all duration-300">
-              <div className="text-xs font-mono text-red-400 mb-1 drop-shadow-md font-bold tracking-widest">INTEGRITY</div>
+              <div className="text-xs font-mono text-red-400 mb-1 drop-shadow-md font-bold tracking-widest">{t.integrity}</div>
               <div className="bg-[#1a1a1a] border-4 border-[#333] h-6 w-full shadow-lg p-0.5 relative">
                 <div
                   className="h-full bg-red-600 transition-all duration-300 ease-out"
@@ -431,60 +554,92 @@ export default function Home() {
                     &times;
                   </button>
 
-                  <h2 className="text-yellow-500 font-black text-4xl mb-8 tracking-widest uppercase drop-shadow-[0_2px_2px_rgba(0,0,0,1)]">Inventory</h2>
+                  <div className="flex gap-16">
+                    {/* Left: Inventory */}
+                    <div className="flex flex-col items-center">
+                      <h2 className="text-yellow-500 font-black text-4xl mb-8 tracking-widest uppercase drop-shadow-[0_2px_2px_rgba(0,0,0,1)]">{t.inventoryTitle}</h2>
+                      <div className="grid grid-cols-4 gap-4">
+                        {inventory.map((slot, i) => (
+                          <div
+                            key={i}
+                            onClick={() => {
+                              if (i !== activeSlot) {
+                                window.dispatchEvent(new CustomEvent('inventory-swap', { detail: { from: i, to: activeSlot } }));
+                              }
+                            }}
+                            draggable={slot.id !== ''}
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('text/plain', i.toString());
+                              const img = e.currentTarget.querySelector('img');
+                              if (img) {
+                                e.dataTransfer.setDragImage(img, 32, 32);
+                              }
+                            }}
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              const from = parseInt(e.dataTransfer.getData('text/plain'));
+                              if (!isNaN(from) && from !== i) {
+                                window.dispatchEvent(new CustomEvent('inventory-swap', { detail: { from, to: i } }));
+                              }
+                            }}
+                            className={`relative w-24 h-24 border-4 flex items-center justify-center transition-transform hover:bg-[#333] hover:scale-105
+                            ${slot.id !== '' ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}
+                            ${i === activeSlot && i <= 2 ? 'border-white bg-[#444]' : i <= 2 ? 'border-[#777] bg-[#333]' : 'border-[#444] bg-[#222]'}
+                          `}
+                          >
+                            <div className="absolute top-2 left-2 text-xs text-gray-500 font-mono font-bold" style={{ textShadow: "1px 1px 0 #000" }}>{i + 1}</div>
 
-                  <div className="grid grid-cols-4 gap-4">
-                    {inventory.map((slot, i) => (
-                      <div
-                        key={i}
-                        onClick={() => {
-                          if (i !== activeSlot) {
-                            window.dispatchEvent(new CustomEvent('inventory-swap', { detail: { from: i, to: activeSlot } }));
-                          }
-                        }}
-                        draggable={slot.id !== ''}
-                        onDragStart={(e) => {
-                          e.dataTransfer.setData('text/plain', i.toString());
-                          // Drag only the item image
-                          const img = e.currentTarget.querySelector('img');
-                          if (img) {
-                            e.dataTransfer.setDragImage(img, 32, 32); // rough center offset
-                          }
-                        }}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          const from = parseInt(e.dataTransfer.getData('text/plain'));
-                          if (!isNaN(from) && from !== i) {
-                            window.dispatchEvent(new CustomEvent('inventory-swap', { detail: { from, to: i } }));
-                          }
-                        }}
-                        className={`relative w-24 h-24 border-4 flex items-center justify-center transition-transform hover:bg-[#333] hover:scale-105
-                        ${slot.id !== '' ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}
-                        ${i === activeSlot && i <= 2 ? 'border-white bg-[#444]' : i <= 2 ? 'border-[#777] bg-[#333]' : 'border-[#444] bg-[#222]'}
-                      `}
-                      >
-                        {/* Slot Number */}
-                        <div className="absolute top-2 left-2 text-xs text-gray-500 font-mono font-bold" style={{ textShadow: "1px 1px 0 #000" }}>{i + 1}</div>
+                            {slot.id !== '' && (
+                              <img
+                                src={`/assets/character/${slot.id === 'potion' ? '../items/potion' : (slot.id === 'gun' ? 'gun1' : slot.id)}.svg?v=2`}
+                                alt={slot.id}
+                                className={`${slot.id === 'potion' ? 'w-12 h-12' : 'w-16 h-16'} object-contain drop-shadow-[2px_2px_0_rgba(0,0,0,1)] pointer-events-none`}
+                                style={{ imageRendering: "pixelated" }}
+                              />
+                            )}
 
-                        {/* Item SVGs */}
-                        {slot.id !== '' && (
-                          <img
-                            src={`/assets/character/${slot.id === 'potion' ? '../items/potion' : (slot.id === 'gun' ? 'gun1' : slot.id)}.svg?v=2`}
-                            alt={slot.id}
-                            className={`${slot.id === 'potion' ? 'w-12 h-12' : 'w-16 h-16'} object-contain drop-shadow-[2px_2px_0_rgba(0,0,0,1)] pointer-events-none`}
-                            style={{ imageRendering: "pixelated" }}
-                          />
-                        )}
-
-                        {/* Count Indicator */}
-                        {slot.count > 1 && (
-                          <div className="absolute bottom-1 right-2 text-lg text-white font-mono font-bold drop-shadow-[2px_2px_0_rgba(0,0,0,1)] pointer-events-none">
-                            {slot.count}
+                            {slot.count > 1 && (
+                              <div className="absolute bottom-1 right-2 text-lg text-white font-mono font-bold drop-shadow-[2px_2px_0_rgba(0,0,0,1)] pointer-events-none">
+                                {slot.count}
+                              </div>
+                            )}
                           </div>
-                        )}
+                        ))}
                       </div>
-                    ))}
+                    </div>
+
+                    {/* Right: REQ-TERMINAL */}
+                    <div className="flex flex-col items-center border-l-4 border-[#444] pl-16">
+                      <h2 className="text-cyan-400 font-black text-4xl mb-8 tracking-widest uppercase drop-shadow-[0_2px_2px_rgba(0,0,0,1)]">{t.merchantTitle}</h2>
+                      <div className="flex flex-col gap-4 w-full">
+                        <div className="text-yellow-400 text-xl font-mono mb-4 text-center">Available Credits: {coins} 🪙</div>
+                        
+                        <button onClick={() => window.dispatchEvent(new CustomEvent('shop-buy', { detail: 'potion' }))} className="bg-[#222] border-2 border-[#555] hover:border-green-500 hover:bg-[#333] p-4 flex items-center justify-between gap-8 transition-colors">
+                          <div className="flex items-center gap-4">
+                            <img src="/assets/items/potion.svg" className="w-12 h-12" style={{imageRendering: "pixelated"}} />
+                            <span className="text-white font-mono text-xl">Healing Potion</span>
+                          </div>
+                          <span className="text-yellow-400 font-bold text-xl">3 🪙</span>
+                        </button>
+
+                        <button onClick={() => window.dispatchEvent(new CustomEvent('shop-buy', { detail: 'machine_gun' }))} className="bg-[#222] border-2 border-[#555] hover:border-cyan-500 hover:bg-[#333] p-4 flex items-center justify-between gap-8 transition-colors">
+                          <div className="flex items-center gap-4">
+                            <img src="/assets/character/machine_gun.svg" className="w-12 h-12" style={{imageRendering: "pixelated"}} />
+                            <span className="text-white font-mono text-xl">Heavy Machine Gun</span>
+                          </div>
+                          <span className="text-yellow-400 font-bold text-xl">5 🪙</span>
+                        </button>
+
+                        <button onClick={() => window.dispatchEvent(new CustomEvent('shop-buy', { detail: 'shotgun' }))} className="bg-[#222] border-2 border-[#555] hover:border-red-500 hover:bg-[#333] p-4 flex items-center justify-between gap-8 transition-colors">
+                          <div className="flex items-center gap-4">
+                            <img src="/assets/character/shotgun.svg" className="w-12 h-12" style={{imageRendering: "pixelated"}} />
+                            <span className="text-white font-mono text-xl">Riot Shotgun</span>
+                          </div>
+                          <span className="text-yellow-400 font-bold text-xl">10 🪙</span>
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
