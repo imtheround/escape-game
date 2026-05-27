@@ -929,8 +929,8 @@ export class GameManager {
     applyNearest(this.golemTextures);
   }
 
-  private setupPlayer() {
-    this.initOpenWorld();
+  private async setupPlayer() {
+    await this.initOpenWorld();
 
     this.player = new Sprite(this.slimeTextures.idle[0]);
     this.player.anchor.set(0.5, 0.875);

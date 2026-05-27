@@ -14,12 +14,18 @@ export default function GameCanvas() {
     let manager: GameManager | null = null;
 
     const initPixi = async () => {
-      manager = new GameManager();
-      await manager.init(containerRef.current!);
-      if (isCancelled) {
-        manager.destroy();
-      } else {
-        gameManagerRef.current = manager;
+      try {
+        manager = new GameManager();
+        await manager.init(containerRef.current!);
+        if (isCancelled) {
+          manager.destroy();
+        } else {
+          gameManagerRef.current = manager;
+        }
+      } catch (e) {
+        console.error('Game init failed:', e);
+        window.dispatchEvent(new CustomEvent('assets-loaded'));
+        window.dispatchEvent(new CustomEvent('generation-end'));
       }
     };
 

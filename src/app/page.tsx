@@ -262,7 +262,11 @@ export default function Home() {
     const handleSkipTutorial = () => setIsSettingsOpen(false);
     const handleAssetsLoaded = () => setIsLoadingAssets(false);
 
-    const handleGenerationStart = () => setIsLoadingAssets(true);
+    const handleGenerationStart = () => {
+      setIsLoadingAssets(true);
+      // Fallback: dismiss loading screen after 15s if never dismissed
+      setTimeout(() => setIsLoadingAssets(false), 15000);
+    };
     const handleGenerationEnd = () => setIsLoadingAssets(false);
 
     window.addEventListener("hp-change", handleHpChange);
@@ -458,7 +462,7 @@ export default function Home() {
 
             <div className="flex flex-col items-center gap-4">
               <button
-                onClick={() => { setGameState('playing'); setIsLoadingAssets(true); }}
+                onClick={() => { setGameState('playing'); setIsLoadingAssets(true); setTimeout(() => setIsLoadingAssets(false), 20000); }}
                 className="px-12 py-6 bg-indigo-900 border-4 border-indigo-400 text-4xl font-bold hover:bg-indigo-400 hover:text-black transition-colors shadow-[0_0_20px_rgba(129,140,248,0.5)]"
               >
                 {t.startButton}
