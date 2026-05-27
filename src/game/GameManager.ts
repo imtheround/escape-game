@@ -1205,137 +1205,59 @@ export class GameManager {
 
   private createFloorGraphics(biome: number, crackType: number = 0): Graphics {
     const g = new Graphics();
-    let baseCol = 0x242831;
-    let lightCol = 0x3b404d;
-    let darkCol = 0x181a21;
-    let accentCol = 0x4b5263;
-
-    if (biome === 1) { // Magma/Desert
-      baseCol = 0x45281a;
-      lightCol = 0x5e3825;
-      darkCol = 0x2a160c;
-      accentCol = 0x7a4a33;
-    } else if (biome === 2) { // Void
-      baseCol = 0x1f1530;
-      lightCol = 0x33224d;
-      darkCol = 0x110b1a;
-      accentCol = 0x4c3373;
-    }
-
-    if (biome === 99 || (biome === 0 && this.currentDungeonStage > 1)) {
-      let seed = 777 + crackType * 31 + biome * 97;
-      const rng = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
-      
-      // 1. Organic Dirt Patches
-      const numPatches = Math.floor(rng() * 3);
-      for(let p = 0; p < numPatches; p++) {
-          const px = rng() * 64;
-          const py = rng() * 64;
-          const radius = 6 + rng() * 8;
-          g.circle(px, py, radius).fill({color: 0x3d2817, alpha: 0.6}); // Dark brown dirt
-          g.circle(px + (rng()-0.5)*8, py + (rng()-0.5)*8, radius * 0.8).fill({color: 0x4a321f, alpha: 0.6}); // Light brown highlight
-      }
-
-      // 2. High-density grass and pebbles
-      for (let i = 0; i < 80; i++) {
-        const px = Math.floor(rng() * 32) * 2;
-        const py = Math.floor(rng() * 32) * 2;
-        const rType = rng();
-        
-        if (rType < 0.4) {
-            // Light grass clump
-            g.rect(px, py, 2, 6).fill(0x427d2d); 
-            g.rect(px-2, py+2, 2, 4).fill(0x3a6e27);
-        }
-        else if (rType < 0.7) {
-            // Dark tall grass
-            g.rect(px, py, 2, 8).fill(0x1a3811);
-        }
-        else if (rType < 0.85) {
-            // Tiny grey pebble
-            g.rect(px, py, 4, 4).fill(0x5c6370);
-            g.rect(px, py, 2, 2).fill(0x7a828f); // highlight
-        }
-        else if (rType < 0.95) {
-            // Larger mossy rock
-            g.rect(px, py, 8, 6).fill(0x404552);
-            g.rect(px, py, 8, 2).fill(0x5c6370); // top highlight
-            g.rect(px+4, py+4, 4, 2).fill(0x283825); // moss
-        }
-        else {
-            // Small forest flower (red or blue)
-            const flowerCol = rng() > 0.5 ? 0xcc3333 : 0x3366cc;
-            g.rect(px, py, 4, 4).fill(flowerCol);
-            g.rect(px+1, py+1, 2, 2).fill(0xffff00); // yellow center
-        }
-      }
-      return g;
-    }
-
-    // Base background
-    g.rect(0, 0, 64, 64).fill(baseCol);
-
-    // Draw 4 distinct stone tiles (32x32 each)
-    const drawSlab = (x: number, y: number, w: number, h: number) => {
-      // Slab body
-      g.rect(x + 1, y + 1, w - 2, h - 2).fill(baseCol);
-      // Highlights (Top & Left edges)
-      g.rect(x + 1, y + 1, w - 2, 2).fill(lightCol);
-      g.rect(x + 1, y + 1, 2, h - 2).fill(lightCol);
-      // Shadows (Bottom & Right edges)
-      g.rect(x + 1, y + h - 3, w - 2, 2).fill(darkCol);
-      g.rect(x + w - 3, y + 1, 2, h - 2).fill(darkCol);
-    };
-
-    drawSlab(0, 0, 32, 32);
-    drawSlab(32, 0, 32, 32);
-    drawSlab(0, 32, 32, 32);
-    drawSlab(32, 32, 32, 32);
-
-    // Add some noise dots
+    
     let seed = 777 + crackType * 31 + biome * 97;
-    const rng = () => {
-      seed = (seed * 16807) % 2147483647;
-      return (seed - 1) / 2147483646;
-    };
+    const rng = () => { seed = (seed * 16807) % 2147483647; return Math.abs((seed - 1) / 2147483646); };
 
-    for (let i = 0; i < 20; i++) {
-      const px = Math.floor(rng() * 14) * 4 + 4;
-      const py = Math.floor(rng() * 14) * 4 + 4;
-      const dotCol = rng() > 0.5 ? lightCol : darkCol;
-      g.rect(px, py, 4, 4).fill(dotCol);
+    if (biome === 0) {
+      // Grass decals (transparent)
+      const numDecals = 3 + Math.floor(rng() * 10);
+      for (let i = 0; i < numDecals; i++) {
+          const dx = Math.floor(rng() * 64);
+          const dy = Math.floor(rng() * 64);
+          const rType = rng();
+          if (rType < 0.70) {
+              g.rect(dx, dy, 4, 2).fill(0x4c8a32);
+              g.rect(dx + 1, dy - 3, 2, 5).fill(0x569e3a);
+          } else if (rType < 0.85) {
+              g.rect(dx, dy, 6, 3).fill(0x457c2c);
+              g.rect(dx + 1, dy - 2, 4, 3).fill(0x4c8a32);
+          } else {
+              const pSize = 2 + Math.floor(rng() * 3);
+              g.rect(dx, dy, pSize, pSize).fill(0x555555);
+              g.rect(dx, dy, pSize - 1, pSize - 1).fill(0x666666);
+          }
+      }
+    } else if (biome === 1) {
+      // Magma/Brick decals (transparent, drawn over base red floor)
+      const numCracks = 2 + Math.floor(rng() * 3);
+      for (let i = 0; i < numCracks; i++) {
+          const dx = Math.floor(rng() * 64);
+          const dy = Math.floor(rng() * 64);
+          g.rect(dx, dy, 12, 2).fill(0xff4500); // Lava crack
+          g.rect(dx + 4, dy - 4, 2, 10).fill(0xff8c00);
+      }
+      const numStones = 4 + Math.floor(rng() * 5);
+      for (let i = 0; i < numStones; i++) {
+          const dx = Math.floor(rng() * 64);
+          const dy = Math.floor(rng() * 64);
+          g.rect(dx, dy, 6, 6).fill(0x3a1f12);
+          g.rect(dx, dy, 6, 2).fill(0x4a2a1a);
+      }
+    } else if (biome === 2) {
+      // Void decals (floating particles)
+      const numStars = 10 + Math.floor(rng() * 15);
+      for (let i = 0; i < numStars; i++) {
+          const dx = Math.floor(rng() * 64);
+          const dy = Math.floor(rng() * 64);
+          const rType = rng();
+          if (rType < 0.6) {
+             g.rect(dx, dy, 2, 2).fill(0xaa00ff);
+          } else {
+             g.rect(dx, dy, 4, 4).fill(0x00ffff);
+          }
+      }
     }
-
-    // Draw specific features depending on crackType
-    if (crackType === 1) {
-      // Crack traversing from center to top-left
-      g.rect(12, 12, 8, 4).fill(darkCol);
-      g.rect(8, 16, 4, 12).fill(darkCol);
-      // Highlight on the edge of the crack
-      g.rect(12, 16, 8, 2).fill(accentCol);
-    } else if (crackType === 2) {
-      // Crack traversing from right to bottom-left
-      g.rect(48, 12, 8, 4).fill(darkCol);
-      g.rect(40, 16, 8, 4).fill(darkCol);
-      g.rect(32, 20, 8, 4).fill(darkCol);
-      g.rect(28, 24, 4, 8).fill(darkCol);
-      // Highlight
-      g.rect(48, 16, 8, 2).fill(accentCol);
-      g.rect(40, 20, 8, 2).fill(accentCol);
-    } else if (crackType === 3) {
-      // Magical glowing runes in the center
-      let runeCol = 0x00d2ff; // Plains: Cyber blue
-      if (biome === 1) runeCol = 0xff5500; // Magma: Glowing orange
-      if (biome === 2) runeCol = 0xb800ff; // Void: Cyber purple
-
-      // Draw rune circle outline
-      g.circle(32, 32, 14).stroke({ width: 3, color: runeCol });
-      // Inner cross / square
-      g.rect(28, 28, 8, 8).fill(runeCol);
-      // Glow rings
-      g.circle(32, 32, 18).stroke({ width: 1, color: runeCol, alpha: 0.4 });
-    }
-
     return g;
   }
 
@@ -2799,18 +2721,10 @@ export class GameManager {
                if (this.currentDungeonStage === 5 && activePlayerRoom.isEndRoom) numEnemies = 1;
 
                this.activeRoomEnemies = numEnemies;
-               const biome = this.getBiomeAt(0, 0);
                
                for (let i = 0; i < numEnemies; i++) {
-                   let rx = 0, ry = 0;
-                   if (biome === 0) {
-                       // Forest bubble clearings are very small. Tightly cluster.
-                       rx = activePlayerRoom.tx * 64 + (Math.random() * 128 - 64) + 32;
-                       ry = activePlayerRoom.ty * 64 + (Math.random() * 128 - 64) + 32;
-                   } else {
-                       rx = activePlayerRoom.tx * 64 + Math.floor(Math.random() * (activePlayerRoom.tw * 64 - 128)) - Math.floor((activePlayerRoom.tw * 64)/2) + 64;
-                       ry = activePlayerRoom.ty * 64 + Math.floor(Math.random() * (activePlayerRoom.th * 64 - 128)) - Math.floor((activePlayerRoom.th * 64)/2) + 64;
-                   }
+                   let rx = activePlayerRoom.tx * 64 + Math.floor(Math.random() * (activePlayerRoom.tw * 64 - 128)) - Math.floor((activePlayerRoom.tw * 64)/2) + 64;
+                   let ry = activePlayerRoom.ty * 64 + Math.floor(Math.random() * (activePlayerRoom.th * 64 - 128)) - Math.floor((activePlayerRoom.th * 64)/2) + 64;
                    
                    const customProps = { roomId: activePlayerRoom.id };
                    if (this.currentDungeonStage === 5 && activePlayerRoom.isEndRoom) {
@@ -3681,11 +3595,11 @@ export class GameManager {
     // True Mesh-Based Sliding Collision (Circle vs Circle)
     const playerRadius = 16;
     
-    const checkGridCollision = (px: number, py: number) => {
-      const minCX = Math.floor((px - playerRadius) / TILE_PX);
-      const maxCX = Math.floor((px + playerRadius) / TILE_PX);
-      const minCY = Math.floor((py - playerRadius) / TILE_PX);
-      const maxCY = Math.floor((py + playerRadius) / TILE_PX);
+    const checkGridCollision = (px: number, py: number, radius: number = 16) => {
+      const minCX = Math.floor((px - radius) / TILE_PX);
+      const maxCX = Math.floor((px + radius) / TILE_PX);
+      const minCY = Math.floor((py - radius) / TILE_PX);
+      const maxCY = Math.floor((py + radius) / TILE_PX);
 
       for (let x = minCX; x <= maxCX; x++) {
         for (let y = minCY; y <= maxCY; y++) {
@@ -4050,10 +3964,10 @@ export class GameManager {
 
                   // Check grid collision
                   if (!hitWall && (b.life === undefined || b.life > 0)) {
-                     const tx = Math.floor(b.sprite.x / 64);
-                     const ty = Math.floor(b.sprite.y / 64);
-                     if (this.obstacleCells.has(`${tx},${ty}`)) {
+                     if (checkGridCollision(b.sprite.x, b.sprite.y, 16)) {
                         hitWall = true;
+                        const tx = Math.floor(b.sprite.x / 64);
+                        const ty = Math.floor(b.sprite.y / 64);
                         hitColor = this.getBiomeColors(this.getBiomeAt(tx, ty)).wallLight;
                         const ptx = Math.floor((b.sprite.x - b.vx * dt) / 64);
                         const pty = Math.floor((b.sprite.y - b.vy * dt) / 64);
@@ -4521,10 +4435,10 @@ export class GameManager {
           const nextX = monster.x + monster.vx * dt;
           const nextY = monster.y + monster.vy * dt;
           
-          const tx = Math.floor(nextX / 64);
-          const ty = Math.floor(nextY / 64);
-          if (!this.obstacleCells.has(`${tx},${ty}`)) {
+          if (!checkGridCollision(nextX, monster.y, 24)) {
               monster.x = nextX;
+          }
+          if (!checkGridCollision(monster.x, nextY, 24)) {
               monster.y = nextY;
           }
 
