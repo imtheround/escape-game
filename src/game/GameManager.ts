@@ -145,7 +145,7 @@ export class GameManager {
 
   // Player State
   // Player State
-  private _playerHP = 10;
+  private _playerHP = 50;
   public get playerHP(): number {
     return this._playerHP;
   }
@@ -213,7 +213,7 @@ export class GameManager {
   public playerLevel: number = 1;
   public coins: number = 0;
   public playerDmg: number = 30;
-  public playerMaxHP: number = 10;
+  public playerMaxHP: number = 50;
   public basePlayerSpeed: number = 8;
 
   public endgameTimer: number = -1;
@@ -664,23 +664,51 @@ export class GameManager {
   };
 
   private handleSkipToBiome1 = async () => {
+    this.tutorialStep = 15;
+    this.tutorialTaskCompleted = true;
+    this.inventory = [
+       { id: 'gun', count: 1, ammo: WeaponRegistry['gun'].maxAmmo },
+       { id: 'sword', count: 1, ammo: undefined },
+       { id: '', count: 0 }
+    ];
+    this.activeSlot = 0;
     this.currentDungeonStage = 11;
     this.currentDungeonWorld = 2; // Biome 1 (Magma)
     this.playerHP = this.playerMaxHP;
     await this.initOpenWorld();
     this.player.x = 0;
     this.player.y = 0;
+    if (this.portalSprite) {
+       this.worldContainer.removeChild(this.portalSprite);
+       this.portalSprite.destroy();
+       this.portalSprite = null;
+    }
+    this.dispatchTutorial();
     this.dispatchState();
     SoundManager.getInstance().playSound('close_inventory');
   };
 
   private handleSkipToBiome2 = async () => {
+    this.tutorialStep = 15;
+    this.tutorialTaskCompleted = true;
+    this.inventory = [
+       { id: 'gun', count: 1, ammo: WeaponRegistry['gun'].maxAmmo },
+       { id: 'sword', count: 1, ammo: undefined },
+       { id: '', count: 0 }
+    ];
+    this.activeSlot = 0;
     this.currentDungeonStage = 21;
     this.currentDungeonWorld = 3; // Biome 2 (Void)
     this.playerHP = this.playerMaxHP;
     await this.initOpenWorld();
     this.player.x = 0;
     this.player.y = 0;
+    if (this.portalSprite) {
+       this.worldContainer.removeChild(this.portalSprite);
+       this.portalSprite.destroy();
+       this.portalSprite = null;
+    }
+    this.dispatchTutorial();
     this.dispatchState();
     SoundManager.getInstance().playSound('close_inventory');
   };
@@ -1157,11 +1185,7 @@ export class GameManager {
   }
 
   private getBiomeAt(wx: number, wy: number): number {
-    if (this.currentDungeonWorld === 1) {
-       if (this.currentDungeonStage <= 5) return 0; // Overgrown Laboratory
-       else return 1; // Core Reactor (Magma)
-    }
-    return 2; // Void/Escape
+    return Math.min(Math.max(0, this.currentDungeonWorld - 1), 2);
   }
 
   private generateChunk(_cx: number, _cy: number) {
@@ -2748,14 +2772,25 @@ export class GameManager {
             if (this.currentDungeonStage === 10) {
                activePlayerRoom.cleared = true; 
             } else {
-               let numEnemies = (10 + Math.floor(Math.random() * 8)) + this.currentDungeonStage * 3;
+               let numEnemies = (4 + Math.floor(Math.random() * 4)) + this.currentDungeonStage * 2;
                if (this.currentDungeonStage === 5 && activePlayerRoom.isEndRoom) numEnemies = 1;
 
                this.activeRoomEnemies = numEnemies;
                
-               for (let i = 0; i < numEnemies; i++) {
-                   let rx = activePlayerRoom.tx * 64 + Math.floor(Math.random() * (activePlayerRoom.tw * 64 - 128)) - Math.floor((activePlayerRoom.tw * 64)/2) + 64;
-                   let ry = activePlayerRoom.ty * 64 + Math.floor(Math.random() * (activePlayerRoom.th * 64 - 128)) - Math.floor((activePlayerRoom.th * 64)/2) + 64;
+                for (let i = 0; i < numEnemies; i++) {
+                    let rx = 0, ry = 0;
+                    let validSpawn = false;
+                    for (let attempts = 0; attempts < 15; attempts++) {
+                        rx = activePlayerRoom.tx * 64 + Math.floor(Math.random() * (activePlayerRoom.tw * 64 - 128)) - Math.floor((activePlayerRoom.tw * 64)/2) + 64;
+                        ry = activePlayerRoom.ty * 64 + Math.floor(Math.random() * (activePlayerRoom.th * 64 - 128)) - Math.floor((activePlayerRoom.th * 64)/2) + 64;
+                        const tx = Math.floor(rx / 64);
+                        const ty = Math.floor(ry / 64);
+                        if (!this.obstacleCells.has(`${tx},${ty}`)) {
+                            validSpawn = true;
+                            break;
+                        }
+                    }
+                    if (!validSpawn) continue;
                    
                    const customProps = { roomId: activePlayerRoom.id };
                    if (this.currentDungeonStage === 5 && activePlayerRoom.isEndRoom) {
