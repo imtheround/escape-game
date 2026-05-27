@@ -4202,156 +4202,240 @@ export class GameManager {
           const dy = this.player.y - monster.y;
           const dist = Math.hypot(dx, dy);
 
-          if (dist < 800) { // Aggro range
-             if (monster.archetype === 'grunt' || monster.archetype === 'shield' || monster.archetype === 'bull') {
-                 if (monster.archetype === 'bull') {
-                     monster.stateTimer += dt;
-                     if (monster.aiState === 'idle') {
-                         monster.vx = 0; monster.vy = 0; monster.state = 'idle';
-                         if (monster.stateTimer > 120 && dist < 400) {
-                             monster.aiState = 'charge'; monster.stateTimer = 0;
-                             monster.customData.targetX = this.player.x;
-                             monster.customData.targetY = this.player.y;
-                             SoundManager.getInstance().playSound('brute_slam');
-                         }
-                     } else if (monster.aiState === 'charge') {
-                         const cdx = monster.customData.targetX - monster.x;
-                         const cdy = monster.customData.targetY - monster.y;
-                         const cDist = Math.hypot(cdx, cdy);
-                         if (cDist < 10 || monster.stateTimer > 60) {
-                             monster.aiState = 'cooldown'; monster.stateTimer = 0;
-                         } else {
-                             monster.vx = (cdx / cDist) * (monster.speed * 3);
-                             monster.vy = (cdy / cDist) * (monster.speed * 3);
-                             monster.state = 'run';
-                         }
-                         if (dist < 40 && !this.isInvulnerable) {
-                             this.playerHP -= 4; this.isInvulnerable = true; this.invulnerableTimer = 60;
-                             SoundManager.getInstance().playSound('hit'); this.shakeAmount = 25;
-                         }
-                     } else if (monster.aiState === 'cooldown') {
-                         monster.vx = 0; monster.vy = 0; monster.state = 'idle';
-                         if (monster.stateTimer > 90) { monster.aiState = 'idle'; monster.stateTimer = 0; }
+          if (dist < 1000) { // Increased Aggro range
+             
+             // Base steering behaviors for all mobs to avoid stacking
+             let avoidX = 0, avoidY = 0;
+             for (const other of this.monsters) {
+                 if (other !== monster && other instanceof SkeletonEnemy) {
+                     const odx = monster.x - other.x;
+                     const ody = monster.y - other.y;
+                     const odist = Math.hypot(odx, ody);
+                     if (odist < 40 && odist > 0) {
+                         avoidX += (odx / odist) * (40 - odist);
+                         avoidY += (ody / odist) * (40 - odist);
                      }
-                 } else { // Grunt / Shield
-                     if (dist > 30) {
-                         monster.vx = (dx / dist) * monster.speed;
-                         monster.vy = (dy / dist) * monster.speed;
+                 }
+             }
+
+             if (monster.archetype === 'bull') {
+                 monster.stateTimer += dt;
+                 if (monster.aiState === 'idle') {
+                     // Flank slowly before charging
+                     monster.vx = (dy / dist) * (monster.speed * 0.5) + avoidX * 0.1;
+                     monster.vy = (-dx / dist) * (monster.speed * 0.5) + avoidY * 0.1;
+                     monster.state = 'run';
+                     if (monster.stateTimer > 90 && dist < 500) {
+                         monster.aiState = 'telegraph'; monster.stateTimer = 0;
+                         monster.vx = 0; monster.vy = 0; monster.state = 'idle';
+                         this.spawnExclamation(monster);
+                         SoundManager.getInstance().playSound('brute_slam', monster.x, monster.y);
+                         
+                         const tg = new Graphics().moveTo(0,0).lineTo(dx, dy).stroke({ width: 40, color: 0xff0000, alpha: 0.3 });
+                         tg.x = monster.x; tg.y = monster.y; tg.zIndex = monster.y - 1;
+                         this.worldContainer.addChild(tg);
+                         this.telegraphs.push({ sprite: tg, life: 30, x: monster.x, y: monster.y, radius: 0, owner: null });
+                     }
+                 } else if (monster.aiState === 'telegraph') {
+                     monster.vx = 0; monster.vy = 0;
+                     if (monster.stateTimer > 30) {
+                         monster.aiState = 'charge'; monster.stateTimer = 0;
+                         // Lock in target
+                         monster.customData.targetX = this.player.x;
+                         monster.customData.targetY = this.player.y;
+                     }
+                 } else if (monster.aiState === 'charge') {
+                     const cdx = monster.customData.targetX - monster.x;
+                     const cdy = monster.customData.targetY - monster.y;
+                     const cDist = Math.hypot(cdx, cdy);
+                     if (cDist < 10 || monster.stateTimer > 60) {
+                         monster.aiState = 'cooldown'; monster.stateTimer = 0;
+                     } else {
+                         monster.vx = (cdx / cDist) * (monster.speed * 4);
+                         monster.vy = (cdy / cDist) * (monster.speed * 4);
+                         monster.state = 'run';
+                     }
+                     if (dist < 50 && !this.isInvulnerable) {
+                         this.playerHP -= 5; this.isInvulnerable = true; this.invulnerableTimer = 60;
+                         SoundManager.getInstance().playSound('hit'); this.shakeAmount = 35;
+                     }
+                 } else if (monster.aiState === 'cooldown') {
+                     monster.vx = 0; monster.vy = 0; monster.state = 'idle';
+                     if (monster.stateTimer > 60) { monster.aiState = 'idle'; monster.stateTimer = 0; }
+                 }
+             } else if (monster.archetype === 'grunt' || monster.archetype === 'shield') {
+                 monster.stateTimer += dt;
+                 if (monster.aiState === 'idle') {
+                     if (dist > 80) {
+                         monster.vx = (dx / dist) * monster.speed + avoidX * 0.1;
+                         monster.vy = (dy / dist) * monster.speed + avoidY * 0.1;
                          monster.state = 'run';
                      } else {
-                         monster.vx = 0; monster.vy = 0; monster.state = 'attack';
-                         if (this.frameCount % 30 === 0 && !this.isInvulnerable) {
-                             this.playerHP -= 2; this.isInvulnerable = true; this.invulnerableTimer = 60;
-                             SoundManager.getInstance().playSound('hit'); this.shakeAmount = 15;
-                         }
+                         monster.aiState = 'telegraph'; monster.stateTimer = 0;
+                         monster.vx = 0; monster.vy = 0; monster.state = 'idle';
+                         this.spawnExclamation(monster);
                      }
+                 } else if (monster.aiState === 'telegraph') {
+                     monster.vx = 0; monster.vy = 0;
+                     if (monster.stateTimer > 20) {
+                         monster.aiState = 'lunge'; monster.stateTimer = 0;
+                     }
+                 } else if (monster.aiState === 'lunge') {
+                     monster.vx = (dx / dist) * (monster.speed * 2.5);
+                     monster.vy = (dy / dist) * (monster.speed * 2.5);
+                     monster.state = 'attack';
+                     if (dist < 40 && !this.isInvulnerable) {
+                         this.playerHP -= (monster.archetype === 'shield' ? 3 : 2); 
+                         this.isInvulnerable = true; this.invulnerableTimer = 60;
+                         SoundManager.getInstance().playSound('hit'); this.shakeAmount = 15;
+                     }
+                     if (monster.stateTimer > 15) {
+                         monster.aiState = 'cooldown'; monster.stateTimer = 0;
+                     }
+                 } else if (monster.aiState === 'cooldown') {
+                     monster.vx = 0; monster.vy = 0; monster.state = 'idle';
+                     if (monster.stateTimer > 40) { monster.aiState = 'idle'; monster.stateTimer = 0; }
                  }
              } else if (monster.archetype === 'spider') {
                  monster.stateTimer += dt;
                  if (monster.aiState === 'idle') {
-                     monster.vx = (dx / dist) * monster.speed;
-                     monster.vy = (dy / dist) * monster.speed;
+                     monster.vx = (dx / dist) * monster.speed + avoidX * 0.1;
+                     monster.vy = (dy / dist) * monster.speed + avoidY * 0.1;
                      monster.state = 'run';
-                     if (monster.stateTimer > 180 && dist < 300) {
+                     if (monster.stateTimer > 120 && dist < 400) {
                          monster.aiState = 'burrow'; monster.stateTimer = 0;
                          monster.alpha = 0; // completely invisible
                      }
                  } else if (monster.aiState === 'burrow') {
-                     monster.vx = (dx / dist) * (monster.speed * 1.5);
-                     monster.vy = (dy / dist) * (monster.speed * 1.5);
-                     // Dust trail
-                     if (Math.random() < 0.4) this.spawnParticles(monster.x, monster.y, 0x555555, 1);
+                     // Fast tracking while underground
+                     monster.vx = (dx / dist) * (monster.speed * 2);
+                     monster.vy = (dy / dist) * (monster.speed * 2);
+                     if (Math.random() < 0.6) this.spawnParticles(monster.x, monster.y, 0x555555, 1);
                      
-                     if (monster.stateTimer > 120 && dist < 50) {
+                     if (monster.stateTimer > 60 && dist < 60) {
+                         monster.aiState = 'telegraph'; monster.stateTimer = 0;
+                         this.spawnExclamation(monster);
+                     } else if (monster.stateTimer > 180) { // Force pop if chased too long
+                         monster.aiState = 'idle'; monster.stateTimer = 0; monster.alpha = 1.0;
+                     }
+                 } else if (monster.aiState === 'telegraph') {
+                     monster.vx = 0; monster.vy = 0;
+                     if (monster.stateTimer > 15) {
                          monster.aiState = 'surface'; monster.stateTimer = 0;
                          monster.alpha = 1.0;
-                         this.spawnExclamation(monster);
-                         if (!this.isInvulnerable) {
+                         if (!this.isInvulnerable && dist < 60) {
                              this.playerHP -= 3; this.isInvulnerable = true; this.invulnerableTimer = 60;
                              SoundManager.getInstance().playSound('hit'); this.shakeAmount = 20;
                          }
-                     } else if (monster.stateTimer > 200) {
-                         monster.aiState = 'idle'; monster.stateTimer = 0; monster.alpha = 1.0;
                      }
                  } else if (monster.aiState === 'surface') {
                      monster.vx = 0; monster.vy = 0; monster.state = 'attack';
-                     if (monster.stateTimer > 60) { monster.aiState = 'idle'; monster.stateTimer = 0; }
+                     if (monster.stateTimer > 40) { monster.aiState = 'idle'; monster.stateTimer = 0; }
                  }
              } else if (monster.archetype === 'bomber') {
-                 if (dist < 100 && monster.aiState !== 'fuse') {
+                 if (dist < 120 && monster.aiState !== 'fuse') {
                      monster.aiState = 'fuse';
                      this.spawnExclamation(monster);
                  }
                  if (monster.aiState === 'fuse') {
                      monster.stateTimer += dt;
+                     // Stop moving, flash red
                      monster.vx = 0; monster.vy = 0; monster.state = 'attack';
                      monster.tint = (Math.floor(monster.stateTimer / 5) % 2 === 0) ? 0xff0000 : 0xffffff;
+                     monster.scale.set(1 + (monster.stateTimer / 48) * 0.5); // Swell up
+                     
                      if (monster.stateTimer > 48) { // 0.8s fuse
                          monster.hp = 0; // Trigger death and explosion logic below
                      }
                  } else {
-                     monster.vx = (dx / dist) * monster.speed;
-                     monster.vy = (dy / dist) * monster.speed;
+                     monster.vx = (dx / dist) * monster.speed + avoidX * 0.1;
+                     monster.vy = (dy / dist) * monster.speed + avoidY * 0.1;
                      monster.state = 'run';
-                     if (Math.random() < 0.3) this.spawnParticles(monster.x, monster.y - 16, 0xffaa00, 1); // sparks
+                     if (Math.random() < 0.3) this.spawnParticles(monster.x, monster.y - 16, 0xffaa00, 1);
                  }
              } else if (monster.archetype === 'archer') {
-                 if (dist < 250) {
-                     monster.vx = -(dx / dist) * monster.speed; monster.vy = -(dy / dist) * monster.speed; monster.state = 'run';
-                 } else if (dist > 450) {
-                     monster.vx = (dx / dist) * monster.speed; monster.vy = (dy / dist) * monster.speed; monster.state = 'run';
-                 } else {
-                     monster.vx = 0; monster.vy = 0; monster.state = 'attack';
-                     if (this.frameCount % 90 === 60) {
-                         // Telegraph line and exclamation
-                         this.spawnExclamation(monster);
-                         const tg = new Graphics().moveTo(0,0).lineTo(dx, dy).stroke({ width: 2, color: 0xff0000, alpha: 0.5 });
-                         tg.x = monster.x; tg.y = monster.y - 16; tg.zIndex = monster.y;
-                         this.worldContainer.addChild(tg);
-                         this.telegraphs.push({ sprite: tg, life: 30, x: monster.x, y: monster.y, radius: 0, owner: null });
-                     }
-                     if (this.frameCount % 90 === 0) {
-                         const baseAngle = Math.atan2(dy, dx);
-                         // Bullet hell spread: 5 bullets, slower speed (4)
-                         for (let i = -2; i <= 2; i++) {
-                             const angle = baseAngle + i * 0.15;
-                             const ebullet = new Sprite(this.weaponTextures.ebullet);
-                             ebullet.anchor.set(0.5); ebullet.scale.set(4);
-                             ebullet.x = monster.x; ebullet.y = monster.y - 16;
-                             this.worldContainer.addChild(ebullet);
-                             this.bullets.push({ sprite: ebullet, vx: Math.cos(angle)*4, vy: Math.sin(angle)*4, isEnemy: true, bounces: 2 } as any); 
+                 monster.stateTimer += dt;
+                 if (monster.aiState === 'idle') {
+                     if (dist < 200) {
+                         monster.vx = -(dx / dist) * monster.speed + avoidX * 0.1; 
+                         monster.vy = -(dy / dist) * monster.speed + avoidY * 0.1; 
+                         monster.state = 'run';
+                     } else if (dist > 400) {
+                         monster.vx = (dx / dist) * monster.speed + avoidX * 0.1; 
+                         monster.vy = (dy / dist) * monster.speed + avoidY * 0.1; 
+                         monster.state = 'run';
+                     } else {
+                         monster.vx = avoidX * 0.1; monster.vy = avoidY * 0.1; monster.state = 'idle';
+                         if (monster.stateTimer > 60) {
+                             monster.aiState = 'telegraph'; monster.stateTimer = 0;
+                             this.spawnExclamation(monster);
+                             const tg = new Graphics().moveTo(0,0).lineTo(dx, dy).stroke({ width: 2, color: 0xff0000, alpha: 0.5 });
+                             tg.x = monster.x; tg.y = monster.y - 16; tg.zIndex = monster.y;
+                             this.worldContainer.addChild(tg);
+                             this.telegraphs.push({ sprite: tg, life: 30, x: monster.x, y: monster.y, radius: 0, owner: null });
                          }
-                         SoundManager.getInstance().playSound('shoot', monster.x, monster.y);
                      }
+                 } else if (monster.aiState === 'telegraph') {
+                     monster.vx = 0; monster.vy = 0;
+                     if (monster.stateTimer > 30) {
+                         monster.aiState = 'fire'; monster.stateTimer = 0;
+                     }
+                 } else if (monster.aiState === 'fire') {
+                     monster.vx = 0; monster.vy = 0; monster.state = 'attack';
+                     const baseAngle = Math.atan2(dy, dx);
+                     // Bullet hell spread: 3 fast bullets
+                     for (let i = -1; i <= 1; i++) {
+                         const angle = baseAngle + i * 0.2;
+                         const ebullet = new Sprite(this.weaponTextures.ebullet);
+                         ebullet.anchor.set(0.5); ebullet.scale.set(4);
+                         ebullet.x = monster.x; ebullet.y = monster.y - 16;
+                         this.worldContainer.addChild(ebullet);
+                         this.bullets.push({ sprite: ebullet, vx: Math.cos(angle)*6, vy: Math.sin(angle)*6, isEnemy: true, bounces: 0 } as any); 
+                     }
+                     SoundManager.getInstance().playSound('shoot', monster.x, monster.y);
+                     monster.aiState = 'idle'; monster.stateTimer = 0;
                  }
              } else if (monster.archetype === 'shaman') {
                  monster.stateTimer += dt;
-                 // Stay away from player
-                 if (dist < 300) {
-                     monster.vx = -(dx / dist) * monster.speed; monster.vy = -(dy / dist) * monster.speed; monster.state = 'run';
-                 } else {
+                 if (monster.aiState === 'idle') {
+                     if (dist < 300) {
+                         monster.vx = -(dx / dist) * monster.speed + avoidX * 0.1; 
+                         monster.vy = -(dy / dist) * monster.speed + avoidY * 0.1; 
+                         monster.state = 'run';
+                     } else {
+                         monster.vx = avoidX * 0.1; monster.vy = avoidY * 0.1; monster.state = 'idle';
+                     }
+                     if (monster.stateTimer > 240) {
+                         monster.aiState = 'telegraph'; monster.stateTimer = 0;
+                         this.spawnExclamation(monster);
+                         const pulse = new Graphics().circle(0, 0, 300).stroke({ width: 2, color: 0x00ff00, alpha: 0.5 });
+                         pulse.x = monster.x; pulse.y = monster.y; pulse.zIndex = monster.y - 1;
+                         this.worldContainer.addChild(pulse);
+                         this.telegraphs.push({ sprite: pulse, life: 30, x: monster.x, y: monster.y, radius: 300, owner: null });
+                     }
+                 } else if (monster.aiState === 'telegraph') {
+                     monster.vx = 0; monster.vy = 0;
+                     if (monster.stateTimer > 30) {
+                         monster.aiState = 'cast'; monster.stateTimer = 0;
+                     }
+                 } else if (monster.aiState === 'cast') {
                      monster.vx = 0; monster.vy = 0; monster.state = 'idle';
-                 }
-                 // Heal pulse every 5 seconds
-                 if (monster.stateTimer > 270 && monster.aiState !== 'casting') {
-                     monster.aiState = 'casting';
-                     this.spawnExclamation(monster);
-                 }
-                 if (monster.stateTimer > 300) {
-                     monster.stateTimer = 0;
-                     monster.aiState = 'idle';
                      SoundManager.getInstance().playSound('shaman_cast', monster.x, monster.y);
-                     const pulse = new Graphics().circle(0, 0, 200).fill({ color: 0x00ff00, alpha: 0.3 });
+                     const pulse = new Graphics().circle(0, 0, 300).fill({ color: 0x00ff00, alpha: 0.3 });
                      pulse.x = monster.x; pulse.y = monster.y; pulse.zIndex = monster.y - 1;
                      this.worldContainer.addChild(pulse);
-                     this.telegraphs.push({ sprite: pulse, life: 30, x: monster.x, y: monster.y, radius: 200, owner: null });
+                     this.telegraphs.push({ sprite: pulse, life: 15, x: monster.x, y: monster.y, radius: 300, owner: null });
                      
                      for (const other of this.monsters) {
-                         if (Math.hypot(other.x - monster.x, other.y - monster.y) < 200) {
-                             other.hp = Math.min(other.maxHp, other.hp + 50);
-                             this.spawnParticles(other.x, other.y, 0x00ff00, 5);
+                         if (Math.hypot(other.x - monster.x, other.y - monster.y) < 300) {
+                             other.hp = Math.min(other.maxHp, other.hp + 100);
+                             this.spawnParticles(other.x, other.y, 0x00ff00, 10);
+                             // Speed buff
+                             other.speed *= 1.5;
+                             setTimeout(() => { if (!other.destroyed) other.speed /= 1.5; }, 3000);
                          }
                      }
+                     monster.aiState = 'idle'; monster.stateTimer = 0;
                  }
              }
           } else {
@@ -4370,8 +4454,8 @@ export class GameManager {
           }
 
           // Flip sprite based on direction
-          if (monster.vx < 0) monster.scale.x = -1;
-          else if (monster.vx > 0) monster.scale.x = 1;
+          if (monster.vx < 0) monster.scale.x = -Math.abs(monster.scale.x);
+          else if (monster.vx > 0) monster.scale.x = Math.abs(monster.scale.x);
 
           monster.update(dt);
           
